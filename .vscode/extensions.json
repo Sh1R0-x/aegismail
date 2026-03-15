@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "EditorConfig.EditorConfig",
+    "bmewburn.vscode-intelephense-client",
+    "eamodio.gitlens",
+    "GitHub.vscode-pull-request-github",
+    "onecentlin.laravel-blade",
+    "Vue.volar"
+  ]
+}

@@ -1,0 +1,11 @@
+.DS_Store
+Thumbs.db
+
+/.fleet
+/.idea
+/.codex
+/.cursor
+/.zed
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/settings.json
