@@ -1,5 +1,10 @@
 # AEGIS MAILING — Spécification backend pour Codex
 
+## Rôle de ce document
+
+Ce fichier est une annexe détaillée.
+Les sources de vérité quotidiennes restent `docs/ai/AEGIS_MAILING_MASTER_REFERENCE.md`, `docs/ai/BACKEND_SCOPE.md`, `docs/ai/BACKEND_CONTRACTS.md` et `docs/ai/AI_WORKFLOW_METHOD.md`.
+
 ## 1. Rôle
 
 Tu prends en charge exclusivement le backend et l’architecture serveur.
@@ -458,4 +463,3 @@ Le backend V1 est valide si :
 - bounces reconnus et historisés
 - scoring simple calculé
 - paramètres modifiables en application
-

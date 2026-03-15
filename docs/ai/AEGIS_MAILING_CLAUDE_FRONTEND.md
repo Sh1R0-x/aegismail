@@ -1,5 +1,10 @@
 # AEGIS MAILING — Spécification frontend pour Claude
 
+## Rôle de ce document
+
+Ce fichier est une annexe détaillée.
+Les sources de vérité quotidiennes restent `docs/ai/AEGIS_MAILING_MASTER_REFERENCE.md`, `docs/ai/FRONTEND_SCOPE.md`, `docs/ai/FRONTEND_CONTRACTS.md` et `docs/ai/AI_WORKFLOW_METHOD.md`.
+
 ## 1. Rôle
 
 Tu prends en charge exclusivement le frontend, l’UX et l’intégration visuelle.
@@ -236,4 +241,3 @@ Le frontend V1 est valide si :
 - les réglages sont accessibles et lisibles
 - la timeline est exploitable au quotidien
 - l’ensemble donne un vrai ressenti CRM interne propre
-

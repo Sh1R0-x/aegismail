@@ -1,0 +1,7 @@
+{
+  "name": "@aegis/mailing-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Dedicated mail gateway skeleton for AEGIS MAILING."
+}

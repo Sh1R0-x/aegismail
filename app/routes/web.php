@@ -1,7 +1,42 @@
 <?php
 
+use App\Http\Controllers\Web\ContactsController;
+use App\Http\Controllers\Web\CampaignsController;
+use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DraftsController;
+use App\Http\Controllers\Web\OrganizationsController;
+use App\Http\Controllers\Web\TemplatesController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('/dashboard');
+});
+
+Route::get('/dashboard', DashboardController::class);
+
+Route::get('/contacts', ContactsController::class);
+
+Route::get('/organizations', OrganizationsController::class);
+
+Route::get('/mails', function () {
+    return Inertia::render('Mails/Index');
+});
+
+Route::get('/drafts', DraftsController::class);
+
+Route::get('/templates', TemplatesController::class);
+
+Route::get('/campaigns', CampaignsController::class);
+
+Route::get('/activity', function () {
+    return Inertia::render('Activity/Index');
+});
+
+Route::get('/settings', function () {
+    return Inertia::render('Settings/Index');
+});
+
+Route::get('/users', function () {
+    return Inertia::render('Users/Index');
 });

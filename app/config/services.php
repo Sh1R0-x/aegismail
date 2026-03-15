@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'mail_gateway' => [
+        'base_url' => env('MAIL_GATEWAY_BASE_URL', 'http://127.0.0.1:3001'),
+        'shared_secret' => env('MAIL_GATEWAY_SHARED_SECRET'),
+        'timeout' => (int) env('MAIL_GATEWAY_TIMEOUT', 10),
+    ],
+
 ];

@@ -1,133 +1,264 @@
-# AEGIS MAILING — Référence projet V1
+> Legacy location. The canonical project reference lives in `docs/ai/AEGIS_MAILING_MASTER_REFERENCE.md`.
 
-## 1. Objet
+# AEGIS MAILING — MASTER REFERENCE V1
 
-AEGIS MAILING est un outil interne de démarchage et de suivi e-mail pour AEGIS NETWORK.
+## Purpose
 
-Le produit ne reprend pas la logique Gmail de l’ancien projet OppoLES.
-La cible V1 est exclusivement basée sur **une seule boîte OVH MX Plan**.
+This file is the project source of truth for AEGIS MAILING V1.
 
-L’objectif principal est simple :
-- envoyer des mails propres et lisibles
-- suivre tous les échanges sans perdre le fil
-- centraliser les actions dans une seule interface
-- préparer une phase 2 avec IA sans dépendre d’elle pour la V1
+The product is a mailing and outreach tracking tool centered on:
+- sending one-to-one and one-to-many emails
+- reliable tracking of email exchanges
+- contacts and organizations
+- full event history
+- deliverability
+- future AI readiness
 
-## 2. Périmètre V1 figé
+This project does **not** reuse Gmail logic from OppoLES.
+The V1 target is **OVH MX Plan only**.
 
-### Inclus
-- une seule boîte mail OVH MX Plan
-- envoi SMTP
-- lecture/synchronisation IMAP
-- mails simples
-- mails multiples
-- brouillons éditables
-- modèles réutilisables
-- pièces jointes
-- tracking opens / clicks
-- détection de réponses humaines
-- détection d’auto-réponses / absences / accusés automatiques
-- détection soft bounce / hard bounce
-- timeline unifiée par thread / contact / organisation
-- scoring simple sans IA
-- réglages administrables depuis l’application
-- gestion utilisateur minimale
+## Frozen V1 scope
 
-## 3. Stack retenue
+### Mail provider
+- one mailbox only
+- OVH MX Plan only
+- IMAP for inbound sync
+- SMTP for outbound send
+- no Gmail
+- no Google APIs
+- no multi-provider support in V1
 
-### Produit métier
-- Laravel 12
-- PHP 8.3+
-- PostgreSQL
-- Redis
-- Inertia + Vue 3
-- Tailwind CSS
+### Product shape
+- CRM-style application
+- left sidebar
+- top header
+- admin settings inside the app
+- minimal user management in V1
 
-### Moteur mail dédié
-- Node.js LTS
-- TypeScript strict
-- IMAPFlow
-- Nodemailer
-- PostalMime
+### Main user flows
+- simple mail
+- multiple mail
+- drafts
+- reusable templates
+- campaigns
+- activity / timeline
+- contacts
+- organizations
+- settings
 
-## 4. Principe d’architecture
+## Architecture
 
-### Répartition
-- **Laravel** = métier, auth, utilisateurs, contacts, organisations, campagnes, envois, brouillons, scoring, timeline, réglages, API interne
-- **Node/TypeScript** = moteur mail, SMTP, IMAP, parsing MIME, tracking, threading, classification technique des messages, cadence d’envoi
-- **Redis** = queue, scheduling, locks, débit d’envoi
-- **PostgreSQL** = vérité métier et historique
+### Backend / app
+- Laravel for business app, auth, settings, contacts, organizations, campaigns, timeline, scoring, internal API
+- PostgreSQL for persistent business data
+- Redis for queues, scheduling, locks, send cadence
 
-### Règle impérative
-Le moteur mail est un composant interne spécialisé.
-Le produit ne doit jamais réintroduire une dépendance Gmail.
+### Mail engine
+- Node.js + TypeScript
+- IMAP sync
+- SMTP send
+- MIME parsing
+- threading
+- bounce parsing
+- auto-reply detection
+- click/open tracking
+- progressive send cadence
 
-## 5. Cible messagerie
+### Architecture rule
+Laravel does not own low-level email complexity alone.
+The mail engine does not own product UI or CRM logic.
 
-### Provider
-- OVH MX Plan uniquement
+## Core product principles
 
-### Réception
-- IMAP
+1. Strong traceability
+2. Robust threading
+3. Unified timeline
+4. Deliverability first
+5. Admin-editable settings
+6. AI-ready data model without AI dependency in V1
 
-### Envoi
-- SMTP
+## Message identity
 
-### Mode de synchronisation
-- polling régulier Inbox / Sent
-- pas de webhook provider natif en V1
+Every outbound or inbound message must preserve:
+- Message-ID
+- aegis_tracking_id
+- IMAP UID / folder technical pointers
+- internal mail_thread_id
 
-### File d’envoi
-- même queue pour mails simples et mails multiples
-- pas de traitement séparé V1
+### Outbound rule
+- generate aegis_tracking_id
+- generate or control Message-ID
+- store before SMTP send
+- preserve reply headers when replying
 
-## 6. Contraintes métier validées
+### Inbound matching priority
+1. In-Reply-To
+2. References
+3. known Message-ID correlation
+4. cautious heuristic on normalized subject + participants + time window
+5. create a new thread if confidence is too low
 
-- une seule boîte mail
-- signature globale unique
-- brouillon éditable avant planification
-- modèles réutilisables dès la V1
-- pièces jointes supportées
-- scoring simple sans IA
-- réponses automatiques gérées dès la V1
-- état exploitable de chaque mail envoyé
-- possibilité de reprogrammer une action après lecture d’une auto-réponse
-- interface CRM avec sidebar à gauche
-- réglages accessibles dans l’application
-- volume par défaut : 100 e-mails / jour
-- plafond journalier modifiable par l’administrateur
-- envoi progressif obligatoire
+## Mail sync
 
-## 7. Règle produit prioritaire
+### V1 folders
+- INBOX
+- SENT
 
-Le cœur du projet est la qualité d’envoi et le suivi du fil des échanges.
+### Sync rules
+- scheduled sync every 1 to 5 minutes
+- idempotent processing
+- mailbox lock
+- error-safe resume
+- timestamped technical logs
 
-La logique prioritaire n’est pas “faire joli”, mais :
-- arriver en boîte
-- rester lisible partout
-- suivre les réponses
-- détecter les anomalies
-- permettre une action rapide ensuite
+### Distinguish these cases
+- human reply
+- auto-reply / out of office
+- automatic acknowledgement
+- soft bounce
+- hard bounce
+- technical failure
 
-## 8. Identité des messages et threading
+Auto-replies must never be treated as human replies.
 
-Chaque mail sortant doit avoir plusieurs identifiants :
-- `Message-ID` standard
-- `aegis_tracking_id` interne
-- `mail_thread_id` interne
-- UID technique IMAP si disponible côté dossier
+## Deliverability and email quality
 
-### Rattachement entrant
-Ordre de priorité :
-1. `In-Reply-To`
-2. `References`
-3. corrélation sur `Message-ID`
-4. heuristique sujet + participants + fenêtre temporelle
-5. création d’un nouveau thread si confiance insuffisante
+### Domain expectations
+- valid SPF
+- valid DKIM
+- published DMARC
+- coherent From identity
+- bounce/error monitoring
 
-## 9. États à gérer
+### Message construction
+Every outbound email must include:
+- plain-text version
+- HTML version designed for email clients
+- correct headers
+- stable Message-ID
+- safe links
+- conservative and robust structure
 
-### États d’envoi / suivi
+### Rendering compatibility targets
+- Gmail web
+- Outlook Windows
+- Outlook web
+- Apple Mail
+- iPhone Mail
+- Gmail mobile
+
+### Images
+- secondary only
+- message must remain understandable without images
+- alt text required
+- limited weight
+- HTTPS only
+
+## Progressive sending
+
+This is the core of the product.
+
+### Rules
+- one queue for all outgoing messages
+- never blast all at once
+- configurable throughput
+- configurable daily ceiling
+- configurable hourly ceiling
+- configurable minimum delay
+- optional slow mode
+- automatic stop on abnormal errors
+
+### Preflight
+Before any send or scheduling launch, the UI must show:
+- valid mail configuration
+- usable recipients
+- exclusions / opt-outs
+- invalid recipients
+- estimated weight
+- plain-text presence
+- acceptable HTML structure
+- remote images warnings
+- deliverability warnings
+
+## Validated business decisions
+- one mailbox in V1
+- OVH MX Plan only
+- simple and multiple mail inside the same product
+- same sending queue for all mails
+- attachments supported in V1
+- one global signature
+- editable draft before scheduling
+- reusable templates in V1
+- simple scoring without AI in V1
+- auto-reply handling in V1
+- default target: around 100 emails/day
+- daily ceiling editable in settings
+- absolute priority: deliverability + reliable exchange tracking
+
+## Simple scoring V1
+
+Signals:
+- sent
+- delivered_if_known
+- opened
+- clicked
+- replied
+- auto_replied
+- soft_bounced
+- hard_bounced
+- unsubscribed
+- time since last interaction
+
+Heat labels:
+- cold
+- warm
+- interested
+- engaged
+- exclude
+
+## Main navigation
+- Dashboard
+- Mails
+- Contacts
+- Organizations
+- Drafts
+- Templates
+- Campaigns
+- Activity
+- Settings
+- Users
+
+## Admin settings sections
+
+### Mail
+- sender address
+- sender name
+- global signature
+- IMAP/SMTP config
+- sync state
+
+### Deliverability
+- SPF / DKIM / DMARC checks
+- alert thresholds
+- tracking toggles
+
+### Cadence
+- daily ceiling
+- hourly ceiling
+- minimum delay
+- slow mode
+- auto-stop rules
+
+### Scoring
+- score points
+- heat levels
+
+### Product
+- users / roles
+- templates
+- status categories
+
+## Frozen statuses
 - draft
 - scheduled
 - queued
@@ -144,171 +275,40 @@ Ordre de priorité :
 - failed
 - cancelled
 
-### Types de réponses automatiques
-- out_of_office
-- auto_acknowledgement
-- system_auto_reply
-- probable_auto_reply
+## AI role split
 
-## 10. Délivrabilité
+### Claude
+Owns:
+- UI
+- UX
+- Vue components
+- layouts
+- Inertia pages
+- visual consistency
+- frontend docs
+- frontend prop contract proposals
 
-### Exigences minimales
-- SPF valide
-- DKIM valide
-- DMARC publié
-- version texte obligatoire
-- HTML e-mail sobre et compatible
-- liens propres
-- images secondaires seulement
-- alt sur les images
-- poids maîtrisé
-- pas de JavaScript
-- pas de polices exotiques critiques
+Must not:
+- redesign backend architecture
+- own final DB schema decisions
+- implement SMTP/IMAP logic
+- move outside validated UX scope
 
-### Préflight avant envoi
-Avant lancement, l’application doit vérifier :
-- configuration SMTP/IMAP
-- destinataires exclus / invalides
-- présence version texte
-- poids estimé
-- nombre de liens
-- présence d’images distantes
-- alertes structure HTML
-- état d’authentification domaine
+### Codex
+Owns:
+- Laravel backend
+- migrations
+- models
+- services
+- controllers
+- routes
+- policies
+- jobs
+- backend tests
+- data contracts for frontend
+- integration with mail engine
 
-## 11. Algorithme d’envoi progressif
-
-L’envoi ne doit jamais partir en rafale.
-
-### Règles V1
-- tous les messages passent par une queue Redis
-- consommation par workers dédiés
-- cadence configurable depuis les réglages
-- jitter léger entre messages
-- plafonds horaires et journaliers configurables
-- fenêtres d’envoi configurables
-- arrêt automatique si trop d’erreurs ou trop de hard bounces
-- mode ralenti activable
-
-### Valeurs de départ recommandées
-- plafond journalier par défaut : 100
-- plafond horaire initial conservateur : 10 à 15
-- délai minimal entre messages : configurable
-
-## 12. Scoring simple sans IA
-
-But : donner un niveau de chaleur opérationnel.
-
-### Signaux
-- envoyé
-- ouvert
-- cliqué
-- répondu
-- auto-répondu
-- soft bounce
-- hard bounce
-- désinscription
-- dernière activité
-
-### Lecture métier
-- froid
-- tiède
-- intéressé
-- engagé
-- à exclure
-
-Le scoring doit être explicable et modifiable depuis les réglages.
-
-## 13. Données principales
-
-### Entités métier
-- users
-- mailbox_accounts
-- organizations
-- contacts
-- contact_emails
-- mail_templates
-- mail_drafts
-- mail_campaigns
-- mail_recipients
-- mail_threads
-- mail_messages
-- mail_attachments
-- mail_events
-- settings
-- audit_logs
-
-## 14. Paramètres administrables dans l’application
-
-### Mail
-- adresse d’envoi
-- nom d’expéditeur
-- signature globale
-- fenêtre d’envoi
-- plafond journalier
-- plafond horaire
-- délai minimal entre envois
-- mode ralenti
-- tracking opens/clicks
-- paramètres IMAP/SMTP si autorisés
-
-### Délivrabilité
-- vérifications SPF / DKIM / DMARC
-- seuils d’alerte bounce
-- règles d’arrêt automatique
-
-### Produit
-- rôles utilisateur minimum
-- statuts visibles
-- scoring simple
-- catégories d’auto-réponses
-- modèles réutilisables
-
-## 15. UX attendue
-
-### Layout global
-- sidebar gauche permanente
-- zone contenu centrale
-- actions secondaires et réglages accessibles en haut à droite selon les écrans
-- ergonomie CRM simple, lisible, dense mais propre
-
-### Sections principales
-- Dashboard
-- Contacts
-- Organisations
-- Mails
-- Brouillons
-- Modèles
-- Campagnes
-- Timeline / Activité
-- Réglages
-- Utilisateurs
-
-## 16. Phase 2 préparée mais non bloquante
-
-La V1 doit stocker les données utiles à une future couche IA :
-- texte nettoyé
-- langue détectée
-- délais de réponse
-- signaux opens/clicks
-- classification technique des messages
-- tags manuels opérateur
-
-L’IA ne doit pas être nécessaire au fonctionnement V1.
-
-## 17. Définition de fini V1
-
-Le produit est considéré prêt V1 si :
-- un utilisateur peut configurer la boîte MX Plan
-- envoyer un mail simple
-- envoyer un mail multiple
-- sauvegarder un brouillon
-- réutiliser un modèle
-- voir chaque message dans une timeline
-- rattacher correctement une réponse normale
-- distinguer une auto-réponse
-- distinguer un bounce
-- suivre ouvertures/clics quand disponibles
-- reprogrammer une action depuis l’interface
-- modifier les paramètres clés depuis les réglages
-
+Must not:
+- redefine UI/UX or design direction
+- improvise a different product structure
+- rewrite frontend architecture without explicit need
