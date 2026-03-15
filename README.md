@@ -10,8 +10,84 @@ Version V1 actuellement figée :
 - aucune logique Gmail, Google API, OAuth Google ou multi-provider
 - backend métier en Laravel
 - moteur mail dédié en Node.js + TypeScript
-- PostgreSQL + Redis en cible produit
+- SQLite en local, PostgreSQL en cible production
+- database queue en local, Redis recommandé en production
 - une seule queue d'envoi pour tous les mails
+- **pas de Docker, pas de Sail** — développement local natif
+
+## Prérequis
+
+- PHP >= 8.2 avec extensions : pdo_sqlite, mbstring, openssl, tokenizer, xml, ctype, json, bcmath
+- Composer
+- Node.js >= 18 + npm
+- (optionnel) PostgreSQL si on veut tester avec la cible production
+- (optionnel) Redis si on veut tester la queue/cache production
+
+Aucun outil conteneurisé (Docker, Sail, docker-compose) n'est utilisé ni prévu.
+
+## Installation locale (première fois)
+
+```powershell
+# 1. Installer les dépendances PHP
+cd "C:\Dev\Aegis mail\app"
+composer install
+
+# 2. Copier l'environnement et générer la clé
+copy .env.example .env
+php artisan key:generate
+
+# 3. Créer la base SQLite et migrer
+New-Item -ItemType File -Path database\database.sqlite -Force
+php artisan migrate
+
+# 4. Installer les dépendances JS
+npm install
+
+# 5. (optionnel) Installer les dépendances du mail-gateway
+cd "C:\Dev\Aegis mail\mail-gateway"
+npm install
+```
+
+## Lancement du serveur de développement
+
+La procédure locale confirmée et testée est un script PowerShell unique :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+Ce script :
+
+- vérifie `php`, `composer` et `npm`
+- vérifie les dépendances `vendor/` et `node_modules/`
+- crée `.env` depuis `.env.example` si nécessaire
+- génère `APP_KEY` si nécessaire
+- crée `database/database.sqlite` si nécessaire
+- exécute `php artisan migrate --no-interaction`
+- démarre `php artisan serve --host=127.0.0.1 --port=8001 --no-reload`
+- démarre `npm run dev -- --host 127.0.0.1 --port 5173`
+
+L'application est accessible sur `http://127.0.0.1:8001/dashboard`.
+
+Pour arrêter proprement :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -Action stop
+```
+
+Pour vérifier l'état :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -Action status
+```
+
+## Commandes après reboot / fermeture VS Code
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+C'est tout. Si la base a été supprimée ou corrompue, le script recrée le fichier SQLite mais il faut laisser tourner la migration automatique intégrée.
 
 ## Architecture
 
@@ -136,6 +212,28 @@ cd "C:\Dev\Aegis mail\mail-gateway"
 npm install
 npm run build
 ```
+
+## Mise en production — cible OVH
+
+La cible de déploiement est un hébergement web OVH classique (mutualisé ou VPS basique).
+
+### Compatible sans difficulté
+
+- Laravel + PHP >= 8.2 (disponible sur les offres OVH web / VPS)
+- PostgreSQL ou MySQL (disponible sur les offres OVH mutualisées)
+- Vite build statique (`npm run build` en local, déployer le dossier `public/build`)
+
+### Points d'attention pour un OVH mutualisé
+
+- **Queue worker** : un mutualisé OVH n'a pas de processus long. Il faut soit utiliser un cron artisan (`schedule:run`) pour traiter les jobs périodiquement, soit passer sur un VPS pour avoir un vrai worker.
+- **Redis** : non disponible sur mutualisé OVH. Utiliser `database` pour queue et cache, ou installer Redis sur un VPS.
+- **mail-gateway Node.js** : non exécutable sur un mutualisé classique. Nécessite un VPS ou un service externe si le mail-gateway est activé.
+- **Cron** : configurer `* * * * * php artisan schedule:run >> /dev/null 2>&1` côté OVH.
+- **HTTPS** : Let's Encrypt est disponible gratuitement sur les offres OVH.
+
+### Recommandation réaliste
+
+Pour la V1 complète (avec queue worker + mail-gateway), un **VPS OVH basique** est le minimum viable. Un mutualisé peut convenir pour un mode dégradé sans envoi progressif temps réel.
 
 ## État actuel V1
 

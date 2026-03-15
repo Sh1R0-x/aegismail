@@ -13,17 +13,19 @@ Tu ne modifies pas l’UI/UX hors éléments strictement nécessaires à l’exp
 ## 2. Contexte figé
 
 - Laravel 12 pour le produit métier
-- PostgreSQL
-- Redis
+- SQLite en local, PostgreSQL en cible production
+- database queue en local, Redis recommandé en production
 - une seule boîte OVH MX Plan
 - aucune logique Gmail
 - aucun provider alternatif en V1
 - même queue pour mails simples et mails multiples
 - moteur mail dédié en Node.js + TypeScript
+- pas de Docker ni de Sail — développement local natif
 
 ## 3. Objectif backend V1
 
 Construire un backend fiable qui permet :
+
 - configuration d’une boîte MX Plan
 - envoi progressif d’e-mails
 - synchronisation Inbox / Sent
@@ -35,10 +37,12 @@ Construire un backend fiable qui permet :
 ## 4. Découpage technique recommandé
 
 ### Monorepo / dossier projet
+
 - `/app` Laravel métier
 - `/mail-gateway` Node/TypeScript moteur mail
 
 ### Responsabilités Laravel
+
 - auth
 - users / roles minimum
 - settings
@@ -50,6 +54,7 @@ Construire un backend fiable qui permet :
 - audit log
 
 ### Responsabilités mail-gateway
+
 - test IMAP / SMTP
 - send SMTP
 - sync IMAP Inbox / Sent
@@ -72,6 +77,7 @@ Construire un backend fiable qui permet :
 ## 6. Schéma de données minimum
 
 ### mailbox_accounts
+
 - id
 - user_id nullable
 - provider = `ovh_mx_plan`
@@ -96,6 +102,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### organizations
+
 - id
 - name
 - domain nullable
@@ -105,6 +112,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### contacts
+
 - id
 - organization_id nullable
 - first_name nullable
@@ -118,6 +126,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### contact_emails
+
 - id
 - contact_id
 - email unique per contact
@@ -130,6 +139,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_templates
+
 - id
 - name
 - slug unique
@@ -142,6 +152,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_drafts
+
 - id
 - mailbox_account_id
 - user_id
@@ -158,6 +169,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_campaigns
+
 - id
 - mailbox_account_id
 - user_id
@@ -173,6 +185,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_recipients
+
 - id
 - campaign_id
 - organization_id nullable
@@ -192,6 +205,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_threads
+
 - id
 - public_uuid
 - mailbox_account_id
@@ -209,6 +223,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_messages
+
 - id
 - thread_id
 - mailbox_account_id
@@ -237,6 +252,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_attachments
+
 - id
 - message_id
 - original_name
@@ -250,6 +266,7 @@ Construire un backend fiable qui permet :
 - updated_at
 
 ### mail_events
+
 - id
 - mailbox_account_id
 - campaign_id nullable
@@ -262,6 +279,7 @@ Construire un backend fiable qui permet :
 - created_at
 
 ### settings
+
 - id
 - key unique
 - value_json
@@ -271,6 +289,7 @@ Construire un backend fiable qui permet :
 ## 7. API interne minimale
 
 ### Réglages
+
 - `GET /api/settings`
 - `PUT /api/settings/general`
 - `PUT /api/settings/mail`
@@ -279,21 +298,25 @@ Construire un backend fiable qui permet :
 - `POST /api/settings/mail/test-smtp`
 
 ### Contacts / organisations
+
 - CRUD standard
 - recherche plein texte simple
 - import CSV plus tard si besoin, pas bloquant V1
 
 ### Templates
+
 - CRUD templates
 - duplication template
 - preview rendu
 
 ### Drafts
+
 - CRUD drafts
 - schedule / unschedule
 - preview final
 
 ### Campaigns / mails
+
 - create from draft
 - enqueue send
 - cancel
@@ -301,6 +324,7 @@ Construire un backend fiable qui permet :
 - list recipients / statuses
 
 ### Threads / messages
+
 - list
 - show
 - filters by status/classification
@@ -309,6 +333,7 @@ Construire un backend fiable qui permet :
 ## 8. Réglages administrables à exposer
 
 ### settings.mail
+
 - sender_email
 - sender_name
 - global_signature_html
@@ -325,6 +350,7 @@ Construire un backend fiable qui permet :
 - send_window_end
 
 ### settings.throttling
+
 - daily_limit_default
 - hourly_limit_default
 - min_delay_seconds
@@ -335,6 +361,7 @@ Construire un backend fiable qui permet :
 - stop_on_hard_bounce_threshold
 
 ### settings.deliverability
+
 - tracking_opens_enabled
 - tracking_clicks_enabled
 - max_links_warning_threshold
@@ -343,6 +370,7 @@ Construire un backend fiable qui permet :
 - attachment_size_warning_mb
 
 ### settings.scoring
+
 - open_points
 - click_points
 - reply_points
@@ -355,7 +383,8 @@ Construire un backend fiable qui permet :
 ## 9. Moteur d’envoi
 
 ### Règles
-- tout envoi passe par Redis
+
+- tout envoi passe par la queue configurée (database en local, Redis en production)
 - tous les types de mails partagent la même queue
 - cadence configurable
 - jitter léger
@@ -364,6 +393,7 @@ Construire un backend fiable qui permet :
 - arrêt automatique si erreurs anormales
 
 ### Flux sortant
+
 1. le draft est validé
 2. préflight exécuté
 3. campagne/envoi planifié
@@ -377,16 +407,19 @@ Construire un backend fiable qui permet :
 ## 10. Synchronisation IMAP
 
 ### Dossiers V1
+
 - INBOX
 - SENT
 
 ### Logique
+
 - polling planifié
 - reprise sur UID
 - locks pour éviter double sync
 - idempotence stricte sur `message_id_header` + `provider_uid`
 
 ### Flux entrant
+
 1. sync récupère les nouveaux messages
 2. parse MIME
 3. extrait headers
@@ -399,25 +432,30 @@ Construire un backend fiable qui permet :
 ## 11. Classification messages entrants
 
 ### Human reply
+
 - réponse normale d’un humain
 
 ### Auto reply
+
 - out of office
 - accusé automatique
 - auto-réponse système
 - probable_auto_reply
 
 ### Bounce
+
 - soft_bounce
 - hard_bounce
 
 ### Règle métier
+
 Une auto-réponse ne vaut pas réponse humaine.
 Elle doit rester visible et actionnable.
 
 ## 12. Préflight backend
 
 Avant tout envoi :
+
 - vérifier mailbox active
 - vérifier SMTP/IMAP testés avec succès récent ou test à la demande
 - vérifier version texte présente
@@ -438,23 +476,27 @@ Avant tout envoi :
 ## 14. Tests attendus
 
 ### Laravel
+
 - feature tests sur settings, drafts, campaigns, threads
 - tests de validation API
 - tests de transitions d’état
 - tests de règles d’exclusion / opt-out
 
 ### mail-gateway
+
 - unit tests parsing headers
 - unit tests classification auto-reply / bounce
 - tests integration IMAP/SMTP mockés
 - tests throttle / queue behavior
 
 ### E2E
+
 - flux brouillon → planification → envoi → sync → réponse → timeline
 
 ## 15. DoD backend
 
 Le backend V1 est valide si :
+
 - config MX Plan enregistrable et testable
 - envoi progressif fonctionnel
 - sync Inbox/Sent fiable

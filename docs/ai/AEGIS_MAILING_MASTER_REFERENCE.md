@@ -5,6 +5,7 @@
 This file is the project source of truth for AEGIS MAILING V1.
 
 The product is a mailing and outreach tracking tool centered on:
+
 - sending one-to-one and one-to-many emails
 - reliable tracking of email exchanges
 - contacts and organizations
@@ -18,6 +19,7 @@ The V1 target is **OVH MX Plan only**.
 ## Frozen V1 scope
 
 ### Mail provider
+
 - one mailbox only
 - OVH MX Plan only
 - IMAP for inbound sync
@@ -27,6 +29,7 @@ The V1 target is **OVH MX Plan only**.
 - no multi-provider support in V1
 
 ### Product shape
+
 - CRM-style application
 - left sidebar
 - top header
@@ -34,6 +37,7 @@ The V1 target is **OVH MX Plan only**.
 - minimal user management in V1
 
 ### Main user flows
+
 - simple mail
 - multiple mail
 - drafts
@@ -47,11 +51,13 @@ The V1 target is **OVH MX Plan only**.
 ## Architecture
 
 ### Backend / app
+
 - Laravel for business app, auth, settings, contacts, organizations, campaigns, timeline, scoring, internal API
-- PostgreSQL for persistent business data
-- Redis for queues, scheduling, locks, send cadence
+- SQLite for local development, PostgreSQL recommended for production
+- database queue driver for local development, Redis recommended for production (queues, locks, send cadence)
 
 ### Mail engine
+
 - Node.js + TypeScript
 - IMAP sync
 - SMTP send
@@ -63,6 +69,7 @@ The V1 target is **OVH MX Plan only**.
 - progressive send cadence
 
 ### Architecture rule
+
 Laravel does not own low-level email complexity alone.
 The mail engine does not own product UI or CRM logic.
 
@@ -78,18 +85,21 @@ The mail engine does not own product UI or CRM logic.
 ## Message identity
 
 Every outbound or inbound message must preserve:
+
 - Message-ID
 - aegis_tracking_id
 - IMAP UID / folder technical pointers
 - internal mail_thread_id
 
 ### Outbound rule
+
 - generate aegis_tracking_id
 - generate or control Message-ID
 - store before SMTP send
 - preserve reply headers when replying
 
 ### Inbound matching priority
+
 1. In-Reply-To
 2. References
 3. known Message-ID correlation
@@ -99,10 +109,12 @@ Every outbound or inbound message must preserve:
 ## Mail sync
 
 ### V1 folders
+
 - INBOX
 - SENT
 
 ### Sync rules
+
 - scheduled sync every 1 to 5 minutes
 - idempotent processing
 - mailbox lock
@@ -110,6 +122,7 @@ Every outbound or inbound message must preserve:
 - timestamped technical logs
 
 ### Distinguish these cases
+
 - human reply
 - auto-reply / out of office
 - automatic acknowledgement
@@ -122,6 +135,7 @@ Auto-replies must never be treated as human replies.
 ## Deliverability and email quality
 
 ### Domain expectations
+
 - valid SPF
 - valid DKIM
 - published DMARC
@@ -129,7 +143,9 @@ Auto-replies must never be treated as human replies.
 - bounce/error monitoring
 
 ### Message construction
+
 Every outbound email must include:
+
 - plain-text version
 - HTML version designed for email clients
 - correct headers
@@ -138,6 +154,7 @@ Every outbound email must include:
 - conservative and robust structure
 
 ### Rendering compatibility targets
+
 - Gmail web
 - Outlook Windows
 - Outlook web
@@ -146,6 +163,7 @@ Every outbound email must include:
 - Gmail mobile
 
 ### Images
+
 - secondary only
 - message must remain understandable without images
 - alt text required
@@ -157,6 +175,7 @@ Every outbound email must include:
 This is the core of the product.
 
 ### Rules
+
 - one queue for all outgoing messages
 - never blast all at once
 - configurable throughput
@@ -167,7 +186,9 @@ This is the core of the product.
 - automatic stop on abnormal errors
 
 ### Preflight
+
 Before any send or scheduling launch, the UI must show:
+
 - valid mail configuration
 - usable recipients
 - exclusions / opt-outs
@@ -179,6 +200,7 @@ Before any send or scheduling launch, the UI must show:
 - deliverability warnings
 
 ## Validated business decisions
+
 - one mailbox in V1
 - OVH MX Plan only
 - simple and multiple mail inside the same product
@@ -196,6 +218,7 @@ Before any send or scheduling launch, the UI must show:
 ## Simple scoring V1
 
 Signals:
+
 - sent
 - delivered_if_known
 - opened
@@ -208,6 +231,7 @@ Signals:
 - time since last interaction
 
 Heat labels:
+
 - cold
 - warm
 - interested
@@ -215,6 +239,7 @@ Heat labels:
 - exclude
 
 ## Main navigation
+
 - Dashboard
 - Mails
 - Contacts
@@ -229,6 +254,7 @@ Heat labels:
 ## Admin settings sections
 
 ### Mail
+
 - sender address
 - sender name
 - global signature
@@ -236,11 +262,13 @@ Heat labels:
 - sync state
 
 ### Deliverability
+
 - SPF / DKIM / DMARC checks
 - alert thresholds
 - tracking toggles
 
 ### Cadence
+
 - daily ceiling
 - hourly ceiling
 - minimum delay
@@ -248,15 +276,18 @@ Heat labels:
 - auto-stop rules
 
 ### Scoring
+
 - score points
 - heat levels
 
 ### Product
+
 - users / roles
 - templates
 - status categories
 
 ## Frozen statuses
+
 - draft
 - scheduled
 - queued
@@ -276,7 +307,9 @@ Heat labels:
 ## AI role split
 
 ### Claude
+
 Owns:
+
 - UI
 - UX
 - Vue components
@@ -287,13 +320,16 @@ Owns:
 - frontend prop contract proposals
 
 Must not:
+
 - redesign backend architecture
 - own final DB schema decisions
 - implement SMTP/IMAP logic
 - move outside validated UX scope
 
 ### Codex
+
 Owns:
+
 - Laravel backend
 - migrations
 - models
@@ -307,6 +343,7 @@ Owns:
 - integration with mail engine
 
 Must not:
+
 - redefine UI/UX or design direction
 - improvise a different product structure
 - rewrite frontend architecture without explicit need
