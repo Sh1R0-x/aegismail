@@ -5,6 +5,7 @@
 This document freezes the backend contracts exposed by Laravel to the current frontend pages in V1.
 
 Rules kept:
+
 - one mailbox only
 - `provider = ovh_mx_plan`
 - no Gmail logic
@@ -15,15 +16,18 @@ Rules kept:
 ## Inertia routes
 
 - `GET /dashboard` -> `Dashboard`
+- `GET /mails` -> `Mails/Index` — served by `MailsController`, payload from `ComposerPageDataService::mails()`
 - `GET /contacts` -> `Contacts/Index`
 - `GET /organizations` -> `Organizations/Index`
-- `GET /drafts` -> `Drafts/Index`
+- `GET /drafts` -> `Drafts/Index` — payload includes both `drafts[]` and `templates[]`
 - `GET /templates` -> `Templates/Index`
 - `GET /campaigns` -> `Campaigns/Index`
+- `GET /activity` -> `Activity/Index`
 
 ## API routes
 
 ### Templates
+
 - `GET /api/templates`
 - `POST /api/templates`
 - `PUT /api/templates/{template}`
@@ -31,6 +35,7 @@ Rules kept:
 - `POST /api/templates/{template}/archive`
 
 ### Drafts
+
 - `GET /api/drafts`
 - `GET /api/drafts/{draft}`
 - `POST /api/drafts`
@@ -42,24 +47,173 @@ Rules kept:
 - `POST /api/drafts/{draft}/campaign`
 
 ### Campaigns
+
 - `GET /api/campaigns`
+
+### Threads
+
+- `GET /api/threads`
+- `GET /api/threads/{thread}`
+
+## Outbound flow used in V1
+
+`POST /api/drafts/{draft}/schedule` now performs:
+- draft validation
+- preflight
+- campaign creation or update
+- deliverable `mail_recipients` creation
+- per-recipient `mail_threads` creation
+- per-recipient `mail_messages` creation before SMTP dispatch
+- queue placement on the unique queue `mail-outbound`
+- delayed dispatch according to cadence settings
+- persistence of `sent` or `failed` outcomes in `mail_messages`, `mail_recipients`, `mail_events`
+
+`DispatchMailMessageJob` is the Laravel → mail-gateway boundary for outbound sends.
+
+## IMAP sync flow used in V1
+
+- polling command: `php artisan mailbox:poll`
+- scheduled polling cadence: every 5 minutes
+- folders synced in V1: `INBOX`, `SENT`
+- queue used for sync jobs: `mail-sync`
+- mailbox lock key: `mailbox-sync:{mailbox_account_id}:{folder}`
+- resume cursor:
+  - `mailbox_accounts.last_inbox_uid` for `INBOX`
+  - `mailbox_accounts.last_sent_uid` for `SENT`
+- strict idempotence:
+  - dedupe first on `(mailbox_account_id, provider_folder, provider_uid)`
+  - then on `mail_messages.message_id_header`
+  - safe resume by advancing UID after each successfully ingested message
+
+`SyncMailboxFolderJob` is the Laravel → mail-gateway boundary for IMAP sync.
+
+## IMAP sync payload between Laravel and mail-gateway
+
+`SyncMailboxFolderJob` resolves and sends a payload with:
+- `mailbox_account_id`: required integer
+- `folder`: required enum `INBOX|SENT`
+- `from_uid`: required integer, cursor for safe resume
+- `provider`: required string, always `ovh_mx_plan`
+- `email`: required mailbox email
+- `username`: required IMAP username
+- `password`: required IMAP password
+- `imap_host`: required string
+- `imap_port`: required integer
+- `imap_secure`: required boolean
+- `idempotency_key`: nullable string
+
+### Sync response expected from mail-gateway
+
+- `success`: required boolean
+- `driver`: required string
+- `message`: required string
+- `accepted_at`: nullable ISO-8601 string
+- `folder`: required enum `INBOX|SENT`
+- `from_uid`: nullable integer
+- `highest_uid`: nullable integer
+- `messages`: required array
+
+### messages[]
+
+- `uid`: required integer
+- `message_id_header`: nullable string, Laravel synthesizes one if missing
+- `in_reply_to_header`: nullable string
+- `references_header`: nullable string or string array
+- `aegis_tracking_id`: nullable UUID string
+- `from_email`: required string
+- `to_emails`: required string array
+- `cc_emails`: nullable string array
+- `bcc_emails`: nullable string array
+- `subject`: nullable string
+- `html_body`: nullable string
+- `text_body`: nullable string
+- `headers_json`: nullable object
+- `received_at`: nullable ISO-8601 string
+- `sent_at`: nullable ISO-8601 string
+- `attachments`: nullable array
+
+## Thread resolution order frozen in V1
+
+Priority order used by `ThreadResolver`:
+
+1. `In-Reply-To`
+2. `References`
+3. known `Message-ID` correlation
+4. cautious heuristic on normalized subject + participant overlap + 30-day window
+5. new thread when confidence is insufficient
+
+Heuristic rules:
+
+- subject normalization strips repeated `Re:`, `Fw:`, `Fwd:`
+- participant overlap ignores the mailbox own address
+- heuristic match only applies within the same mailbox and a 30-day window
+
+## Draft type field mapping
+
+**IMPORTANT:** The `type` enum is mapped differently between storage and API:
+
+| Layer                     | Value for single | Value for multiple |
+| ------------------------- | ---------------- | ------------------ |
+| DB (`mail_drafts.mode`)   | `single`         | `bulk`             |
+| API read (serialized)     | `single`         | `multiple`         |
+| API write (POST/PUT body) | `single`         | `bulk`             |
+
+Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to API.
+
+## Preflight API response
+
+`POST /api/drafts/{draft}/preflight` returns:
+
+```json
+{
+    "ok": true,
+    "mailboxValid": true,
+    "hasTextVersion": true,
+    "hasRemoteImages": false,
+    "estimatedWeightBytes": 12480,
+    "recipientSummary": {
+        "total": 100,
+        "deliverable": 95,
+        "excluded": 2,
+        "optOut": 1,
+        "invalid": 2
+    },
+    "deliverability": {
+        "linkCount": 3,
+        "remoteImageCount": 0,
+        "attachmentCount": 0,
+        "attachmentSizeBytes": 0,
+        "htmlSizeBytes": 8192
+    },
+    "errors": [{ "code": "NO_TEXT_VERSION", "message": "..." }],
+    "warnings": [{ "code": "REMOTE_IMAGES", "message": "..." }],
+    "deliverableRecipients": []
+}
+```
+
+`errors[]` are blocking — `ok` is `false` when any exist.
+`warnings[]` are advisory — `ok` can still be `true`.
 
 ## Query parameters
 
 ### Contacts
+
 - `search`: nullable string
 - `status`: nullable enum `all|active|bounced|unsubscribed`
 - `score`: nullable enum `all|engaged|interested|warm|cold|excluded`
 
 ### Organizations
+
 - `search`: nullable string
 
 ### Dashboard
+
 - no query parameters in V1
 
 ## CRM tables added in phase 2
 
 ### organizations
+
 - `id`: required integer
 - `name`: required string
 - `domain`: nullable string
@@ -67,6 +221,7 @@ Rules kept:
 - `notes`: nullable string
 
 ### contacts
+
 - `id`: required integer
 - `organization_id`: nullable integer
 - `first_name`: nullable string
@@ -78,6 +233,7 @@ Rules kept:
 - `status`: nullable string
 
 ### contact_emails
+
 - `id`: required integer
 - `contact_id`: required integer
 - `email`: required string
@@ -88,6 +244,7 @@ Rules kept:
 - `last_seen_at`: nullable datetime
 
 ### mail_attachments
+
 - `id`: required integer
 - `message_id`: nullable integer
 - `draft_id`: nullable integer
@@ -102,6 +259,7 @@ Rules kept:
 ## Enums
 
 ### Frozen mail statuses
+
 - `draft`
 - `scheduled`
 - `queued`
@@ -119,6 +277,7 @@ Rules kept:
 - `cancelled`
 
 ### Mail message classifications used by dashboard alerts
+
 - `human_reply`
 - `auto_reply`
 - `out_of_office`
@@ -128,7 +287,15 @@ Rules kept:
 - `system`
 - `unknown`
 
+### Thread statuses currently persisted
+
+- `active`
+- `replied`
+- `auto_reply`
+- `hard_bounced`
+
 ### Contact scoreLevel
+
 - `cold`
 - `warm`
 - `interested`
@@ -136,29 +303,104 @@ Rules kept:
 - `excluded`
 
 ### Dashboard stats.healthStatus
+
 - `good`
 - `degraded`
 - `critical`
 
 ### Draft type exposed to frontend
+
 - `single`
 - `multiple`
 
 ### Draft mode stored in database
+
 - `single`
 - `bulk`
 
 ### Campaign statuses used in this phase
+
 - `draft`
 - `scheduled`
-- `completed`
+- `queued`
+- `sending`
+- `sent`
 - `cancelled`
 - `failed`
+
+### Threading headers persisted on outbound messages
+
+- `message_id_header`: required string
+- `in_reply_to_header`: nullable string
+- `references_header`: nullable string
+- `aegis_tracking_id`: required UUID string
+
+### Thread payload from `GET /api/threads`
+
+- `id`: required integer
+- `publicUuid`: required UUID string
+- `subject`: required string
+- `contactName`: nullable string
+- `organization`: nullable string
+- `replyReceived`: required boolean
+- `autoReplyReceived`: required boolean
+- `lastDirection`: required enum `in|out`
+- `lastActivityAt`: nullable ISO-8601 string
+- `messageCount`: required integer
+
+### Thread payload from `GET /api/threads/{thread}`
+
+- `thread`: required object
+- `thread.id`: required integer
+- `thread.publicUuid`: required UUID string
+- `thread.subject`: required string
+- `thread.contactName`: nullable string
+- `thread.organization`: nullable string
+- `thread.replyReceived`: required boolean
+- `thread.autoReplyReceived`: required boolean
+- `thread.lastDirection`: required enum `in|out`
+- `thread.lastActivityAt`: nullable ISO-8601 string
+- `thread.messages`: required array
+
+### thread.messages[]
+
+- `id`: required integer
+- `direction`: required enum `in|out`
+- `fromEmail`: required string
+- `toEmails`: required string array
+- `subject`: required string
+- `classification`: required enum `human_reply|auto_reply|out_of_office|auto_ack|soft_bounce|hard_bounce|system|unknown`
+- `messageIdHeader`: required string
+- `inReplyToHeader`: nullable string
+- `referencesHeader`: nullable string
+- `sentAt`: nullable ISO-8601 string
+- `receivedAt`: nullable ISO-8601 string
+- `hasAttachments`: required boolean
+- `attachmentCount`: required integer
+
+## Activity timeline payload
+
+`GET /activity` exposes:
+
+- `events`: required array
+
+### events[]
+
+- `id`: required integer
+- `title`: required string
+- `description`: nullable string
+- `status`: required enum `sent|replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`
+- `direction`: required enum `outbound|inbound`
+- `isAutoReply`: required boolean
+- `isBounce`: required boolean
+- `date`: nullable ISO-8601 string
 
 ## Business rules frozen for page projections
 
 ### score
+
 Computed from `mail_recipients.status` with current scoring settings:
+
 - `opened` => `open_points`
 - `clicked` => `click_points`
 - `replied` => `reply_points`
@@ -168,6 +410,7 @@ Computed from `mail_recipients.status` with current scoring settings:
 - `unsubscribed` => `unsubscribe_points`
 
 ### scoreLevel
+
 - `excluded` if `excluded = true` or `unsubscribed = true`
 - `engaged` if score `>= 8`
 - `interested` if score `>= 4`
@@ -175,15 +418,19 @@ Computed from `mail_recipients.status` with current scoring settings:
 - `cold` otherwise
 
 ### excluded
+
 `true` when at least one contact email or recipient is hard bounced.
 
 ### unsubscribed
+
 `true` when at least one contact email has `opt_out_at` or at least one recipient is unsubscribed.
 
 ### lastActivityAt
+
 Formatted string `YYYY-MM-DD HH:mm` in app timezone, or `null`.
 
 Sources used:
+
 - `contact_emails.last_seen_at`
 - `mail_threads.last_message_at`
 - `mail_recipients.last_event_at`
@@ -194,15 +441,19 @@ Sources used:
 - `mail_recipients.unsubscribe_at`
 
 ### organization.contactCount
+
 Count of `contacts` linked by `organization_id`.
 
 ### organization.sentCount
+
 Count of recipients that reached send or post-send states.
 
 ### dashboard.scheduledSends
+
 Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 
 `recipientCount` rule:
+
 - sum of linked campaign recipients when a campaign exists
 - fallback to `1` for `mode = single`
 - fallback to `0` otherwise
@@ -210,6 +461,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 ## Template API contract
 
 ### Template payload
+
 - `id`: required integer
 - `name`: required string
 - `slug`: required string on single-resource responses
@@ -222,6 +474,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `updatedAt`: nullable `YYYY-MM-DD HH:mm`
 
 ### Template request body
+
 - `name`: required string
 - `subject`: required string
 - `htmlBody`: nullable string
@@ -231,6 +484,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 ## Draft API contract
 
 ### Draft payload
+
 - `id`: required integer
 - `templateId`: nullable integer
 - `type`: required enum `single|multiple`
@@ -246,6 +500,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `updatedAt`: nullable `YYYY-MM-DD HH:mm`
 
 ### Draft recipients shape
+
 - `email`: nullable string
 - `contactId`: nullable integer
 - `contactEmailId`: nullable integer
@@ -253,6 +508,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `name`: nullable string
 
 ### Draft request body
+
 - `type`: required enum `single|bulk`
 - `templateId`: nullable integer
 - `subject`: required string
@@ -262,12 +518,14 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `recipients`: nullable array of recipient objects
 
 ### Draft schedule request body
+
 - `scheduledAt`: required ISO or parseable datetime string
 - `name`: nullable string
 
 ## Campaign API contract
 
 ### Campaign payload
+
 - `id`: required integer
 - `draftId`: nullable integer
 - `name`: required string
@@ -282,9 +540,99 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `createdAt`: nullable ISO-8601 string
 - `updatedAt`: nullable `YYYY-MM-DD HH:mm`
 
+## Outbound dispatch payload between Laravel and mail-gateway
+
+`DispatchMailMessageJob` resolves and sends a payload with:
+- `mailbox_account_id`: required integer
+- `mail_message_id`: required integer
+- `thread_id`: required integer
+- `campaign_id`: required integer
+- `recipient_id`: required integer
+- `provider`: required string, always `ovh_mx_plan`
+- `email`: required sender email
+- `username`: required SMTP username
+- `password`: required SMTP password
+- `smtp_host`: required string
+- `smtp_port`: required integer
+- `smtp_secure`: required boolean
+- `from_email`: required string
+- `from_name`: required string
+- `to_emails`: required string array
+- `subject`: required string
+- `html_body`: nullable string
+- `text_body`: nullable string
+- `message_id_header`: required string
+- `in_reply_to_header`: nullable string
+- `references_header`: nullable string
+- `aegis_tracking_id`: required UUID string
+- `headers_json`: required object
+- `attachments`: required array, possibly empty
+
+## Settings actually used by outbound scheduling and dispatch
+
+### settings.mail
+
+- `sender_email`
+- `sender_name`
+- `global_signature_html`
+- `global_signature_text`
+- `mailbox_username`
+- `imap_host`
+- `imap_port`
+- `imap_secure`
+- `smtp_host`
+- `smtp_port`
+- `smtp_secure`
+- `sync_enabled`
+- `send_enabled`
+- `send_window_start`
+- `send_window_end`
+
+### settings.general
+
+- `daily_limit_default`
+- `hourly_limit_default`
+- `min_delay_seconds`
+- `jitter_min_seconds`
+- `jitter_max_seconds`
+- `slow_mode_enabled`
+- `stop_on_consecutive_failures`
+- `stop_on_hard_bounce_threshold`
+
+### settings.deliverability used by preflight
+
+- `tracking_opens_enabled`
+- `tracking_clicks_enabled`
+- `max_links_warning_threshold`
+- `max_remote_images_warning_threshold`
+- `html_size_warning_kb`
+- `attachment_size_warning_mb`
+
+## Inbound business rules frozen in this phase
+
+- `auto_reply`, `out_of_office` and `auto_ack` remain visible but never count as human reply
+- `human_reply` sets `mail_threads.reply_received = true`
+- `auto_reply`, `out_of_office`, `auto_ack` set `mail_threads.auto_reply_received = true`
+- `hard_bounce` remains distinct from `soft_bounce`
+- `hard_bounce` updates `contact_emails.bounce_status = hard_bounced`
+- `human_reply` marks the matched recipient `replied`
+- `auto_reply`, `out_of_office`, `auto_ack` mark the matched recipient `auto_replied`
+- `soft_bounce` marks the matched recipient `soft_bounced`
+- `hard_bounce` marks the matched recipient `hard_bounced`
+- `human_reply` and `hard_bounce` cancel queued follow-ups for the same campaign/email when present
+
+## Auto-stop behavior used in this phase
+
+- before each outbound dispatch, Laravel checks the current campaign
+- if `failed` recipients count reaches `stop_on_consecutive_failures`, the next queued recipient is marked `cancelled`
+- if `hard_bounced` recipients count reaches `stop_on_hard_bounce_threshold`, the next queued recipient is marked `cancelled`
+- Laravel logs `mail_campaign.auto_stopped`
+- campaign status becomes `failed`
+
 ## Preflight contract
 
 ### Response shape
+
 - `ok`: required boolean
 - `mailboxValid`: required boolean
 - `hasTextVersion`: required boolean
@@ -297,6 +645,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `deliverableRecipients`: required array
 
 ### recipientSummary
+
 - `total`: required integer
 - `deliverable`: required integer
 - `excluded`: required integer
@@ -304,6 +653,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `invalid`: required integer
 
 ### deliverability
+
 - `linkCount`: required integer
 - `remoteImageCount`: required integer
 - `attachmentCount`: required integer
@@ -311,5 +661,6 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `htmlSizeBytes`: required integer
 
 ### errors[] and warnings[]
+
 - `code`: required string
 - `message`: required string

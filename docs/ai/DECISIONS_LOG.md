@@ -14,6 +14,16 @@
 - Deliverability is a top-level product concern
 - Draft recipients are stored in `mail_drafts.payload_json.recipients` before scheduling
 - Scheduling creates deliverable `mail_recipients` only after preflight passes
+- Scheduling creates per-recipient `mail_threads` and `mail_messages` before queue dispatch
+- All outbound dispatches still use the single queue `mail-outbound`
+- Auto-stop in this phase is a simple threshold check on failed and hard-bounced recipients
+- IMAP sync V1 is limited to `INBOX` and `SENT`
+- IMAP sync resume is driven by mailbox UID cursors stored on `mailbox_accounts`
+- IMAP sync is protected by a mailbox+folder lock
+- Thread resolution order is frozen: `In-Reply-To` -> `References` -> known `Message-ID` -> cautious heuristic -> new thread
+- `auto_reply`, `out_of_office` and `auto_ack` remain distinct from human replies
+- `hard_bounce` remains distinct from `soft_bounce` and updates exclusion state
+- Activity timeline is fed from persisted `mail_messages`, not from speculative frontend state
 
 ## Documentation alignment
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.

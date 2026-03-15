@@ -1,11 +1,14 @@
 <template>
   <CrmLayout title="Modèles" current-page="templates">
+    <template #header-actions>
+      <button class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800">
+        Nouveau modèle
+      </button>
+    </template>
+
     <div class="rounded-lg border border-gray-200 bg-white">
-      <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+      <div class="border-b border-gray-100 px-4 py-3">
         <h2 class="text-sm font-semibold text-gray-900">Modèles d'e-mail</h2>
-        <button class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800">
-          Nouveau modèle
-        </button>
       </div>
 
       <div v-if="templates.length === 0" class="px-4 py-12 text-center">

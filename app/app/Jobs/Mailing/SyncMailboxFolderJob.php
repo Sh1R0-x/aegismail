@@ -3,10 +3,9 @@
 namespace App\Jobs\Mailing;
 
 use App\Services\Mailing\Contracts\MailGatewayClient;
-use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\Inbound\MailboxSyncService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use RuntimeException;
 
 class SyncMailboxFolderJob implements ShouldQueue
 {
@@ -17,21 +16,8 @@ class SyncMailboxFolderJob implements ShouldQueue
         $this->onQueue(config('mailing.queues.sync'));
     }
 
-    public function handle(MailGatewayClient $gatewayClient, MailEventLogger $eventLogger): void
+    public function handle(MailGatewayClient $gatewayClient, MailboxSyncService $mailboxSyncService): void
     {
-        $result = $gatewayClient->syncMailbox($this->payload);
-
-        $eventLogger->log(
-            'mailbox.sync_requested',
-            $result,
-            [
-                'mailbox_account_id' => $this->payload['mailbox_account_id'] ?? null,
-            ],
-            $this->payload['idempotency_key'] ?? null,
-        );
-
-        if (! ($result['success'] ?? false)) {
-            throw new RuntimeException($result['message'] ?? 'Mail gateway rejected mailbox sync.');
-        }
+        $mailboxSyncService->sync($this->payload, $gatewayClient);
     }
 }

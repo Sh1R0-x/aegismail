@@ -76,7 +76,6 @@ class CampaignService
                     'contact_email_id' => $recipient['contactEmailId'],
                     'email' => $recipient['email'],
                     'status' => 'draft',
-                    'scheduled_for' => $scheduledAt,
                 ]);
             }
 

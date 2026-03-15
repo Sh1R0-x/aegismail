@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\TemplateController;
+use App\Http\Controllers\Api\ThreadController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('settings')->group(function () {
@@ -32,3 +33,5 @@ Route::post('/drafts/{draft}/unschedule', [DraftController::class, 'unschedule']
 Route::post('/drafts/{draft}/campaign', [DraftController::class, 'createCampaign']);
 
 Route::get('/campaigns', [CampaignController::class, 'index']);
+Route::get('/threads', [ThreadController::class, 'index']);
+Route::get('/threads/{thread}', [ThreadController::class, 'show']);

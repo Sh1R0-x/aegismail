@@ -130,6 +130,8 @@ class TemplateService
             'id' => $template->id,
             'name' => $template->name,
             'subject' => $template->subject_template,
+            'htmlBody' => $template->html_template,
+            'textBody' => $template->text_template,
             'active' => $template->is_active,
             'usageCount' => $template->drafts_count ?? 0,
             'updatedAt' => $this->formatDate($template->updated_at),

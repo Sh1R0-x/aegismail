@@ -118,6 +118,7 @@ Date format used by the current backend:
 ### Props
 
 - `drafts`: required array
+- `templates`: required array (same shape as `Templates/Index > templates[]`, used by MailComposer in edit mode)
 
 ### drafts[]
 
@@ -125,7 +126,7 @@ Date format used by the current backend:
 - `subject`: required string
 - `recipientCount`: required integer
 - `type`: required enum `single|multiple`
-- `status`: required string
+- `status`: required enum `draft|scheduled`
 - `scheduledAt`: nullable string
 - `updatedAt`: nullable string
 
@@ -144,6 +145,8 @@ Date format used by the current backend:
 - `id`: required integer
 - `name`: required string
 - `subject`: required string
+- `htmlBody`: nullable string (full HTML template — also used by MailComposer auto-apply)
+- `textBody`: nullable string (plain-text version)
 - `active`: required boolean
 - `usageCount`: required integer
 - `updatedAt`: nullable string
@@ -162,7 +165,7 @@ Date format used by the current backend:
 
 - `id`: required integer
 - `name`: required string
-- `status`: required string
+- `status`: required enum `draft|scheduled|queued|sending|sent|cancelled|failed`
 - `progressPercent`: required integer
 - `recipientCount`: required integer
 - `openCount`: required integer
@@ -170,3 +173,123 @@ Date format used by the current backend:
 - `bounceCount`: required integer
 - `scheduledAt`: nullable string
 - `updatedAt`: nullable string
+
+## Activity
+
+### Component
+
+- `Activity/Index`
+
+### Props
+
+- `events`: required array
+
+### events[]
+
+- `id`: required integer
+- `title`: required string
+- `description`: nullable string
+- `status`: required enum `sent|replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`
+- `direction`: required enum `outbound|inbound`
+- `isAutoReply`: required boolean
+- `isBounce`: required boolean
+- `date`: nullable ISO-8601 string
+
+## Mails
+
+### Component
+
+- `Mails/Index`
+
+### Props
+
+- `recipients`: required array
+- `stats`: required object
+- `templates`: required array (same shape as `Templates/Index > templates[]`)
+- `filters`: required object (echo of active query params)
+
+### filters (Mails)
+
+- `status`: required string (`all` or any frozen status value)
+
+### stats (Mails)
+
+- `sentToday`: required integer
+- `dailyLimit`: required integer
+
+### recipients[]
+
+- `id`: required integer
+- `email`: required string
+- `subject`: required string
+- `status`: required string (any frozen status value)
+- `type`: required enum `single|multiple`
+- `sentAt`: nullable string
+- `campaignId`: nullable integer
+
+---
+
+## Component Contracts
+
+### MailComposer
+
+**File:** `resources/js/Components/Composer/MailComposer.vue`
+
+**Props:**
+
+- `mode`: `'single' | 'multiple'` — default `'single'`
+- `draft`: `Object | null` — full draft shape from `GET /api/drafts/{id}` (optional, for edit mode)
+- `templates`: `Array` — list items with `htmlBody`/`textBody` for auto-apply
+
+**Draft shape** (from `GET /api/drafts/{id}`):
+
+- `id`: integer
+- `templateId`: nullable integer
+- `type`: `'single' | 'multiple'`
+- `subject`: string
+- `htmlBody`: nullable string
+- `textBody`: nullable string
+- `signatureHtml`: nullable string
+- `status`: `'draft' | 'scheduled' | 'queued' | 'sending' | 'sent' | 'failed' | 'cancelled'`
+- `scheduledAt`: nullable string
+- `recipients`: array of `{ email, name? }`
+
+**Emits:**
+
+- `close` — user dismissed the composer
+- `saved(draft)` — draft was saved/updated successfully
+- `scheduled(draft)` — draft was scheduled successfully
+
+**API type mapping:**
+
+- Frontend mode `'single'` → POST body `type: 'single'`
+- Frontend mode `'multiple'` → POST body `type: 'bulk'` (backend stores `'bulk'`, serializes as `'multiple'`)
+
+### PreflightResult
+
+**File:** `resources/js/Components/Preflight/PreflightResult.vue`
+
+**Props:**
+
+- `result`: `Object` — full preflight response from `POST /api/drafts/{draft}/preflight`
+
+**Preflight API response shape:**
+
+- `ok`: boolean
+- `mailboxValid`: boolean
+- `hasTextVersion`: boolean
+- `hasRemoteImages`: boolean
+- `estimatedWeightBytes`: integer
+- `recipientSummary.total`: integer
+- `recipientSummary.deliverable`: integer
+- `recipientSummary.excluded`: integer
+- `recipientSummary.optOut`: integer
+- `recipientSummary.invalid`: integer
+- `deliverability.linkCount`: integer
+- `deliverability.remoteImageCount`: integer
+- `deliverability.attachmentCount`: integer
+- `deliverability.attachmentSizeBytes`: integer
+- `deliverability.htmlSizeBytes`: integer
+- `errors[]`: array of `{ code, message }` — blocking issues
+- `warnings[]`: array of `{ code, message }` — non-blocking advisories
+- `deliverableRecipients[]`: array of recipient objects

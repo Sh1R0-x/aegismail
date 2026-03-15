@@ -6,6 +6,7 @@ use App\Models\MailDraft;
 use App\Models\MailboxAccount;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailboxSettingsService;
+use App\Services\Mailing\Outbound\OutboundMailService;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +17,7 @@ class DraftService
         private readonly MailEventLogger $eventLogger,
         private readonly CampaignService $campaignService,
         private readonly DraftPreflightService $preflightService,
+        private readonly OutboundMailService $outboundMailService,
     ) {
     }
 
@@ -171,6 +173,8 @@ class DraftService
             'status' => 'scheduled',
             'scheduled_at' => $scheduledAt,
         ])->save();
+
+        $campaign = $this->outboundMailService->queueCampaign($draft, $campaign, $scheduledAt);
 
         $this->eventLogger->log(
             'mail_draft.scheduled',

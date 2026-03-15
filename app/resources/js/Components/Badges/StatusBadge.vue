@@ -33,6 +33,7 @@ const statusMap = {
   unsubscribed:       { label: 'Désinscrit',       class: 'bg-rose-50 text-rose-700',         dot: true, dotClass: 'bg-rose-500' },
   failed:             { label: 'Erreur',           class: 'bg-red-50 text-red-700',           dot: true, dotClass: 'bg-red-500' },
   cancelled:          { label: 'Annulé',           class: 'bg-gray-100 text-gray-500',        dot: true, dotClass: 'bg-gray-400' },
+  completed:          { label: 'Terminé',          class: 'bg-emerald-50 text-emerald-700',   dot: true, dotClass: 'bg-emerald-500' },
 };
 
 const config = computed(() => statusMap[props.status] || {

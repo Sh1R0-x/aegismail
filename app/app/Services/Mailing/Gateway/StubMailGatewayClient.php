@@ -20,23 +20,50 @@ class StubMailGatewayClient implements MailGatewayClient
 
     public function dispatchMessage(array $payload): array
     {
+        $toEmails = $payload['to_emails'] ?? [];
+        $shouldFail = collect($toEmails)
+            ->contains(fn ($email) => Str::contains(Str::lower((string) $email), ['fail', 'bounce']));
+
+        if ($shouldFail) {
+            return [
+                'success' => false,
+                'driver' => 'stub',
+                'message' => 'Outbound message rejected by the stub gateway.',
+                'accepted_at' => Carbon::now()->toIso8601String(),
+                'mail_message_id' => $payload['mail_message_id'] ?? null,
+                'message_id_header' => $payload['message_id_header'] ?? null,
+            ];
+        }
+
         return [
             'success' => true,
             'driver' => 'stub',
             'message' => 'Outbound message accepted by the stub gateway.',
             'accepted_at' => Carbon::now()->toIso8601String(),
             'mail_message_id' => $payload['mail_message_id'] ?? null,
+            'message_id_header' => $payload['message_id_header'] ?? null,
+            'headers_json' => $payload['headers_json'] ?? [],
         ];
     }
 
     public function syncMailbox(array $payload): array
     {
+        $messages = collect($payload['stub_messages'] ?? [])
+            ->filter(fn ($message) => is_array($message))
+            ->sortBy(fn (array $message) => (int) ($message['uid'] ?? 0))
+            ->values()
+            ->all();
+
         return [
             'success' => true,
             'driver' => 'stub',
             'message' => 'Mailbox sync accepted by the stub gateway.',
             'accepted_at' => Carbon::now()->toIso8601String(),
             'mailbox_account_id' => $payload['mailbox_account_id'] ?? null,
+            'folder' => $payload['folder'] ?? 'INBOX',
+            'from_uid' => $payload['from_uid'] ?? 0,
+            'highest_uid' => collect($messages)->max('uid') ?: ($payload['from_uid'] ?? 0),
+            'messages' => $messages,
         ];
     }
 

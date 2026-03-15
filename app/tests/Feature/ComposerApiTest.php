@@ -5,17 +5,28 @@ namespace Tests\Feature;
 use App\Models\Contact;
 use App\Models\ContactEmail;
 use App\Models\MailAttachment;
+use App\Models\MailMessage;
 use App\Models\MailDraft;
+use App\Models\MailRecipient;
 use App\Models\MailboxAccount;
 use App\Models\Organization;
 use App\Models\Setting;
+use App\Jobs\Mailing\DispatchMailMessageJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ComposerApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
 
     public function test_templates_support_minimal_crud_duplicate_and_archive(): void
     {
@@ -55,6 +66,7 @@ class ComposerApiTest extends TestCase
     public function test_drafts_support_crud_duplicate_schedule_and_unschedule(): void
     {
         [$contact, $primaryEmail] = $this->seedContacts();
+        Queue::fake();
 
         $draftResponse = $this->postJson('/api/drafts', [
             'type' => 'bulk',
@@ -108,10 +120,235 @@ class ComposerApiTest extends TestCase
             ->assertJsonPath('campaign.recipientCount', 1)
             ->assertJsonPath('preflight.ok', true);
 
+        Queue::assertPushedOn(config('mailing.queues.outbound'), DispatchMailMessageJob::class);
+        $this->assertDatabaseHas('mail_recipients', [
+            'campaign_id' => 1,
+            'email' => 'alice@acme.test',
+            'status' => 'queued',
+        ]);
+        $this->assertDatabaseCount('mail_messages', 1);
+
         $this->postJson('/api/drafts/'.$draftId.'/unschedule')
             ->assertOk()
             ->assertJsonPath('draft.status', 'draft')
             ->assertJsonPath('campaign.status', 'draft');
+    }
+
+    public function test_scheduling_respects_send_window_and_daily_ceiling(): void
+    {
+        [$contact, $primaryEmail, $optOutEmail, $bouncedEmail] = $this->seedContacts();
+        Queue::fake();
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'general'],
+            [
+                'value_json' => array_replace(config('mailing.defaults.general', []), [
+                    'daily_limit_default' => 1,
+                    'hourly_limit_default' => 1,
+                    'min_delay_seconds' => 60,
+                    'jitter_min_seconds' => 5,
+                    'jitter_max_seconds' => 20,
+                    'slow_mode_enabled' => true,
+                ]),
+            ],
+        );
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'mail'],
+            [
+                'value_json' => [
+                    'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
+                    'global_signature_text' => "Cordialement,\nAEGIS",
+                    'send_window_start' => '09:00',
+                    'send_window_end' => '18:00',
+                ],
+            ],
+        );
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Cadence test',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    ['contactId' => $contact->id, 'contactEmailId' => $primaryEmail->id, 'organizationId' => $contact->organization_id, 'email' => $primaryEmail->email],
+                    ['email' => 'second@acme.test'],
+                    ['email' => 'third@acme.test'],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => '2026-03-20 08:00:00',
+        ])->assertOk();
+
+        $scheduled = MailRecipient::query()->orderBy('scheduled_for')->get()->pluck('scheduled_for')->map->format('Y-m-d H:i:s')->all();
+
+        $this->assertSame([
+            '2026-03-20 09:00:00',
+            '2026-03-21 09:00:00',
+            '2026-03-22 09:00:00',
+        ], $scheduled);
+        Queue::assertPushed(DispatchMailMessageJob::class, 3);
+    }
+
+    public function test_scheduling_respects_hourly_ceiling_min_delay_and_slow_mode(): void
+    {
+        [$contact, $primaryEmail] = $this->seedContacts();
+        Queue::fake();
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'general'],
+            [
+                'value_json' => array_replace(config('mailing.defaults.general', []), [
+                    'daily_limit_default' => 10,
+                    'hourly_limit_default' => 1,
+                    'min_delay_seconds' => 60,
+                    'jitter_min_seconds' => 5,
+                    'jitter_max_seconds' => 20,
+                    'slow_mode_enabled' => true,
+                ]),
+            ],
+        );
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Hourly cadence test',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    ['contactId' => $contact->id, 'contactEmailId' => $primaryEmail->id, 'organizationId' => $contact->organization_id, 'email' => $primaryEmail->email],
+                    ['email' => 'second@acme.test'],
+                    ['email' => 'third@acme.test'],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => '2026-03-20 09:00:00',
+        ])->assertOk();
+
+        $scheduled = MailRecipient::query()->orderBy('scheduled_for')->get()->pluck('scheduled_for')->map->format('Y-m-d H:i:s')->all();
+
+        $this->assertSame([
+            '2026-03-20 09:00:00',
+            '2026-03-20 10:00:00',
+            '2026-03-20 11:00:00',
+        ], $scheduled);
+    }
+
+    public function test_schedule_immediately_persists_sent_message_message_id_and_events(): void
+    {
+        Carbon::setTestNow('2026-03-20 10:00:00');
+        [$contact, $primaryEmail] = $this->seedContacts();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'single',
+            'subject' => 'Send now',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    ['contactId' => $contact->id, 'contactEmailId' => $primaryEmail->id, 'organizationId' => $contact->organization_id, 'email' => $primaryEmail->email],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => now()->subMinute()->toDateTimeString(),
+        ])->assertOk();
+
+        $message = MailMessage::query()->firstOrFail();
+
+        $this->assertNotNull($message->sent_at);
+        $this->assertNotNull($message->aegis_tracking_id);
+        $this->assertStringStartsWith('<', $message->message_id_header);
+        $this->assertDatabaseHas('mail_recipients', [
+            'id' => $message->recipient_id,
+            'status' => 'sent',
+        ]);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mail_message.queued']);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mail_message.sent']);
+    }
+
+    public function test_schedule_immediately_persists_failed_message_and_failed_event(): void
+    {
+        Carbon::setTestNow('2026-03-20 10:00:00');
+        $this->seedMailboxAndSettings();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'single',
+            'subject' => 'Fail now',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    ['email' => 'fail@acme.test'],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => now()->subMinute()->toDateTimeString(),
+        ])->assertOk();
+
+        $message = MailMessage::query()->firstOrFail();
+
+        $this->assertNull($message->sent_at);
+        $this->assertDatabaseHas('mail_recipients', [
+            'id' => $message->recipient_id,
+            'status' => 'failed',
+        ]);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mail_message.failed']);
+    }
+
+    public function test_campaign_auto_stops_after_simple_failure_threshold(): void
+    {
+        Carbon::setTestNow('2026-03-20 10:00:00');
+        $this->seedMailboxAndSettings();
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'general'],
+            [
+                'value_json' => array_replace(config('mailing.defaults.general', []), [
+                    'stop_on_consecutive_failures' => 1,
+                    'stop_on_hard_bounce_threshold' => 3,
+                ]),
+            ],
+        );
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Auto stop',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    ['email' => 'fail@acme.test'],
+                    ['email' => 'second@acme.test'],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => now()->subMinute()->toDateTimeString(),
+        ])->assertOk();
+
+        $this->assertDatabaseHas('mail_recipients', ['email' => 'fail@acme.test', 'status' => 'failed']);
+        $this->assertDatabaseHas('mail_recipients', ['email' => 'second@acme.test', 'status' => 'cancelled']);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mail_campaign.auto_stopped']);
     }
 
     public function test_preflight_reports_warnings_opt_outs_invalids_and_attachment_weight(): void
@@ -264,6 +501,13 @@ class ComposerApiTest extends TestCase
                     'send_window_start' => '09:00',
                     'send_window_end' => '18:00',
                 ],
+            ],
+        );
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'general'],
+            [
+                'value_json' => config('mailing.defaults.general', []),
             ],
         );
     }
