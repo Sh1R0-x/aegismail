@@ -3,11 +3,15 @@
 namespace App\Services\Mailing\Composer;
 
 use App\Models\MailDraft;
+use App\Models\MailEvent;
 use App\Models\MailboxAccount;
+use App\Models\MailMessage;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailboxSettingsService;
 use App\Services\Mailing\Outbound\OutboundMailService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DraftService
@@ -128,6 +132,73 @@ class DraftService
         );
 
         return $copy->fresh(['campaigns.recipients', 'attachments']);
+    }
+
+    public function delete(MailDraft $draft): void
+    {
+        $campaigns = $draft->campaigns()->with(['recipients.messages', 'events'])->get();
+
+        $hasSentHistory = $campaigns->contains(function ($campaign) {
+            return $campaign->recipients->contains(function ($recipient) {
+                return $recipient->messages->contains(fn (MailMessage $message) => $message->sent_at !== null)
+                    || in_array($recipient->status, [
+                        'sent',
+                        'delivered_if_known',
+                        'opened',
+                        'clicked',
+                        'replied',
+                        'auto_replied',
+                        'soft_bounced',
+                        'hard_bounced',
+                        'unsubscribed',
+                    ], true);
+            });
+        });
+
+        if ($hasSentHistory) {
+            throw ValidationException::withMessages([
+                'draft' => ['Ce brouillon ne peut plus être supprimé car des envois ou des événements de campagne existent déjà.'],
+            ]);
+        }
+
+        DB::transaction(function () use ($draft, $campaigns): void {
+            foreach ($campaigns as $campaign) {
+                $recipientIds = $campaign->recipients->pluck('id');
+                $messageIds = $campaign->recipients->flatMap(fn ($recipient) => $recipient->messages->pluck('id'))->unique();
+
+                if ($messageIds->isNotEmpty()) {
+                    MailEvent::query()->whereIn('message_id', $messageIds)->delete();
+                    MailMessage::query()->whereIn('id', $messageIds)->delete();
+                }
+
+                if ($recipientIds->isNotEmpty()) {
+                    MailEvent::query()->whereIn('recipient_id', $recipientIds)->delete();
+                    $campaign->recipients()->delete();
+                }
+
+                MailEvent::query()->where('campaign_id', $campaign->id)->delete();
+                $campaign->delete();
+            }
+
+            $draft->attachments()->delete();
+            MailEvent::query()->where('event_type', 'like', 'mail_draft.%')
+                ->whereRaw("json_extract(event_payload, '$.draft_id') = ?", [$draft->id])
+                ->delete();
+
+            $draft->delete();
+        });
+    }
+
+    public function deleteMany(Collection $drafts): int
+    {
+        $deleted = 0;
+
+        foreach ($drafts as $draft) {
+            $this->delete($draft);
+            $deleted++;
+        }
+
+        return $deleted;
     }
 
     public function preflight(MailDraft $draft): array

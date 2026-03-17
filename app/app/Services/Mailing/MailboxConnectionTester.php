@@ -58,16 +58,20 @@ class MailboxConnectionTester
             ];
         }
 
+        $operatorMessage = $this->operatorMessage($protocol, $result);
         $statusCode = ($result['success'] ?? false) ? 200 : 422;
-        $mailbox = $this->mailboxSettingsService->updateHealth((bool) ($result['success'] ?? false), (string) ($result['message'] ?? ''));
+        $mailbox = $this->mailboxSettingsService->updateHealth((bool) ($result['success'] ?? false), $operatorMessage);
 
         $this->eventLogger->log(
             "mailbox.test_{$protocol}_".(($result['success'] ?? false) ? 'succeeded' : 'failed'),
-            array_merge($sanitizedPayload, Arr::except($result, ['password'])),
+            array_merge($sanitizedPayload, Arr::except($result, ['password']), [
+                'operator_message' => $operatorMessage,
+            ]),
             ['mailbox_account_id' => $mailbox?->id],
         );
 
         return array_merge($result, [
+            'message' => $operatorMessage,
             'protocol' => $protocol,
             'provider' => config('mailing.provider'),
             'status_code' => $statusCode,
@@ -126,5 +130,42 @@ class MailboxConnectionTester
         ];
 
         return $messages[$key] ?? "Le champ {$key} est requis pour tester la connexion {$protocolLabel}.";
+    }
+
+    private function operatorMessage(string $protocol, array $result): string
+    {
+        $protocolLabel = strtoupper($protocol);
+
+        if (($result['success'] ?? false) === true) {
+            return "Test {$protocolLabel} réussi. La connexion à la boîte OVH MX Plan a bien été établie.";
+        }
+
+        $rawMessage = strtolower(trim((string) ($result['message'] ?? '')));
+
+        return match (true) {
+            $this->containsAny($rawMessage, ['auth', 'authentication', 'invalid credentials', 'login failed', 'bad credentials', 'username', 'password']) =>
+                "La connexion {$protocolLabel} a échoué : l’identifiant ou le mot de passe semble incorrect.",
+            $this->containsAny($rawMessage, ['timeout', 'timed out']) =>
+                "La connexion {$protocolLabel} a expiré avant la réponse du serveur.",
+            $this->containsAny($rawMessage, ['connection refused', 'refused', 'network is unreachable']) =>
+                "La connexion {$protocolLabel} a été refusée par le serveur distant.",
+            $this->containsAny($rawMessage, ['tls', 'ssl', 'certificate', 'handshake', 'starttls']) =>
+                "La connexion {$protocolLabel} a échoué : le paramètre de sécurité TLS/SSL semble incohérent.",
+            $this->containsAny($rawMessage, ['host', 'port', 'dns', 'resolve', 'configured host', 'getaddrinfo']) =>
+                "La connexion {$protocolLabel} a échoué : l’hôte ou le port semble incorrect.",
+            default =>
+                "La connexion {$protocolLabel} a échoué. Vérifiez l’hôte, le port, le mode de sécurité et les identifiants.",
+        };
+    }
+
+    private function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

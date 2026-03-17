@@ -36,6 +36,12 @@ class ComposerPageDataService
     {
         return [
             'campaigns' => $this->campaignService->list(),
+            'creationFlow' => [
+                'type' => 'draft_first',
+                'entryHref' => '/campaigns/create',
+                'actionLabel' => 'Préparer une campagne',
+                'helperText' => 'Le module Campagnes conserve une couche draft technique interne, mais l’utilisateur prépare, édite et planifie ses campagnes depuis /campaigns.',
+            ],
         ];
     }
 
@@ -45,7 +51,10 @@ class ComposerPageDataService
         $status = (string) ($filters['status'] ?? 'all');
 
         $query = MailRecipient::query()
-            ->with(['campaign' => fn ($q) => $q->select(['id', 'draft_id', 'mode'])->with('draft:id,subject')]);
+            ->with([
+                'campaign' => fn ($q) => $q->select(['id', 'draft_id', 'mode'])->with('draft:id,subject'),
+                'messages' => fn ($q) => $q->select(['id', 'recipient_id', 'thread_id'])->orderByDesc('id'),
+            ]);
 
         if ($status !== '' && $status !== 'all') {
             $query->where('status', $status);
@@ -55,15 +64,20 @@ class ComposerPageDataService
             ->orderByDesc('last_event_at')
             ->limit(200)
             ->get()
-            ->map(fn (MailRecipient $r): array => [
-                'id' => $r->id,
-                'email' => $r->email,
-                'subject' => $r->campaign?->draft?->subject ?: '(Sans objet)',
-                'status' => $r->status,
-                'type' => $r->campaign?->mode === 'bulk' ? 'multiple' : 'single',
-                'sentAt' => $this->formatDate($r->sent_at),
-                'campaignId' => $r->campaign_id,
-            ])
+            ->map(function (MailRecipient $r): array {
+                $threadId = $r->messages->sortByDesc('id')->first()?->thread_id;
+
+                return [
+                    'id' => $r->id,
+                    'email' => $r->email,
+                    'subject' => $r->campaign?->draft?->subject ?: '(Sans objet)',
+                    'status' => $r->status,
+                    'type' => $r->campaign?->mode === 'bulk' ? 'multiple' : 'single',
+                    'sentAt' => $this->formatDate($r->sent_at),
+                    'campaignId' => $r->campaign_id,
+                    'threadId' => $threadId,
+                ];
+            })
             ->values()
             ->all();
 

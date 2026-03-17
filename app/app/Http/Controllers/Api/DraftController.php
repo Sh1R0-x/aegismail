@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mailing\BulkDeleteDraftsRequest;
 use App\Http\Requests\Mailing\CreateCampaignFromDraftRequest;
 use App\Http\Requests\Mailing\ScheduleDraftRequest;
 use App\Http\Requests\Mailing\UpsertDraftRequest;
@@ -10,6 +11,7 @@ use App\Models\MailDraft;
 use App\Services\Mailing\Composer\CampaignService;
 use App\Services\Mailing\Composer\DraftService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class DraftController extends Controller
@@ -49,6 +51,26 @@ class DraftController extends Controller
 
         return response()->json([
             'draft' => $this->draftService->serialize($draft),
+        ]);
+    }
+
+    public function destroy(MailDraft $draft): JsonResponse
+    {
+        $this->draftService->delete($draft);
+
+        return response()->json([
+            'message' => 'Brouillon supprimé.',
+        ]);
+    }
+
+    public function bulkDestroy(BulkDeleteDraftsRequest $request): JsonResponse
+    {
+        $drafts = MailDraft::query()->whereIn('id', $request->validated('ids'))->get();
+        $deleted = $this->draftService->deleteMany($drafts);
+
+        return response()->json([
+            'message' => $deleted > 1 ? "{$deleted} brouillons supprimés." : 'Brouillon supprimé.',
+            'deletedCount' => $deleted,
         ]);
     }
 

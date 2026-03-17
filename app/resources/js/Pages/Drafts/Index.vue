@@ -34,6 +34,18 @@
     />
 
     <div v-else class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div v-if="selectedIds.length > 0" class="flex items-center justify-between border-b border-slate-200 bg-amber-50 px-6 py-4">
+        <p class="text-xs font-bold text-amber-800">{{ selectedIds.length }} brouillon(s) sélectionné(s)</p>
+        <div class="flex items-center gap-3">
+          <button class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm" @click="clearSelection">
+            Réinitialiser
+          </button>
+          <button class="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 shadow-sm" @click="deleteSelected">
+            Supprimer la sélection
+          </button>
+        </div>
+      </div>
+
       <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
         <h2 class="text-sm font-bold text-slate-900">Brouillons enregistrés</h2>
         <span class="text-xs font-bold text-slate-400">{{ drafts.length }} brouillon(s)</span>
@@ -47,6 +59,15 @@
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+            <th class="px-6 py-4">
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                :indeterminate.prop="indeterminate"
+                class="rounded border-slate-300"
+                @change="toggleAll"
+              />
+            </th>
             <th class="px-6 py-4">Sujet</th>
             <th class="px-6 py-4">Destinataire(s)</th>
             <th class="px-6 py-4">Type</th>
@@ -56,10 +77,18 @@
             <th class="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
-          <tr v-for="draft in drafts" :key="draft.id" class="hover:bg-slate-50 transition-colors">
-            <td class="px-6 py-4 font-bold text-slate-900">{{ draft.subject || '(sans sujet)' }}</td>
-            <td class="px-6 py-4 text-slate-600">{{ draft.recipientCount }} dest.</td>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="draft in drafts" :key="draft.id" class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4">
+                <input
+                  type="checkbox"
+                  :checked="selectedIds.includes(draft.id)"
+                  class="rounded border-slate-300"
+                  @change="toggleSelection(draft.id)"
+                />
+              </td>
+              <td class="px-6 py-4 font-bold text-slate-900">{{ draft.subject || '(sans sujet)' }}</td>
+              <td class="px-6 py-4 text-slate-600">{{ draft.recipientCount }} dest.</td>
             <td class="px-6 py-4">
               <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
                 {{ draft.type === 'multiple' ? 'Multiple' : 'Simple' }}
@@ -70,24 +99,31 @@
             </td>
             <td class="px-6 py-4 text-slate-500">{{ draft.scheduledAt ?? '—' }}</td>
             <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ draft.updatedAt }}</td>
-            <td class="px-6 py-4 text-right space-x-3">
-              <button
-                class="text-xs font-bold text-blue-600 hover:text-blue-800"
+              <td class="px-6 py-4 text-right space-x-3">
+                <button
+                  class="text-xs font-bold text-blue-600 hover:text-blue-800"
                 :disabled="loadingId === draft.id"
                 @click="editDraft(draft.id)"
               >
                 Éditer
               </button>
               <span class="text-slate-200">·</span>
-              <button
-                class="text-xs font-bold text-slate-500 hover:text-slate-700"
-                @click="duplicateDraft(draft.id)"
-              >
-                Dupliquer
-              </button>
-              <template v-if="draft.status === 'scheduled'">
+                <button
+                  class="text-xs font-bold text-slate-500 hover:text-slate-700"
+                  @click="duplicateDraft(draft.id)"
+                >
+                  Dupliquer
+                </button>
                 <span class="text-slate-200">·</span>
                 <button
+                  class="text-xs font-bold text-red-600 hover:text-red-800"
+                  @click="deleteDraft(draft.id)"
+                >
+                  Supprimer
+                </button>
+                <template v-if="draft.status === 'scheduled'">
+                  <span class="text-slate-200">·</span>
+                  <button
                   class="text-xs font-bold text-amber-600 hover:text-amber-800"
                   @click="unscheduleDraft(draft.id)"
                 >
@@ -103,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -119,6 +155,15 @@ const composerOpen = ref(false);
 const composerMode = ref('single');
 const editingDraft = ref(null);
 const loadingId = ref(null);
+const selectedIds = ref([]);
+
+const allSelected = computed(() =>
+  props.drafts.length > 0 && selectedIds.value.length === props.drafts.length,
+);
+
+const indeterminate = computed(() =>
+  selectedIds.value.length > 0 && selectedIds.value.length < props.drafts.length,
+);
 
 function openNewDraft() {
   editingDraft.value = null;
@@ -130,8 +175,8 @@ async function editDraft(id) {
   loadingId.value = id;
   try {
     const { data } = await axios.get(`/api/drafts/${id}`);
-    editingDraft.value = data;
-    composerMode.value = data.type === 'multiple' ? 'multiple' : 'single';
+    editingDraft.value = data.draft;
+    composerMode.value = data.draft?.type === 'multiple' ? 'multiple' : 'single';
     composerOpen.value = true;
   } finally {
     loadingId.value = null;
@@ -143,9 +188,42 @@ async function duplicateDraft(id) {
   router.reload({ preserveState: false });
 }
 
+async function deleteDraft(id) {
+  if (!window.confirm('Supprimer ce brouillon ?')) return;
+
+  await axios.delete(`/api/drafts/${id}`);
+  selectedIds.value = selectedIds.value.filter((value) => value !== id);
+  router.reload({ preserveState: false });
+}
+
+async function deleteSelected() {
+  if (selectedIds.value.length === 0) return;
+  if (!window.confirm(`Supprimer ${selectedIds.value.length} brouillon(s) ?`)) return;
+
+  await axios.delete('/api/drafts', {
+    data: { ids: selectedIds.value },
+  });
+  clearSelection();
+  router.reload({ preserveState: false });
+}
+
 async function unscheduleDraft(id) {
   await axios.post(`/api/drafts/${id}/unschedule`);
   router.reload({ preserveState: false });
+}
+
+function toggleSelection(id) {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter((value) => value !== id)
+    : [...selectedIds.value, id];
+}
+
+function toggleAll() {
+  selectedIds.value = allSelected.value ? [] : props.drafts.map((draft) => draft.id);
+}
+
+function clearSelection() {
+  selectedIds.value = [];
 }
 
 function closeComposer() {
@@ -154,10 +232,12 @@ function closeComposer() {
 }
 
 function onSaved() {
+  clearSelection();
   router.reload({ preserveState: false });
 }
 
 function onScheduled() {
+  clearSelection();
   composerOpen.value = false;
   editingDraft.value = null;
   router.reload({ preserveState: false });

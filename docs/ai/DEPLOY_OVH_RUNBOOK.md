@@ -27,9 +27,9 @@ Règles figées gardées :
 ### Ce qui impose une contrainte d’hébergement
 
 - la V1 complète nécessite des processus long-lived :
-  - `php artisan queue:work`
-  - `php artisan schedule:run` via cron
-  - un mail-gateway HTTP si on veut un envoi/sync réels hors stub
+    - `php artisan queue:work`
+    - `php artisan schedule:run` via cron
+    - un mail-gateway HTTP si on veut un envoi/sync réels hors stub
 
 ### Conclusion honnête
 
@@ -309,6 +309,86 @@ Vérifier :
 - `mail_message.failed`
 - `mailbox.sync_skipped_locked`
 - `mail_campaign.auto_stopped`
+
+## Assets statiques publics (images de signature, etc.)
+
+### Mapping URL ↔ filesystem — OVH mutualisé
+
+Sur OVH mutualisé avec le dossier racine OVH Multisite configuré à `www` :
+
+- **Le web root servi publiquement est `/home/<login>/www/`**
+- **Ce dossier correspond exactement à `app/public/` dans le repo**
+- `www/` est soit un lien symbolique vers `app/public/`, soit `app/public/` est déployé directement dedans
+
+Preuve : `robots.txt` (situé dans `app/public/robots.txt` dans le repo) est accessible à `https://aegisnetwork.fr/robots.txt` → `www/robots.txt` → `app/public/robots.txt`.
+
+Il n'existe **pas** de `.htaccess` racine dans `app/` : le seul `.htaccess` est `app/public/.htaccess`. Il ne redirige vers `index.php` que les requêtes pointant vers des fichiers qui n'existent pas physiquement. Tout fichier réel dans `app/public/` est servi directement par Apache sans passer par Laravel.
+
+### Dossier dédié pour les images de signature
+
+Le dossier `app/public/signatures/` est réservé aux images statiques destinées aux signatures email.
+
+**Placement serveur :**
+
+```
+/home/<login>/www/signatures/<nom-image>.png
+```
+
+**URL résultante :**
+
+```
+https://aegisnetwork.fr/signatures/<nom-image>.png
+```
+
+**Exemple concret :**
+
+- Image : `aegis-logo-compact-512.png`
+- Chemin serveur : `/home/aegisno/www/signatures/aegis-logo-compact-512.png`
+- URL publique : `https://aegisnetwork.fr/signatures/aegis-logo-compact-512.png`
+
+### Erreur fréquente à éviter
+
+Ne **pas** placer les fichiers dans `/home/<login>/www/public/`. Ce chemin crée un sous-dossier `public/` à l'intérieur de `app/public/`, ce qui n'est ni référencé par le repo ni servi correctement :
+
+- `/public/aegis-logo-compact-512.png` → 404 (sous-dossier non géré ou bloqué par Apache)
+- Ce design crée une confusion entre le dossier `public/` du repo et un sous-dossier ad hoc
+
+### Convention pour les futurs assets
+
+Pour publier d'autres images de signature ou assets statiques :
+
+1. Ajouter le fichier dans `app/public/signatures/` dans le repo (ou le déposer directement en SFTP dans `www/signatures/`)
+2. L'URL résultante est toujours `https://aegisnetwork.fr/signatures/<fichier>`
+3. Aucune route Laravel, aucun controller, aucun middleware n'intervient : Apache sert le fichier directement
+
+### Validation après placement
+
+```bash
+# Vérifier HTTP 200 + Content-Type image/png
+curl -I https://aegisnetwork.fr/signatures/aegis-logo-compact-512.png
+
+# Résultat attendu :
+# HTTP/2 200
+# content-type: image/png
+
+# Vérifier que robots.txt est toujours intact
+curl -I https://aegisnetwork.fr/robots.txt
+# HTTP/2 200
+# content-type: text/plain
+```
+
+### Usage dans une signature HTML
+
+```html
+<img
+    src="https://aegisnetwork.fr/signatures/aegis-logo-compact-512.png"
+    alt="AEGIS Network"
+    width="120"
+    style="display:block;"
+/>
+```
+
+---
 
 ## Contrôles post-déploiement
 

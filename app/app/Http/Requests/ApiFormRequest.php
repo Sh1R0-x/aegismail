@@ -26,6 +26,7 @@ abstract class ApiFormRequest extends FormRequest
             'exists' => 'La valeur sélectionnée pour :attribute est introuvable.',
             'in' => 'La valeur choisie pour :attribute est invalide.',
             'gte' => 'Le champ :attribute doit être supérieur ou égal à :value.',
+            'unique' => 'La valeur de :attribute est déjà utilisée.',
         ];
     }
 

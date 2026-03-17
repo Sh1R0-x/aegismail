@@ -38,7 +38,7 @@ class SettingsController extends Controller
         $this->eventLogger->log('settings.general.updated', $request->validated());
 
         return response()->json([
-            'message' => 'General settings updated.',
+            'message' => 'Réglages de cadence et de scoring enregistrés.',
             'general' => $this->settingsStore->get('general', config('mailing.defaults.general', [])),
         ]);
     }
@@ -46,7 +46,7 @@ class SettingsController extends Controller
     public function updateMail(MailSettingsRequest $request): JsonResponse
     {
         return response()->json([
-            'message' => 'Mail settings updated.',
+            'message' => 'Réglages mail enregistrés.',
             'mail' => $this->mailboxSettingsService->update($request->validated(), $request->user()?->id),
         ]);
     }
@@ -57,7 +57,7 @@ class SettingsController extends Controller
         $this->eventLogger->log('settings.deliverability.updated', $request->validated());
 
         return response()->json([
-            'message' => 'Deliverability settings updated.',
+            'message' => 'Réglages de délivrabilité enregistrés.',
             'deliverability' => $this->settingsStore->get('deliverability', config('mailing.defaults.deliverability', [])),
         ]);
     }

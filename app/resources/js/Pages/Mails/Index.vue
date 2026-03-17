@@ -136,9 +136,17 @@
               </td>
               <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ r.sentAt ?? '—' }}</td>
               <td class="px-6 py-4 text-right">
+                <Link
+                  v-if="r.threadId"
+                  :href="`/threads/${r.threadId}`"
+                  class="text-xs font-bold text-blue-600 hover:text-blue-800"
+                >
+                  Voir
+                </Link>
                 <span
+                  v-else
                   class="cursor-not-allowed text-xs font-bold text-slate-300"
-                  title="Vue détail thread — disponible dans une prochaine version"
+                  title="Aucun fil historisé n’est encore lié à cet envoi."
                 >
                   Voir
                 </span>
@@ -153,7 +161,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 import MailComposer from '@/Components/Composer/MailComposer.vue';

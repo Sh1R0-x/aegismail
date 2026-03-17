@@ -172,17 +172,36 @@ class SettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('protocol', 'imap')
-            ->assertJsonPath('driver', 'stub');
+            ->assertJsonPath('driver', 'stub')
+            ->assertJsonPath('message', 'Test IMAP réussi. La connexion à la boîte OVH MX Plan a bien été établie.');
 
         $this->postJson('/api/settings/mail/test-smtp')
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('protocol', 'smtp')
-            ->assertJsonPath('driver', 'stub');
+            ->assertJsonPath('driver', 'stub')
+            ->assertJsonPath('message', 'Test SMTP réussi. La connexion à la boîte OVH MX Plan a bien été établie.');
 
         $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.test_imap_succeeded']);
         $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.test_smtp_succeeded']);
         $this->assertDatabaseHas('mailbox_accounts', ['health_status' => 'healthy']);
+    }
+
+    public function test_imap_test_returns_french_operator_message_for_invalid_host(): void
+    {
+        $response = $this->postJson('/api/settings/mail/test-imap', [
+            'sender_email' => 'ops@aegis-mail.test',
+            'mailbox_username' => 'ops@aegis-mail.test',
+            'mailbox_password' => 'secret-pass',
+            'imap_host' => 'invalid.mail.ovh.net',
+            'imap_port' => 993,
+            'imap_secure' => true,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('protocol', 'imap')
+            ->assertJsonPath('message', 'La connexion IMAP a échoué : l’hôte ou le port semble incorrect.');
     }
 
     public function test_smtp_test_returns_precise_validation_messages_for_missing_fields(): void

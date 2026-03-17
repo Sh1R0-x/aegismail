@@ -37,6 +37,7 @@
           <label class="mb-1 block text-sm font-bold text-slate-700">Mot de passe</label>
           <input v-model="form.mailboxPassword" type="password" placeholder="••••••••"
             class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none" />
+          <p class="mt-1 text-xs text-slate-400">Laissez vide pour conserver le mot de passe enregistré.</p>
         </div>
         <div class="flex items-center gap-2 pt-1">
           <input id="smtpSecure" v-model="form.smtpSecure" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
@@ -44,17 +45,28 @@
         </div>
       </div>
       <template #footer>
-        <div class="flex items-center gap-3">
-          <button
-            :disabled="testingSmtp"
-            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-40"
-            @click="testSmtp"
+        <div class="space-y-2">
+          <div class="flex items-center gap-3">
+            <button
+              :disabled="testingSmtp"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-40"
+              @click="testSmtp"
+            >
+              {{ testingSmtp ? 'Test en cours…' : 'Tester SMTP' }}
+            </button>
+          </div>
+          <div
+            v-if="smtpTestResult"
+            :class="[
+              'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium max-w-sm',
+              smtpTestResult.ok
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-red-200 bg-red-50 text-red-800',
+            ]"
           >
-            {{ testingSmtp ? 'Test en cours…' : 'Tester SMTP' }}
-          </button>
-          <span v-if="smtpTestResult" :class="smtpTestResult.ok ? 'text-xs font-bold text-emerald-700' : 'text-xs font-bold text-red-700'">
-            {{ smtpTestResult.ok ? '✓ ' : '✕ ' }}{{ smtpTestResult.message }}
-          </span>
+            <span class="shrink-0 text-sm leading-none mt-0.5">{{ smtpTestResult.ok ? '✓' : '✕' }}</span>
+            <span>{{ smtpTestResult.message }}</span>
+          </div>
         </div>
       </template>
     </SectionCard>
@@ -78,17 +90,28 @@
         </div>
       </div>
       <template #footer>
-        <div class="flex items-center gap-3">
-          <button
-            :disabled="testingImap"
-            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-40"
-            @click="testImap"
+        <div class="space-y-2">
+          <div class="flex items-center gap-3">
+            <button
+              :disabled="testingImap"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-40"
+              @click="testImap"
+            >
+              {{ testingImap ? 'Test en cours…' : 'Tester IMAP' }}
+            </button>
+          </div>
+          <div
+            v-if="imapTestResult"
+            :class="[
+              'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium max-w-sm',
+              imapTestResult.ok
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-red-200 bg-red-50 text-red-800',
+            ]"
           >
-            {{ testingImap ? 'Test en cours…' : 'Tester IMAP' }}
-          </button>
-          <span v-if="imapTestResult" :class="imapTestResult.ok ? 'text-xs font-bold text-emerald-700' : 'text-xs font-bold text-red-700'">
-            {{ imapTestResult.ok ? '✓ ' : '✕ ' }}{{ imapTestResult.message }}
-          </span>
+            <span class="shrink-0 text-sm leading-none mt-0.5">{{ imapTestResult.ok ? '✓' : '✕' }}</span>
+            <span>{{ imapTestResult.message }}</span>
+          </div>
         </div>
       </template>
     </SectionCard>
@@ -199,6 +222,38 @@ const testingImap  = ref(false);
 const smtpTestResult = ref(null);
 const imapTestResult = ref(null);
 const banner       = ref(null);
+
+// Clear stale SMTP test result when relevant fields change
+watch(
+  [
+    () => form.value.smtpHost,
+    () => form.value.smtpPort,
+    () => form.value.smtpSecure,
+    () => form.value.mailboxUsername,
+    () => form.value.mailboxPassword,
+    () => form.value.senderEmail,
+  ],
+  () => { smtpTestResult.value = null; },
+);
+
+// Clear stale IMAP test result when relevant fields change
+watch(
+  [
+    () => form.value.imapHost,
+    () => form.value.imapPort,
+    () => form.value.imapSecure,
+    () => form.value.mailboxUsername,
+    () => form.value.mailboxPassword,
+  ],
+  () => { imapTestResult.value = null; },
+);
+
+// Auto-dismiss success banner after 5 s
+watch(banner, (val) => {
+  if (val?.type === 'success') {
+    setTimeout(() => { if (banner.value?.type === 'success') banner.value = null; }, 5000);
+  }
+});
 
 function toApiPayload() {
   return {

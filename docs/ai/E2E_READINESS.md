@@ -26,7 +26,7 @@ La suite smoke utilise :
 
 - Chromium
 - build Vite statique
-- serveur Laravel `php artisan serve` sur `http://127.0.0.1:8001`
+- serveur Laravel dédié `php artisan serve` sur `http://127.0.0.1:8811` par défaut
 - base SQLite dédiée `app/database/e2e.sqlite`
 - gateway `stub`
 
@@ -60,14 +60,15 @@ npm run test:e2e:smoke:headed
    - `CACHE_STORE=database`
    - `SESSION_DRIVER=database`
    - `MAIL_GATEWAY_DRIVER=stub`
-   - `APP_URL=http://127.0.0.1:8001`
+   - `APP_URL=http://127.0.0.1:8811` par défaut
 5. exécute `php artisan migrate:fresh --seed --seeder=SmokeTestSeeder`
 6. exécute `npm run build`
-7. démarre `php artisan serve --host=127.0.0.1 --port=8001 --no-reload`
+7. démarre `php artisan serve --host=127.0.0.1 --port=8811 --no-reload`
 
 Important :
 
-- le port `8001` doit être libre avant le run smoke
+- la smoke démarre toujours son serveur Laravel dédié pour garder une base seedée propre et déterministe
+- le port peut être surchargé via `AEGIS_E2E_PORT` si `8811` est déjà pris
 - la suite smoke reconstruit sa base dédiée à chaque exécution
 - aucun worker queue permanent n’est requis pour ce scénario smoke
 
@@ -101,11 +102,11 @@ Important :
   - `/activity`
   - `/settings`
   - `/users`
-- vérification des placeholders désactivés utiles :
-  - `Ajouter un contact`
-  - `Ajouter une organisation`
-  - `Voir`
-  - `Détails`
+- ouverture d’actions réelles à fort impact :
+  - `Contacts -> Fiche`
+  - `Organisations -> Fiche`
+  - `Mails -> Voir`
+  - `Campagnes -> Détails`
 
 ### Parcours métier minimal
 
@@ -196,7 +197,7 @@ Si la cible staging/prod n’utilise plus SQLite :
 
 - la sauvegarde mail standard n’écrase plus la signature globale existante quand `global_signature_html/text` arrivent à `null`; un effacement volontaire complet doit maintenant envoyer `clear_signature = true`
 - la suite smoke ne couvre pas encore un envoi SMTP réel ni une sync IMAP réelle ; elle valide le flux UI + backend local avec gateway `stub`
-- la suite smoke ne couvre pas encore les détails thread `GET /api/threads/{thread}` en UI car aucune page thread dédiée n’est exposée
+- la suite smoke couvre désormais l’ouverture des pages détail Contact, Organisation, Campagne et Thread, mais ne couvre pas encore toutes les mutations associées en UI
 - `BACKEND_SCOPE.md` reste plus conservateur que l’état réel du repo sur certaines briques déjà présentes
 
 ## Interprétation du feu vert smoke

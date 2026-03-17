@@ -6,13 +6,16 @@ use App\Models\Contact;
 use App\Models\ContactEmail;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
+use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\MailTemplate;
+use App\Models\MailThread;
 use App\Models\MailboxAccount;
 use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -41,6 +44,9 @@ class ComposerPagePayloadTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Campaigns/Index')
                 ->has('campaigns', 0)
+                ->where('creationFlow.type', 'draft_first')
+                ->where('creationFlow.entryHref', '/campaigns/create')
+                ->where('creationFlow.actionLabel', 'Préparer une campagne')
             );
     }
 
@@ -83,6 +89,10 @@ class ComposerPagePayloadTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Campaigns/Index')
                 ->has('campaigns', 1)
+                ->where('creationFlow.type', 'draft_first')
+                ->where('creationFlow.entryHref', '/campaigns/create')
+                ->where('creationFlow.actionLabel', 'Préparer une campagne')
+                ->where('creationFlow.helperText', 'Le module Campagnes conserve une couche draft technique interne, mais l’utilisateur prépare, édite et planifie ses campagnes depuis /campaigns.')
                 ->has('campaigns.0', fn (Assert $campaignPayload) => $campaignPayload
                     ->where('id', $campaign->id)
                     ->where('name', 'Séquence V1')
@@ -94,6 +104,165 @@ class ComposerPagePayloadTest extends TestCase
                     ->where('bounceCount', 0)
                     ->etc()
                 )
+            );
+    }
+
+    public function test_campaign_create_page_and_show_page_expose_real_campaign_payloads(): void
+    {
+        [$draft, , $campaign] = $this->seedComposerDataset();
+
+        $this->get('/campaigns/create')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Campaigns/Create')
+                ->has('templates', 1)
+                ->where('templates.0.id', $draft->template_id)
+            );
+
+        $this->get('/campaigns/'.$campaign->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Campaigns/Show')
+                ->where('campaign.id', $campaign->id)
+                ->where('campaign.draftId', $draft->id)
+                ->where('campaign.draft.id', $draft->id)
+                ->where('campaign.draft.type', 'multiple')
+                ->has('campaign.recipients', 2)
+                ->where('campaign.recipients.0.email', 'alice@acme.test')
+                ->where('campaign.recipients.1.email', 'bob@acme.test')
+                ->has('templates', 1)
+            );
+    }
+
+    public function test_mails_page_exposes_thread_id_and_thread_show_payload_when_history_exists(): void
+    {
+        Setting::query()->create([
+            'key' => 'general',
+            'value_json' => config('mailing.defaults.general', []),
+        ]);
+
+        $mailbox = MailboxAccount::query()->create([
+            'provider' => 'ovh_mx_plan',
+            'email' => 'ops@aegis.test',
+            'display_name' => 'AEGIS Ops',
+            'username' => 'ops@aegis.test',
+            'password_encrypted' => 'secret',
+            'imap_host' => 'imap.mail.ovh.net',
+            'imap_port' => 993,
+            'imap_secure' => true,
+            'smtp_host' => 'smtp.mail.ovh.net',
+            'smtp_port' => 465,
+            'smtp_secure' => true,
+            'sync_enabled' => true,
+            'send_enabled' => true,
+            'health_status' => 'healthy',
+        ]);
+
+        $organization = Organization::query()->create([
+            'name' => 'Acme',
+            'domain' => 'acme.test',
+        ]);
+
+        $contact = Contact::query()->create([
+            'organization_id' => $organization->id,
+            'first_name' => 'Alice',
+            'last_name' => 'Martin',
+        ]);
+
+        $email = ContactEmail::query()->create([
+            'contact_id' => $contact->id,
+            'email' => 'alice@acme.test',
+            'is_primary' => true,
+        ]);
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => $mailbox->id,
+            'mode' => 'single',
+            'subject' => 'Suivi Alice',
+            'html_body' => '<p>Bonjour Alice</p>',
+            'text_body' => 'Bonjour Alice',
+            'status' => 'sent',
+        ]);
+
+        $campaign = MailCampaign::query()->create([
+            'mailbox_account_id' => $mailbox->id,
+            'name' => 'Suivi Alice',
+            'mode' => 'single',
+            'draft_id' => $draft->id,
+            'status' => 'sent',
+        ]);
+
+        $recipient = MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'organization_id' => $organization->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => $email->email,
+            'status' => 'sent',
+            'sent_at' => Carbon::parse('2026-03-15 09:45:00'),
+        ]);
+
+        $thread = MailThread::query()->create([
+            'public_uuid' => (string) Str::uuid(),
+            'mailbox_account_id' => $mailbox->id,
+            'organization_id' => $organization->id,
+            'contact_id' => $contact->id,
+            'subject_canonical' => 'suivi alice',
+            'first_message_at' => Carbon::parse('2026-03-15 09:45:00'),
+            'last_message_at' => Carbon::parse('2026-03-15 10:15:00'),
+            'last_direction' => 'in',
+            'reply_received' => true,
+            'auto_reply_received' => false,
+            'status' => 'replied',
+        ]);
+
+        MailMessage::query()->create([
+            'thread_id' => $thread->id,
+            'mailbox_account_id' => $mailbox->id,
+            'recipient_id' => $recipient->id,
+            'direction' => 'out',
+            'message_id_header' => '<outbound-1@aegis.test>',
+            'aegis_tracking_id' => (string) Str::uuid(),
+            'from_email' => 'ops@aegis.test',
+            'to_emails' => ['alice@acme.test'],
+            'subject' => 'Suivi Alice',
+            'headers_json' => [],
+            'classification' => 'unknown',
+            'sent_at' => Carbon::parse('2026-03-15 09:45:00'),
+        ]);
+
+        MailMessage::query()->create([
+            'thread_id' => $thread->id,
+            'mailbox_account_id' => $mailbox->id,
+            'direction' => 'in',
+            'message_id_header' => '<reply-1@acme.test>',
+            'aegis_tracking_id' => (string) Str::uuid(),
+            'from_email' => 'alice@acme.test',
+            'to_emails' => ['ops@aegis.test'],
+            'subject' => 'Re: Suivi Alice',
+            'headers_json' => [],
+            'classification' => 'human_reply',
+            'received_at' => Carbon::parse('2026-03-15 10:15:00'),
+        ]);
+
+        $this->get('/mails')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Mails/Index')
+                ->has('recipients', 1)
+                ->where('recipients.0.threadId', $thread->id)
+                ->where('recipients.0.campaignId', $campaign->id)
+            );
+
+        $this->get('/threads/'.$thread->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Threads/Show')
+                ->where('thread.id', $thread->id)
+                ->where('thread.replyReceived', true)
+                ->has('thread.messages', 2)
+                ->where('thread.messages.0.direction', 'out')
+                ->where('thread.messages.1.classification', 'human_reply')
             );
     }
 

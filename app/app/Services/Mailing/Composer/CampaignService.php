@@ -131,7 +131,7 @@ class CampaignService
 
     public function serialize(MailCampaign $campaign): array
     {
-        $campaign->loadMissing('recipients');
+        $campaign->loadMissing(['recipients', 'draft']);
 
         return [
             'id' => $campaign->id,
@@ -139,7 +139,9 @@ class CampaignService
             'name' => $campaign->name,
             'status' => $campaign->status,
             'type' => $campaign->mode === 'bulk' ? 'multiple' : 'single',
-            'recipientCount' => $campaign->recipients->count(),
+            'recipientCount' => $campaign->recipients->count() > 0
+                ? $campaign->recipients->count()
+                : count($campaign->draft?->payload_json['recipients'] ?? []),
             'progressPercent' => $this->progressPercent($campaign),
             'openCount' => $campaign->recipients->whereIn('status', ['opened', 'clicked', 'replied', 'auto_replied'])->count(),
             'replyCount' => $campaign->recipients->where('status', 'replied')->count(),
@@ -153,6 +155,27 @@ class CampaignService
     public function serializeListItem(MailCampaign $campaign): array
     {
         return $this->serialize($campaign);
+    }
+
+    public function serializeDetail(MailCampaign $campaign, array $draftPayload): array
+    {
+        $campaign->loadMissing(['recipients.contact.organization', 'recipients.contactEmail', 'draft']);
+
+        return array_merge($this->serialize($campaign), [
+            'draft' => $draftPayload,
+            'recipients' => $campaign->recipients
+                ->sortBy('scheduled_for')
+                ->values()
+                ->map(fn (MailRecipient $recipient): array => [
+                    'id' => $recipient->id,
+                    'email' => $recipient->email,
+                    'status' => $recipient->status,
+                    'contactName' => trim((string) ($recipient->contact?->first_name.' '.$recipient->contact?->last_name)) ?: null,
+                    'organization' => $recipient->organization?->name,
+                    'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                    'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                ])->all(),
+        ]);
     }
 
     private function progressPercent(MailCampaign $campaign): int

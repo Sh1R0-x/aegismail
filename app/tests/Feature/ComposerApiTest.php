@@ -166,6 +166,61 @@ class ComposerApiTest extends TestCase
             ->assertJsonPath('campaign.status', 'draft');
     }
 
+    public function test_draft_can_be_deleted_when_no_send_history_exists(): void
+    {
+        $this->seedMailboxAndSettings();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'single',
+            'subject' => 'Delete me',
+            'html_body' => null,
+            'text_body' => 'Bonjour',
+            'payload_json' => [],
+            'status' => 'draft',
+        ]);
+
+        $this->deleteJson('/api/drafts/'.$draft->id)
+            ->assertOk()
+            ->assertJsonPath('message', 'Brouillon supprimé.');
+
+        $this->assertDatabaseMissing('mail_drafts', ['id' => $draft->id]);
+    }
+
+    public function test_drafts_support_bulk_delete(): void
+    {
+        $this->seedMailboxAndSettings();
+
+        $draftA = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'single',
+            'subject' => 'Bulk A',
+            'html_body' => null,
+            'text_body' => 'Bonjour A',
+            'payload_json' => [],
+            'status' => 'draft',
+        ]);
+
+        $draftB = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Bulk B',
+            'html_body' => null,
+            'text_body' => 'Bonjour B',
+            'payload_json' => [],
+            'status' => 'draft',
+        ]);
+
+        $this->deleteJson('/api/drafts', [
+            'ids' => [$draftA->id, $draftB->id],
+        ])->assertOk()
+            ->assertJsonPath('deletedCount', 2)
+            ->assertJsonPath('message', '2 brouillons supprimés.');
+
+        $this->assertDatabaseMissing('mail_drafts', ['id' => $draftA->id]);
+        $this->assertDatabaseMissing('mail_drafts', ['id' => $draftB->id]);
+    }
+
     public function test_unscheduled_campaign_does_not_dispatch_when_delayed_job_runs_later(): void
     {
         [$contact, $primaryEmail] = $this->seedContacts();
@@ -721,6 +776,41 @@ class ComposerApiTest extends TestCase
             ->assertJsonPath('campaigns.0.openCount', 0)
             ->assertJsonPath('campaigns.0.replyCount', 0)
             ->assertJsonPath('campaigns.0.bounceCount', 0);
+    }
+
+    public function test_campaign_can_be_deleted_when_no_send_history_exists(): void
+    {
+        [$contact, $primaryEmail] = $this->seedContacts();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Delete campaign',
+            'html_body' => null,
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    [
+                        'contactId' => $contact->id,
+                        'contactEmailId' => $primaryEmail->id,
+                        'organizationId' => $contact->organization_id,
+                        'email' => $primaryEmail->email,
+                    ],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $campaignId = $this->postJson('/api/drafts/'.$draft->id.'/campaign', [
+            'name' => 'Delete campaign',
+        ])->assertCreated()->json('campaign.id');
+
+        $this->deleteJson('/api/campaigns/'.$campaignId)
+            ->assertOk()
+            ->assertJsonPath('message', 'Campagne supprimée.');
+
+        $this->assertDatabaseMissing('mail_campaigns', ['id' => $campaignId]);
+        $this->assertDatabaseMissing('mail_drafts', ['id' => $draft->id]);
     }
 
     private function seedMailboxAndSettings(): void

@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const smokePort = process.env.AEGIS_E2E_PORT ?? '8811';
+const smokeBaseUrl = `http://127.0.0.1:${smokePort}`;
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -10,7 +13,7 @@ export default defineConfig({
   },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:8001',
+    baseURL: smokeBaseUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -22,8 +25,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'powershell -ExecutionPolicy Bypass -File ../scripts/e2e-serve.ps1',
-    url: 'http://127.0.0.1:8001/dashboard',
+    command: `powershell -ExecutionPolicy Bypass -File ../scripts/e2e-serve.ps1 -E2ePort ${smokePort}`,
+    url: `${smokeBaseUrl}/dashboard`,
     reuseExistingServer: false,
     timeout: 180_000,
   },

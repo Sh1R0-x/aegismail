@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\CampaignController;
+use App\Http\Controllers\Api\CampaignManagementController;
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\DraftController;
+use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\Api\ThreadController;
@@ -25,8 +28,10 @@ Route::post('/templates/{template}/activate', [TemplateController::class, 'activ
 
 Route::get('/drafts', [DraftController::class, 'index']);
 Route::post('/drafts', [DraftController::class, 'store']);
+Route::delete('/drafts', [DraftController::class, 'bulkDestroy']);
 Route::get('/drafts/{draft}', [DraftController::class, 'show']);
 Route::put('/drafts/{draft}', [DraftController::class, 'update']);
+Route::delete('/drafts/{draft}', [DraftController::class, 'destroy']);
 Route::post('/drafts/{draft}/duplicate', [DraftController::class, 'duplicate']);
 Route::post('/drafts/{draft}/preflight', [DraftController::class, 'preflight']);
 Route::post('/drafts/{draft}/schedule', [DraftController::class, 'schedule']);
@@ -34,5 +39,16 @@ Route::post('/drafts/{draft}/unschedule', [DraftController::class, 'unschedule']
 Route::post('/drafts/{draft}/campaign', [DraftController::class, 'createCampaign']);
 
 Route::get('/campaigns', [CampaignController::class, 'index']);
+Route::delete('/campaigns/{campaign}', [CampaignManagementController::class, 'destroy']);
 Route::get('/threads', [ThreadController::class, 'index']);
 Route::get('/threads/{thread}', [ThreadController::class, 'show']);
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::get('/contacts/{contact}', [ContactController::class, 'show']);
+Route::put('/contacts/{contact}', [ContactController::class, 'update']);
+Route::delete('/contacts/{contact}', [ContactController::class, 'destroy']);
+Route::post('/contacts/{contact}/emails', [ContactController::class, 'storeEmail']);
+Route::delete('/contacts/{contact}/emails/{contactEmail}', [ContactController::class, 'destroyEmail']);
+Route::post('/organizations', [OrganizationController::class, 'store']);
+Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
+Route::put('/organizations/{organization}', [OrganizationController::class, 'update']);
+Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);

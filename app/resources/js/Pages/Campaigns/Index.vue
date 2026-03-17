@@ -1,13 +1,12 @@
 <template>
   <CrmLayout title="Campagnes" subtitle="Suivi de progression des campagnes d'envoi" current-page="campaigns">
     <template #header-actions>
-      <!-- Campaigns are created via draft scheduling — link to Drafts -->
       <Link
-        href="/drafts"
+        :href="creationFlow.entryHref"
         class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all"
-        title="Les campagnes sont créées lors de la planification d'un brouillon"
+        :title="creationFlow.helperText"
       >
-        Créer un brouillon
+        {{ creationFlow.actionLabel || 'Préparer une campagne' }}
       </Link>
     </template>
 
@@ -17,8 +16,14 @@
       </div>
 
       <div v-if="campaigns.length === 0" class="px-6 py-16 text-center">
-        <p class="text-sm font-medium text-slate-400">Aucune campagne.</p>
-        <p class="mt-1 text-xs text-slate-400">Les campagnes regroupent des envois multiples avec suivi de progression.</p>
+        <p class="text-sm font-medium text-slate-500">Aucune campagne pour le moment.</p>
+        <p class="mt-2 text-xs text-slate-400 max-w-sm mx-auto">{{ creationFlow.helperText }}</p>
+        <Link
+          :href="creationFlow.entryHref"
+          class="mt-5 inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-5 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          {{ creationFlow.actionLabel || 'Préparer une campagne' }} →
+        </Link>
       </div>
 
       <table v-else class="w-full text-sm">
@@ -59,12 +64,12 @@
               <span v-else class="font-medium text-slate-400">0</span>
             </td>
             <td class="px-6 py-4 text-right">
-              <span
-                class="cursor-not-allowed text-xs font-bold text-slate-300"
-                title="Vue détail campagne — disponible dans une prochaine version"
+              <Link
+                :href="`/campaigns/${campaign.id}`"
+                class="text-xs font-bold text-blue-600 hover:text-blue-800"
               >
                 Détails
-              </span>
+              </Link>
             </td>
           </tr>
         </tbody>
@@ -78,7 +83,16 @@ import { Link } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 
-defineProps({
+const props = defineProps({
   campaigns: { type: Array, default: () => [] },
+  creationFlow: {
+    type: Object,
+    default: () => ({
+      type: 'draft_first',
+      entryHref: '/campaigns/create',
+      actionLabel: 'Préparer une campagne',
+      helperText: 'Le module Campagnes conserve une couche draft technique interne, mais l’utilisateur prépare, édite et planifie ses campagnes depuis /campaigns.',
+    }),
+  },
 });
 </script>

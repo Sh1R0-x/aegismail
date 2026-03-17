@@ -18,10 +18,15 @@ Rules kept:
 - `GET /dashboard` -> `Dashboard`
 - `GET /mails` -> `Mails/Index` — served by `MailsController`, payload from `ComposerPageDataService::mails()`
 - `GET /contacts` -> `Contacts/Index`
+- `GET /contacts/{contact}` -> `Contacts/Show`
 - `GET /organizations` -> `Organizations/Index`
+- `GET /organizations/{organization}` -> `Organizations/Show`
 - `GET /drafts` -> `Drafts/Index` — payload includes both `drafts[]` and `templates[]`
 - `GET /templates` -> `Templates/Index`
 - `GET /campaigns` -> `Campaigns/Index`
+- `GET /campaigns/create` -> `Campaigns/Create`
+- `GET /campaigns/{campaign}` -> `Campaigns/Show`
+- `GET /threads/{thread}` -> `Threads/Show`
 - `GET /activity` -> `Activity/Index`
 - `GET /settings` -> `Settings/Index`
 - `GET /users` -> `Users/Index` — route present in V1, but no dedicated backend payload yet; the current page relies on its local default `users = []`
@@ -42,7 +47,9 @@ Rules kept:
 - `GET /api/drafts`
 - `GET /api/drafts/{draft}`
 - `POST /api/drafts`
+- `DELETE /api/drafts`
 - `PUT /api/drafts/{draft}`
+- `DELETE /api/drafts/{draft}`
 - `POST /api/drafts/{draft}/duplicate`
 - `POST /api/drafts/{draft}/preflight`
 - `POST /api/drafts/{draft}/schedule`
@@ -52,11 +59,25 @@ Rules kept:
 ### Campaigns
 
 - `GET /api/campaigns`
+- `DELETE /api/campaigns/{campaign}`
 
 ### Threads
 
 - `GET /api/threads`
 - `GET /api/threads/{thread}`
+
+### CRM
+
+- `POST /api/contacts`
+- `GET /api/contacts/{contact}`
+- `PUT /api/contacts/{contact}`
+- `DELETE /api/contacts/{contact}`
+- `POST /api/contacts/{contact}/emails`
+- `DELETE /api/contacts/{contact}/emails/{contactEmail}`
+- `POST /api/organizations`
+- `GET /api/organizations/{organization}`
+- `PUT /api/organizations/{organization}`
+- `DELETE /api/organizations/{organization}`
 
 ## Outbound flow used in V1
 
@@ -75,6 +96,9 @@ Rules kept:
 
 Important runtime rule:
 - campaign state is based on the first effective scheduled slot after send-window and ceiling adjustments, not only on the raw `scheduledAt` request value
+- campaign creation stays technically `draft-first` in V1
+- operator entry is now `/campaigns/create`, not `/drafts`
+- there is still no standalone `POST /api/campaigns` endpoint; Laravel materializes a campaign from an internal draft created or edited from the Campaigns module
 
 ## IMAP sync flow used in V1
 
@@ -263,6 +287,54 @@ Rules:
 - `website`: nullable string
 - `notes`: nullable string
 
+### POST /api/organizations request
+
+- `name`: required string
+- `domain`: nullable string
+- `website`: nullable string
+- `notes`: nullable string
+
+### POST /api/organizations response
+
+- `message`: required string, French operator-facing success message
+- `organization`: required object
+
+#### organization
+
+- `id`: required integer
+- `name`: required string
+- `domain`: nullable string
+- `contactCount`: required integer
+- `sentCount`: required integer
+- `lastActivityAt`: nullable string
+
+### GET /api/organizations/{organization} response
+
+- `organization`: required object
+- `organization.id`: required integer
+- `organization.name`: required string
+- `organization.domain`: nullable string
+- `organization.website`: nullable string
+- `organization.notes`: nullable string
+- `organization.contactCount`: required integer
+- `organization.sentCount`: required integer
+- `organization.lastActivityAt`: nullable string
+- `organization.contacts`: required array
+- `organization.recentThreads`: required array
+
+### PUT /api/organizations/{organization} request
+
+- `name`: required string
+- `domain`: nullable string
+- `website`: nullable string
+- `notes`: nullable string
+
+### DELETE /api/organizations/{organization}
+
+- removes the organization
+- keeps contacts, threads and recipients by detaching `organization_id`
+- returns `{ "message": "Organisation supprimée." }`
+
 ### contacts
 
 - `id`: required integer
@@ -274,6 +346,83 @@ Rules:
 - `phone`: nullable string
 - `notes`: nullable string
 - `status`: nullable string
+
+### POST /api/contacts request
+
+- `organizationId`: nullable integer, must exist when present
+- `firstName`: nullable string
+- `lastName`: nullable string
+- `fullName`: nullable string
+- `title`: nullable string
+- `email`: required string, unique on `contact_emails.email`
+- `phone`: nullable string
+- `notes`: nullable string
+- `status`: nullable string
+
+### POST /api/contacts response
+
+- `message`: required string, French operator-facing success message
+- `contact`: required object
+
+#### contact
+
+- `id`: required integer
+- `firstName`: required string
+- `lastName`: required string
+- `title`: nullable string
+- `organization`: nullable string
+- `email`: required string
+- `score`: required integer
+- `scoreLevel`: required enum `cold|warm|interested|engaged|excluded`
+- `excluded`: required boolean
+- `unsubscribed`: required boolean
+- `lastActivityAt`: nullable string
+
+### GET /api/contacts/{contact} response
+
+- `contact`: required object
+- `contact.id`: required integer
+- `contact.firstName`: required string
+- `contact.lastName`: required string
+- `contact.fullName`: nullable string
+- `contact.title`: nullable string
+- `contact.phone`: nullable string
+- `contact.notes`: nullable string
+- `contact.status`: nullable string
+- `contact.organizationId`: nullable integer
+- `contact.organizationName`: nullable string
+- `contact.emails`: required array
+- `contact.recentThreads`: required array
+- `contact.stats`: required object
+
+### PUT /api/contacts/{contact} request
+
+- `organizationId`: nullable integer, must exist when present
+- `firstName`: nullable string
+- `lastName`: nullable string
+- `fullName`: nullable string
+- `title`: nullable string
+- `email`: required string, unique on `contact_emails.email` excluding the current primary email
+- `phone`: nullable string
+- `notes`: nullable string
+- `status`: nullable string
+
+### DELETE /api/contacts/{contact}
+
+- removes the contact and its linked `contact_emails`
+- keeps historical threads and recipients by detaching `contact_id` / `contact_email_id`
+- returns `{ "message": "Contact supprimé." }`
+
+### POST /api/contacts/{contact}/emails request
+
+- `email`: required string, unique on `contact_emails.email`
+- `isPrimary`: nullable boolean
+
+### DELETE /api/contacts/{contact}/emails/{contactEmail}
+
+- rejects deletion when the email does not belong to the contact
+- rejects deletion when it is the last remaining address
+- promotes another address as primary when the deleted one was primary
 
 ### contact_emails
 
@@ -593,6 +742,14 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `scheduledAt`: required ISO or parseable datetime string
 - `name`: nullable string
 
+### Draft deletion behavior
+
+- `DELETE /api/drafts/{draft}` deletes the draft and its technical campaign artifacts only when no sent or post-send history exists
+- `DELETE /api/drafts` accepts `{ "ids": [1, 2, ...] }`
+- bulk deletion returns:
+  - `message`: required string
+  - `deletedCount`: required integer
+
 ## Campaign API contract
 
 ### Campaign payload
@@ -610,6 +767,26 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `scheduledAt`: nullable `YYYY-MM-DD HH:mm`
 - `createdAt`: nullable ISO-8601 string
 - `updatedAt`: nullable `YYYY-MM-DD HH:mm`
+
+### Campaign detail payload used by `Campaigns/Show`
+
+- `draft`: nullable object, serialized with the same shape as `GET /api/drafts/{draft}`
+- `recipients`: required array
+
+### campaign.recipients[]
+
+- `id`: required integer
+- `email`: required string
+- `status`: required string
+- `contactName`: nullable string
+- `organization`: nullable string
+- `scheduledFor`: nullable `YYYY-MM-DD HH:mm`
+- `lastEventAt`: nullable `YYYY-MM-DD HH:mm`
+
+### Campaign deletion behavior
+
+- `DELETE /api/campaigns/{campaign}` deletes the campaign and its linked technical draft only when no sent or post-send history exists
+- when sent/history exists, Laravel returns a validation error on `campaign`
 
 ## Outbound dispatch payload between Laravel and mail-gateway
 
@@ -707,6 +884,8 @@ Mail settings update rule:
 - `PUT /api/settings/mail` preserves the existing global signature when `global_signature_html` / `global_signature_text` are sent as `null`
 - explicit signature clearing now requires `clear_signature = true`
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` can run directly from unsaved form overrides if the payload already contains all required connection fields
+- those test endpoints return French operator-facing messages for success and the main failure families: missing field, invalid credentials, timeout, refused connection, TLS/SSL mismatch, likely host/port error, and generic failure
+- raw technical details remain in logs and `mail_events`, not in the user-facing `message`
 
 ### settings.deliverability used by preflight
 

@@ -64,12 +64,24 @@ Date format used by the current backend:
 
 - `contacts`: required array
 - `filters`: required object (echo of active query params — used to hydrate filter state on page load)
+- `organizations`: required array
+- `capabilities`: required object
 
 ### filters (Contacts)
 
 - `search`: required string (empty string when not active)
 - `status`: required enum `all|active|bounced|unsubscribed`
 - `score`: required enum `all|engaged|interested|warm|cold|excluded`
+
+### capabilities (Contacts)
+
+- `canCreate`: required boolean
+- `createEndpoint`: required string, currently `/api/contacts`
+
+### organizations (Contacts)
+
+- `id`: required integer
+- `name`: required string
 
 ### contacts[]
 
@@ -95,10 +107,16 @@ Date format used by the current backend:
 
 - `organizations`: required array
 - `filters`: required object (echo of active query params — used to hydrate filter state on page load)
+- `capabilities`: required object
 
 ### filters (Organizations)
 
 - `search`: required string (empty string when not active)
+
+### capabilities (Organizations)
+
+- `canCreate`: required boolean
+- `createEndpoint`: required string, currently `/api/organizations`
 
 ### organizations[]
 
@@ -160,6 +178,7 @@ Date format used by the current backend:
 ### Props
 
 - `campaigns`: required array
+- `creationFlow`: required object
 
 ### campaigns[]
 
@@ -173,6 +192,13 @@ Date format used by the current backend:
 - `bounceCount`: required integer
 - `scheduledAt`: nullable string
 - `updatedAt`: nullable string
+
+### creationFlow (Campaigns)
+
+- `type`: required string, currently `draft_first`
+- `entryHref`: required string, currently `/campaigns/create`
+- `actionLabel`: required string, currently `Préparer une campagne`
+- `helperText`: required string, explains that a campaign stays draft-backed internally but is prepared from the Campaigns module
 
 ## Activity
 
@@ -226,10 +252,71 @@ Date format used by the current backend:
 - `type`: required enum `single|multiple`
 - `sentAt`: nullable string
 - `campaignId`: nullable integer
+- `threadId`: nullable integer
 
 ---
 
 ## Component Contracts
+
+### Contacts/Show
+
+**File:** `resources/js/Pages/Contacts/Show.vue`
+
+**Props:**
+
+- `contact`: required object
+- `organizations`: required array
+
+**contact**
+
+- `id`: integer
+- `firstName`: string
+- `lastName`: string
+- `fullName`: nullable string
+- `title`: nullable string
+- `phone`: nullable string
+- `notes`: nullable string
+- `status`: nullable string
+- `organizationId`: nullable integer
+- `organizationName`: nullable string
+- `emails`: array of `{ id, email, isPrimary, optedOutAt, bounceStatus, lastSeenAt, canDelete }`
+- `recentThreads`: array of `{ id, subject, lastActivityAt, lastDirection, replyReceived, autoReplyReceived }`
+- `stats.threadCount`: integer
+- `stats.recipientCount`: integer
+- `stats.lastActivityAt`: nullable string
+
+**API calls used by the page:**
+
+- `PUT /api/contacts/{id}`
+- `DELETE /api/contacts/{id}`
+- `POST /api/contacts/{id}/emails`
+- `DELETE /api/contacts/{id}/emails/{emailId}`
+
+### Organizations/Show
+
+**File:** `resources/js/Pages/Organizations/Show.vue`
+
+**Props:**
+
+- `organization`: required object
+
+**organization**
+
+- `id`: integer
+- `name`: string
+- `domain`: nullable string
+- `website`: nullable string
+- `notes`: nullable string
+- `contactCount`: integer
+- `sentCount`: integer
+- `lastActivityAt`: nullable string
+- `contacts`: array of `{ id, name, title, email }`
+- `recentThreads`: array of `{ id, subject, contactName, lastActivityAt, lastDirection }`
+
+**API calls used by the page:**
+
+- `PUT /api/organizations/{id}`
+- `DELETE /api/organizations/{id}`
 
 ### MailComposer
 
@@ -329,33 +416,96 @@ Text-first behavior used by the backend:
 - `htmlBody` preview is rendered in a sandboxed iframe (`sandbox="allow-same-origin"`) — no script execution.
 - Used exclusively by `Templates/Index`.
 
+### Campaigns/Create
+
+**File:** `resources/js/Pages/Campaigns/Create.vue`
+
+**Props:**
+
+- `templates`: required array
+
+**Behavior:**
+
+- the operator enters through `/campaigns/create`
+- `MailComposer` persists an internal draft first
+- on `saved(draft)`, the page calls `POST /api/drafts/{draft}/campaign`
+- on success, the UI redirects to `/campaigns/{campaign}`
+
+### Campaigns/Show
+
+**File:** `resources/js/Pages/Campaigns/Show.vue`
+
+**Props:**
+
+- `campaign`: required object
+- `templates`: required array
+
+**campaign**
+
+- same base shape as `Campaigns/Index > campaigns[]`
+- `draft`: nullable full draft object
+- `recipients`: array of `{ id, email, status, contactName, organization, scheduledFor, lastEventAt }`
+
+**API calls used by the page:**
+
+- `DELETE /api/campaigns/{id}`
+- edit mode uses `MailComposer` against the linked `campaign.draft`
+
+### Threads/Show
+
+**File:** `resources/js/Pages/Threads/Show.vue`
+
+**Props:**
+
+- `thread`: required object
+
+**thread**
+
+- `id`: integer
+- `subject`: string
+- `contactName`: nullable string
+- `organization`: nullable string
+- `replyReceived`: boolean
+- `autoReplyReceived`: boolean
+- `lastDirection`: `in|out`
+- `lastActivityAt`: nullable ISO-8601 string
+- `messages`: array of `{ id, direction, fromEmail, toEmails, subject, classification, messageIdHeader, inReplyToHeader, referencesHeader, sentAt, receivedAt, hasAttachments, attachmentCount }`
+
 ---
 
 ## Action visibility status (V1)
 
 | Screen    | Action                | Status               | Reason                                                  |
 | --------- | --------------------- | -------------------- | ------------------------------------------------------- |
-| Mails     | Voir                  | Disabled             | No thread detail page; `recipients[]` has no `threadId` |
-| Campaigns | Détails               | Disabled             | No campaign detail page in V1                           |
-| Campaigns | Créer un brouillon    | Active (→/drafts)    | Campaigns born from draft scheduling                    |
+| Mails     | Voir                  | Active (conditional) | Opens `/threads/{threadId}` when a materialized thread exists; otherwise disabled with an explicit reason |
+| Campaigns | Détails               | Active               | Opens `/campaigns/{id}`                                 |
+| Campaigns | Préparer une campagne | Active               | Opens `/campaigns/create`; draft stays internal         |
 | Templates | Nouveau modèle        | Active               | Wired to TemplateEditor create mode                     |
 | Templates | Éditer                | Active               | Wired to TemplateEditor edit mode                       |
 | Templates | Dupliquer             | Active               | Wired to `POST /api/templates/{id}/duplicate`           |
 | Templates | Archiver/Activer      | Active               | Wired to `POST /api/templates/{id}/archive\|activate`   |
 | Drafts    | Éditer                | Active               | Loads draft via `GET /api/drafts/{id}` → MailComposer   |
 | Drafts    | Dupliquer             | Active               | Wired to `POST /api/drafts/{id}/duplicate`              |
+| Drafts    | Supprimer             | Active               | Wired to `DELETE /api/drafts/{id}`                      |
+| Drafts    | Suppression de masse  | Active               | Wired to `DELETE /api/drafts` with `ids[]`              |
 | Drafts    | Déprogrammer          | Active (conditional) | Only shown when `status === 'scheduled'`                |
 | Composer  | Sauvegarder brouillon | Active               | `POST /api/drafts` or `PUT /api/drafts/{id}`            |
 | Composer  | Vérifier (preflight)  | Active               | Requires saved draft first (disabled otherwise)         |
 | Composer  | Planifier             | Active (conditional) | Only shown when `preflight.ok === true`                 |
 | Composer  | Aperçu HTML           | Active               | Sandboxed iframe render toggle on HTML body field       |
 | Composer  | Pièces jointes        | Not implemented      | Attachment upload API not exposed in V1                 |
-| Contacts  | Ajouter un contact    | Disabled             | No contact CRUD API exposed in V1                       |
-| Contacts  | Fiche                 | Disabled             | No contact detail page in V1                            |
-| Contacts  | E-mails               | Disabled             | No per-contact history page in V1                       |
-| Orgs      | Ajouter organisation  | Disabled             | No organization CRUD API exposed in V1                  |
-| Orgs      | Fiche                 | Disabled             | No organization detail page in V1                       |
-| Orgs      | Historique            | Disabled             | No per-org history page in V1                           |
+| Contacts  | Ajouter un contact    | Active               | Wired to `POST /api/contacts`                           |
+| Contacts  | Fiche                 | Active               | Opens `/contacts/{id}`                                  |
+| Contacts  | Historique            | Active               | Jumps to `/contacts/{id}#historique`                    |
+| Contacts  | Modifier              | Active               | Wired to `PUT /api/contacts/{id}`                       |
+| Contacts  | Supprimer             | Active               | Wired to `DELETE /api/contacts/{id}`                    |
+| Contacts  | Ajouter un e-mail     | Active               | Wired to `POST /api/contacts/{id}/emails`               |
+| Contacts  | Supprimer un e-mail   | Active (conditional) | Wired to `DELETE /api/contacts/{id}/emails/{emailId}` when `canDelete = true` |
+| Orgs      | Ajouter organisation  | Active               | Wired to `POST /api/organizations`                      |
+| Orgs      | Fiche                 | Active               | Opens `/organizations/{id}`                             |
+| Orgs      | Historique            | Active               | Jumps to `/organizations/{id}#historique`               |
+| Orgs      | Modifier              | Active               | Wired to `PUT /api/organizations/{id}`                  |
+| Orgs      | Supprimer             | Active               | Wired to `DELETE /api/organizations/{id}`               |
 | Settings  | Enregistrer           | Active               | `PUT /api/settings/mail` — full mail settings payload   |
 | Settings  | Tester SMTP           | Active               | `POST /api/settings/mail/test-smtp`                     |
 | Settings  | Tester IMAP           | Active               | `POST /api/settings/mail/test-imap`                     |
@@ -409,6 +559,7 @@ Backend safeguard:
 - `PUT /api/settings/mail` preserves the existing global signature when the payload contains `global_signature_html = null` and `global_signature_text = null`
 - explicit signature clearing now requires `clear_signature = true`
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` now return a precise aggregated `message` plus field-level `errors`
+- the `message` string is intentionally French and operator-facing; the frontend can render `errors` per field without rewording the backend validation
 
 ### `SettingsSignature` API calls
 

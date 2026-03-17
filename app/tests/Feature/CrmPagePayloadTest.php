@@ -47,6 +47,9 @@ class CrmPagePayloadTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Contacts/Index')
                 ->has('contacts', 0)
+                ->has('organizations', 0)
+                ->where('capabilities.canCreate', true)
+                ->where('capabilities.createEndpoint', '/api/contacts')
             );
     }
 
@@ -57,6 +60,8 @@ class CrmPagePayloadTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Organizations/Index')
                 ->has('organizations', 0)
+                ->where('capabilities.canCreate', true)
+                ->where('capabilities.createEndpoint', '/api/organizations')
             );
     }
 
@@ -147,6 +152,11 @@ class CrmPagePayloadTest extends TestCase
                     ->where('lastActivityAt', '2026-03-15 12:30')
                     ->etc()
                 )
+                ->has('organizations', 1)
+                ->where('organizations.0.id', 1)
+                ->where('organizations.0.name', 'Acme')
+                ->where('capabilities.canCreate', true)
+                ->where('capabilities.createEndpoint', '/api/contacts')
             );
     }
 
@@ -185,6 +195,46 @@ class CrmPagePayloadTest extends TestCase
                     ->where('lastActivityAt', '2026-03-15 12:30')
                     ->etc()
                 )
+                ->where('capabilities.canCreate', true)
+                ->where('capabilities.createEndpoint', '/api/organizations')
+            );
+    }
+
+    public function test_contact_show_page_exposes_real_detail_payload(): void
+    {
+        [, , $alice] = $this->seedCrmDataset();
+
+        $this->get('/contacts/'.$alice->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Contacts/Show')
+                ->where('contact.id', $alice->id)
+                ->where('contact.firstName', 'Alice')
+                ->where('contact.organizationName', 'Acme')
+                ->has('contact.emails', 1)
+                ->where('contact.emails.0.email', 'alice@acme.test')
+                ->has('contact.recentThreads', 1)
+                ->where('contact.recentThreads.0.replyReceived', true)
+                ->has('organizations', 1)
+                ->where('organizations.0.name', 'Acme')
+            );
+    }
+
+    public function test_organization_show_page_exposes_real_detail_payload(): void
+    {
+        [, $organization] = $this->seedCrmDataset();
+
+        $this->get('/organizations/'.$organization->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Organizations/Show')
+                ->where('organization.id', $organization->id)
+                ->where('organization.name', 'Acme')
+                ->where('organization.contactCount', 3)
+                ->has('organization.contacts', 3)
+                ->where('organization.contacts.0.name', 'Chloe Bernard')
+                ->has('organization.recentThreads', 1)
+                ->where('organization.recentThreads.0.lastDirection', 'in')
             );
     }
 

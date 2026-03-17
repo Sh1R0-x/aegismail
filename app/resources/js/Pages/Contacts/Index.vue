@@ -1,9 +1,17 @@
 <template>
   <CrmLayout title="Contacts" subtitle="Gérez vos contacts et leur engagement" current-page="contacts">
     <template #header-actions>
+      <button
+        v-if="capabilities.canCreate"
+        class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all"
+        @click="showCreateModal = true"
+      >
+        Ajouter un contact
+      </button>
       <span
+        v-else
         class="cursor-not-allowed rounded-xl bg-slate-100 border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-300"
-        title="Ajout de contact — disponible dans une prochaine version"
+        title="Création de contacts non disponible pour ce compte"
       >
         Ajouter un contact
       </span>
@@ -50,8 +58,16 @@
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-if="contacts.length === 0">
-              <td colspan="7" class="px-6 py-16 text-center text-sm font-medium text-slate-400">
-                Aucun contact. Ajoutez votre premier contact pour commencer.
+              <td colspan="7" class="px-6 py-16 text-center">
+                <p class="text-sm font-medium text-slate-500">Aucun contact dans la base.</p>
+                <p class="mt-1 text-xs text-slate-400">Ajoutez votre premier contact pour commencer à suivre vos échanges.</p>
+                <button
+                  v-if="capabilities.canCreate"
+                  class="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                  @click="showCreateModal = true"
+                >
+                  Ajouter un contact
+                </button>
               </td>
             </tr>
             <tr v-for="contact in contacts" :key="contact.id" class="hover:bg-slate-50 transition-colors">
@@ -93,9 +109,9 @@
                 </span>
               </td>
               <td class="px-6 py-4 text-right">
-                <span class="cursor-not-allowed text-xs font-bold text-slate-300" title="Fiche contact — disponible dans une prochaine version">Fiche</span>
+                <Link class="text-xs font-bold text-blue-600 hover:text-blue-800" :href="`/contacts/${contact.id}`">Fiche</Link>
                 <span class="mx-1.5 text-slate-200">·</span>
-                <span class="cursor-not-allowed text-xs font-bold text-slate-300" title="Historique e-mails — disponible dans une prochaine version">E-mails</span>
+                <Link class="text-xs font-bold text-slate-600 hover:text-slate-800" :href="`/contacts/${contact.id}#historique`">Historique</Link>
               </td>
             </tr>
           </tbody>
@@ -103,17 +119,100 @@
       </div>
     </div>
   </CrmLayout>
+
+  <!-- Create contact modal -->
+  <Teleport to="body">
+    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="closeCreateModal">
+      <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-base font-bold text-slate-900">Nouveau contact</h2>
+          <button class="text-slate-400 hover:text-slate-900 font-bold text-lg leading-none" @click="closeCreateModal">✕</button>
+        </div>
+
+        <div v-if="createError" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800">
+          {{ createError }}
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">Adresse e-mail <span class="text-red-500">*</span></label>
+            <input
+              v-model="createForm.email"
+              type="email"
+              placeholder="prenom.nom@domaine.fr"
+              class="w-full rounded-xl border bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+              :class="createFieldErrors.email ? 'border-red-300' : 'border-slate-200'"
+            />
+            <p v-if="createFieldErrors.email" class="mt-1 text-xs text-red-600">{{ createFieldErrors.email }}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs font-bold text-slate-600">Prénom</label>
+              <input v-model="createForm.firstName" type="text" placeholder="Marie"
+                class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold text-slate-600">Nom</label>
+              <input v-model="createForm.lastName" type="text" placeholder="Dupont"
+                class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none" />
+            </div>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">Poste</label>
+            <input v-model="createForm.title" type="text" placeholder="Directeur commercial"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">Organisation</label>
+            <select
+              v-model="createForm.organizationId"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/30 outline-none"
+            >
+              <option :value="null">Aucune organisation</option>
+              <option v-for="organization in organizations" :key="organization.id" :value="organization.id">
+                {{ organization.name }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">Téléphone</label>
+            <input v-model="createForm.phone" type="text" placeholder="+33 6 00 00 00 00"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none" />
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button
+            class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
+            @click="closeCreateModal"
+          >
+            Annuler
+          </button>
+          <button
+            :disabled="creating"
+            class="btn-primary-gradient text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all disabled:opacity-40"
+            @click="createContact"
+          >
+            {{ creating ? 'Enregistrement…' : 'Enregistrer le contact' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import ScoreBadge from '@/Components/Badges/ScoreBadge.vue';
 
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
+  organizations: { type: Array, default: () => [] },
+  capabilities: { type: Object, default: () => ({ canCreate: false, createEndpoint: '/api/contacts' }) },
 });
 
 const statusFilter = ref(props.filters?.status || 'all');
@@ -135,4 +234,48 @@ watch(search, () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => navigate(), 300);
 });
+
+// ── Create contact modal ──────────────────────────────────────
+const showCreateModal = ref(false);
+const creating = ref(false);
+const createError = ref(null);
+const createFieldErrors = ref({});
+const createForm = ref({ email: '', firstName: '', lastName: '', title: '', organizationId: null, phone: '' });
+
+function closeCreateModal() {
+  showCreateModal.value = false;
+  createError.value = null;
+  createFieldErrors.value = {};
+  createForm.value = { email: '', firstName: '', lastName: '', title: '', organizationId: null, phone: '' };
+}
+
+async function createContact() {
+  creating.value = true;
+  createError.value = null;
+  createFieldErrors.value = {};
+  try {
+    await axios.post(props.capabilities.createEndpoint, {
+      email: createForm.value.email,
+      firstName: createForm.value.firstName || undefined,
+      lastName: createForm.value.lastName || undefined,
+      title: createForm.value.title || undefined,
+      organizationId: createForm.value.organizationId || undefined,
+      phone: createForm.value.phone || undefined,
+    });
+    closeCreateModal();
+    router.reload({ preserveState: false });
+  } catch (e) {
+    const errors = e.response?.data?.errors ?? {};
+    const mapped = {};
+    ['email', 'firstName', 'lastName', 'title', 'phone'].forEach((key) => {
+      if (errors[key]) mapped[key] = Array.isArray(errors[key]) ? errors[key][0] : errors[key];
+    });
+    createFieldErrors.value = mapped;
+    createError.value = Object.keys(mapped).length === 0
+      ? (e.response?.data?.message ?? 'Impossible de créer le contact. Veuillez réessayer.')
+      : 'Veuillez corriger les erreurs ci-dessous.';
+  } finally {
+    creating.value = false;
+  }
+}
 </script>

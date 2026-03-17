@@ -9,6 +9,7 @@ use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\MailboxAccount;
 use App\Models\Organization;
+use App\Services\Crm\CrmManagementService;
 use App\Services\SettingsStore;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -18,6 +19,7 @@ class CrmPageDataService
 {
     public function __construct(
         private readonly SettingsStore $settingsStore,
+        private readonly CrmManagementService $crmManagementService,
     ) {
     }
 
@@ -150,6 +152,11 @@ class CrmPageDataService
                 'status' => $filters['status'] ?? 'all',
                 'score' => $filters['score'] ?? 'all',
             ],
+            'organizations' => $this->crmManagementService->organizationOptions(),
+            'capabilities' => [
+                'canCreate' => true,
+                'createEndpoint' => '/api/contacts',
+            ],
         ];
     }
 
@@ -198,6 +205,25 @@ class CrmPageDataService
             'filters' => [
                 'search' => $filters['search'] ?? '',
             ],
+            'capabilities' => [
+                'canCreate' => true,
+                'createEndpoint' => '/api/organizations',
+            ],
+        ];
+    }
+
+    public function contact(Contact $contact): array
+    {
+        return [
+            'contact' => $this->crmManagementService->serializeContactDetail($contact),
+            'organizations' => $this->crmManagementService->organizationOptions(),
+        ];
+    }
+
+    public function organization(Organization $organization): array
+    {
+        return [
+            'organization' => $this->crmManagementService->serializeOrganizationDetail($organization),
         ];
     }
 

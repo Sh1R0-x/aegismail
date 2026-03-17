@@ -52,17 +52,29 @@ test('smoke navigation covers supported pages and disabled placeholders', async 
 
   await page.goto('/contacts');
   await expect(page.getByText('Ajouter un contact')).toBeVisible();
-  await expect(page.getByText('Fiche').first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Contact' })).toBeVisible();
+  await page.getByRole('link', { name: 'Fiche' }).first().click();
+  await expect(page).toHaveURL(/\/contacts\/\d+$/);
+  await expect(page.locator('h1')).toContainText(/Alice Martin|Bruno Leroy|Carla Durand/);
 
   await page.goto('/organizations');
   await expect(page.getByText('Ajouter une organisation')).toBeVisible();
-  await expect(page.getByText('Historique').first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Organisation' })).toBeVisible();
+  await page.getByRole('link', { name: 'Fiche' }).first().click();
+  await expect(page).toHaveURL(/\/organizations\/\d+$/);
+  await expect(page.locator('h1')).toContainText(/Acme Labs|Beta Logistics/);
 
   await page.goto('/mails');
-  await expect(page.getByText('Voir').first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Destinataire' })).toBeVisible();
+  await page.getByRole('link', { name: 'Voir' }).first().click();
+  await expect(page).toHaveURL(/\/threads\/\d+$/);
+  await expect(page.locator('h1')).toContainText(/Relance Q2|Prospection Mars|Delivery failure/);
 
   await page.goto('/campaigns');
-  await expect(page.getByText('Détails').first()).toBeVisible();
+  await expect(page.getByText('Préparer une campagne')).toBeVisible();
+  await page.getByRole('link', { name: 'Détails' }).first().click();
+  await expect(page).toHaveURL(/\/campaigns\/\d+$/);
+  await expect(page.locator('h1')).toContainText(/Relance Q2 Batch|Prospection Mars/);
 
   assertNoClientErrors();
 });
@@ -75,34 +87,31 @@ test('smoke template and draft flow supports save, preflight and schedule', asyn
 
   await page.goto('/templates');
   await page.getByRole('button', { name: 'Nouveau modèle' }).click();
-  const templatePanel = page.locator('.fixed.inset-y-0.right-0.z-50').last();
-  await expect(templatePanel.getByRole('heading', { name: 'Nouveau modèle', exact: true })).toBeVisible();
-  await templatePanel.getByPlaceholder('Ex : Premier contact').fill(templateName);
-  await templatePanel.getByPlaceholder('Objet du message').fill('Relance smoke');
-  await templatePanel.getByPlaceholder('<p>Votre message…</p>').fill('<p>Bonjour depuis le smoke test</p>');
-  await templatePanel.getByPlaceholder('Version texte brut du message (sans balises HTML)…').fill('Bonjour depuis le smoke test');
-  await templatePanel.getByRole('button', { name: 'Créer le modèle' }).click();
+  await expect(page.getByRole('heading', { name: 'Nouveau modèle', exact: true }).first()).toBeVisible();
+  await page.getByPlaceholder('Ex : Premier contact').fill(templateName);
+  await page.getByPlaceholder('Objet du message').fill('Relance smoke');
+  await page.getByPlaceholder('Rédigez votre message ici, en texte simple (sans balises HTML)…').fill('Bonjour depuis le smoke test');
+  await page.getByRole('button', { name: 'Créer le modèle' }).click();
   await expect(page.getByText(templateName)).toBeVisible();
 
   await page.goto('/drafts');
   await page.getByRole('button', { name: 'Nouveau brouillon' }).click();
-  const draftPanel = page.locator('.fixed.inset-y-0.right-0.z-50').last();
-  await draftPanel.getByPlaceholder('adresse@exemple.fr').fill(recipientEmail);
-  await draftPanel.getByPlaceholder('Objet du message').fill('Draft smoke schedule');
-  await draftPanel.getByPlaceholder('<p>Votre message…</p>').fill('<p>Bonjour smoke</p>');
-  await draftPanel.getByPlaceholder('Version texte brut du message (sans balises HTML)…').fill('Bonjour smoke');
-  await draftPanel.getByRole('button', { name: 'Sauvegarder brouillon' }).click();
-  await expect(draftPanel.getByText(/Sauvegardé/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Corps du message' })).toBeVisible();
+  await page.getByPlaceholder('adresse@exemple.fr').fill(recipientEmail);
+  await page.getByPlaceholder('Objet du message').fill('Draft smoke schedule');
+  await page.getByPlaceholder('Rédigez votre message ici, en texte simple (sans balises HTML)…').fill('Bonjour smoke');
+  await page.getByRole('button', { name: 'Sauvegarder brouillon' }).click();
+  await expect(page.getByText(/Sauvegardé/i).first()).toBeVisible();
 
-  await draftPanel.getByRole('button', { name: 'Vérifier (preflight)' }).click();
-  await expect(draftPanel.getByText('Prêt à planifier')).toBeVisible();
-  await expect(draftPanel.getByText('1/1 destinataire(s) exploitable(s)')).toBeVisible();
+  await page.getByRole('button', { name: 'Vérifier (preflight)' }).click();
+  await expect(page.getByText('Prêt à planifier')).toBeVisible();
+  await expect(page.getByText('1/1 destinataire(s) exploitable(s)')).toBeVisible();
 
-  await draftPanel.getByRole('button', { name: 'Planifier' }).click();
-  await draftPanel.locator('input[type="datetime-local"]').fill(scheduledAt.toISOString().slice(0, 16));
-  await draftPanel.getByRole('button', { name: 'Confirmer la planification' }).click();
+  await page.getByRole('button', { name: 'Planifier' }).first().click();
+  await page.locator('input[type="datetime-local"]').fill(scheduledAt.toISOString().slice(0, 16));
+  await page.getByRole('button', { name: 'Confirmer la planification' }).click();
 
-  const scheduledRow = page.locator('tr', { hasText: 'Draft smoke schedule' });
+  const scheduledRow = page.locator('tr', { hasText: 'Draft smoke schedule' }).first();
   await expect(scheduledRow).toBeVisible();
   await expect(scheduledRow.getByText('Planifié', { exact: true })).toBeVisible();
 

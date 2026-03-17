@@ -1,3 +1,7 @@
+param(
+    [string]$E2ePort = '8811'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -14,7 +18,7 @@ if (-not (Test-Path $e2eDatabase)) {
     New-Item -ItemType File -Path $e2eDatabase -Force | Out-Null
 }
 
-$env:APP_URL = 'http://127.0.0.1:8001'
+$env:APP_URL = "http://127.0.0.1:$E2ePort"
 $env:DB_CONNECTION = 'sqlite'
 $env:DB_DATABASE = $e2eDatabase
 $env:QUEUE_CONNECTION = 'database'
@@ -31,4 +35,4 @@ if ($null -eq $appKeyLine -or [string]::IsNullOrWhiteSpace(($appKeyLine.Line -re
 
 php artisan migrate:fresh --seed --seeder=SmokeTestSeeder --force --ansi
 npm run build
-php artisan serve --host=127.0.0.1 --port=8001 --no-reload
+php artisan serve --host=127.0.0.1 --port=$E2ePort --no-reload
