@@ -21,9 +21,12 @@ class DraftPreflightService
         $deliverabilitySettings = $this->settingsStore->get('deliverability', config('mailing.defaults.deliverability', []));
         $resolvedRecipients = $this->resolvedRecipients($draft);
         $deliverableRecipients = $resolvedRecipients->where('deliverable', true)->values();
-        $optOutCount = $resolvedRecipients->where('opted_out', true)->count();
-        $excludedCount = $resolvedRecipients->where('excluded', true)->count();
-        $invalidCount = $resolvedRecipients->where('invalid', true)->count();
+        $optOutRecipients = $resolvedRecipients->where('opted_out', true)->values();
+        $excludedRecipients = $resolvedRecipients->where('excluded', true)->values();
+        $invalidRecipients = $resolvedRecipients->where('invalid', true)->values();
+        $optOutCount = $optOutRecipients->count();
+        $excludedCount = $excludedRecipients->count();
+        $invalidCount = $invalidRecipients->count();
         $attachments = $draft->attachments;
 
         $htmlBody = (string) ($draft->html_body ?? '');
@@ -52,10 +55,17 @@ class DraftPreflightService
             ];
         }
 
+        if (! filled(trim($htmlBody)) && ! filled(trim($textBody))) {
+            $errors[] = [
+                'code' => 'missing_message_body',
+                'message' => 'Le message est vide. Ajoutez au moins une version texte ou HTML avant la planification.',
+            ];
+        }
+
         if (! $hasTextVersion) {
             $warnings[] = [
                 'code' => 'missing_text_version',
-                'message' => 'La version texte est absente.',
+                'message' => 'La version texte est absente. Elle reste recommandée même si le HTML est fourni.',
             ];
         }
 
@@ -117,15 +127,29 @@ class DraftPreflightService
             'errors' => $errors,
             'warnings' => $warnings,
             'deliverableRecipients' => $deliverableRecipients
-                ->map(fn (array $recipient) => [
-                    'email' => $recipient['email'],
-                    'contactId' => $recipient['contact_id'],
-                    'contactEmailId' => $recipient['contact_email_id'],
-                    'organizationId' => $recipient['organization_id'],
-                    'name' => $recipient['name'],
-                ])
+                ->map(fn (array $recipient) => $this->serializeRecipient($recipient))
+                ->all(),
+            'excludedRecipients' => $excludedRecipients
+                ->map(fn (array $recipient) => $this->serializeRecipient($recipient, ['reason' => 'hard_bounced']))
+                ->all(),
+            'optOutRecipients' => $optOutRecipients
+                ->map(fn (array $recipient) => $this->serializeRecipient($recipient, ['reason' => 'opt_out']))
+                ->all(),
+            'invalidRecipients' => $invalidRecipients
+                ->map(fn (array $recipient) => $this->serializeRecipient($recipient, ['reason' => 'invalid_email']))
                 ->all(),
         ];
+    }
+
+    private function serializeRecipient(array $recipient, array $extra = []): array
+    {
+        return array_merge([
+            'email' => $recipient['email'],
+            'contactId' => $recipient['contact_id'],
+            'contactEmailId' => $recipient['contact_email_id'],
+            'organizationId' => $recipient['organization_id'],
+            'name' => $recipient['name'],
+        ], $extra);
     }
 
     private function resolvedRecipients(MailDraft $draft): Collection
@@ -146,7 +170,7 @@ class DraftPreflightService
                     'organization_id' => $recipient['organizationId'] ?? $emailRecord?->contact?->organization_id,
                     'invalid' => $invalid,
                     'opted_out' => $optedOut,
-                    'excluded' => $optedOut || $hardBounced,
+                    'excluded' => $hardBounced,
                     'deliverable' => ! $invalid && ! $optedOut && ! $hardBounced,
                 ];
             })

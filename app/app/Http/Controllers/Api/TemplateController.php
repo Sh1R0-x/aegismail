@@ -57,4 +57,13 @@ class TemplateController extends Controller
             'template' => $this->templateService->serialize($template),
         ]);
     }
+
+    public function activate(MailTemplate $template): JsonResponse
+    {
+        $template = $this->templateService->activate($template);
+
+        return response()->json([
+            'template' => $this->templateService->serialize($template),
+        ]);
+    }
 }

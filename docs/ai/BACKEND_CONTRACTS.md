@@ -23,6 +23,8 @@ Rules kept:
 - `GET /templates` -> `Templates/Index`
 - `GET /campaigns` -> `Campaigns/Index`
 - `GET /activity` -> `Activity/Index`
+- `GET /settings` -> `Settings/Index`
+- `GET /users` -> `Users/Index` — route present in V1, but no dedicated backend payload yet; the current page relies on its local default `users = []`
 
 ## API routes
 
@@ -33,6 +35,7 @@ Rules kept:
 - `PUT /api/templates/{template}`
 - `POST /api/templates/{template}/duplicate`
 - `POST /api/templates/{template}/archive`
+- `POST /api/templates/{template}/activate`
 
 ### Drafts
 
@@ -69,6 +72,9 @@ Rules kept:
 - persistence of `sent` or `failed` outcomes in `mail_messages`, `mail_recipients`, `mail_events`
 
 `DispatchMailMessageJob` is the Laravel → mail-gateway boundary for outbound sends.
+
+Important runtime rule:
+- campaign state is based on the first effective scheduled slot after send-window and ceiling adjustments, not only on the raw `scheduledAt` request value
 
 ## IMAP sync flow used in V1
 
@@ -146,6 +152,7 @@ Heuristic rules:
 
 - subject normalization strips repeated `Re:`, `Fw:`, `Fwd:`
 - participant overlap ignores the mailbox own address
+- heuristic comparison considers `from`, `to`, `cc`, `bcc`
 - heuristic match only applies within the same mailbox and a 30-day window
 
 ## Draft type field mapping
@@ -185,14 +192,46 @@ Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to A
         "attachmentSizeBytes": 0,
         "htmlSizeBytes": 8192
     },
-    "errors": [{ "code": "NO_TEXT_VERSION", "message": "..." }],
-    "warnings": [{ "code": "REMOTE_IMAGES", "message": "..." }],
-    "deliverableRecipients": []
+    "errors": [{ "code": "mailbox_invalid", "message": "..." }],
+    "warnings": [{ "code": "remote_images_detected", "message": "..." }],
+    "deliverableRecipients": [],
+    "excludedRecipients": [],
+    "optOutRecipients": [],
+    "invalidRecipients": []
 }
 ```
 
 `errors[]` are blocking — `ok` is `false` when any exist.
 `warnings[]` are advisory — `ok` can still be `true`.
+
+Text-first rule now used by the backend:
+
+- `text_body` is the primary content path in V1
+- `html_body` stays optional
+- preflight blocks scheduling when both `text_body` and `html_body` are empty
+- when `html_body` is empty but `text_body` is present, outbound dispatch synthesizes a minimal HTML version from the text body
+- global signature stays split:
+  - `global_signature_text` is appended to the outbound text body
+  - `global_signature_html` is appended to the outbound HTML body
+
+## Validation response shape used by JSON endpoints
+
+When a JSON request fails validation, Laravel now returns:
+
+```json
+{
+    "message": "Le champ ...",
+    "errors": {
+        "field_name": ["Le champ ..."]
+    }
+}
+```
+
+Rules:
+
+- `message` is an aggregated user-facing sentence built from the actual field errors
+- `errors` keeps field-level details for precise UI handling
+- this applies both to FormRequest validation and to manual `ValidationException` raised by business services
 
 ## Query parameters
 
@@ -207,6 +246,10 @@ Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to A
 - `search`: nullable string
 
 ### Dashboard
+
+- no query parameters in V1
+
+### Settings
 
 - no query parameters in V1
 
@@ -286,6 +329,11 @@ Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to A
 - `hard_bounce`
 - `system`
 - `unknown`
+
+Current inbound fallback rule:
+
+- `human_reply` is kept for messages that clearly look like replies or that resolve to an existing thread after classifier fallback
+- unmatched inbound messages with no auto-reply, bounce or system signal remain `unknown`
 
 ### Thread statuses currently persisted
 
@@ -395,6 +443,24 @@ Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to A
 - `isBounce`: required boolean
 - `date`: nullable ISO-8601 string
 
+## Settings page payload
+
+`GET /settings` exposes:
+
+- `settings`: required object
+- `settings.mail`: required object
+- `settings.deliverability`: required object
+- `settings.cadence`: required object
+- `settings.scoring`: required object
+- `settings.signature`: required object
+
+Notes:
+
+- `settings.mail` mirrors the mail settings snapshot used by `GET /api/settings`
+- `settings.cadence` is derived from `settings.general`
+- `settings.scoring` is derived from `settings.general`
+- `settings.signature` mirrors the global signature stored in mail settings
+
 ## Business rules frozen for page projections
 
 ### score
@@ -480,6 +546,11 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `htmlBody`: nullable string
 - `textBody`: nullable string
 - `active`: nullable boolean
+
+### Template activation endpoints
+
+- `POST /api/templates/{template}/archive` sets `active = false`
+- `POST /api/templates/{template}/activate` sets `active = true`
 
 ## Draft API contract
 
@@ -568,7 +639,33 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `headers_json`: required object
 - `attachments`: required array, possibly empty
 
+### Dispatch response consumed from mail-gateway
+
+- `success`: required boolean
+- `driver`: required string
+- `message`: required string
+- `accepted_at`: nullable ISO-8601 string
+- `message_id_header`: nullable string
+- `headers_json`: nullable object
+
+Laravel persistence rules on dispatch result:
+
+- outbound `mail_messages.message_id_header` is updated from gateway response when provided
+- outbound `mail_messages.headers_json` keeps the locally generated threading headers and merges gateway-returned headers
+- the raw gateway result is stored under `headers_json.gateway` on success
+- the raw gateway result is stored under `headers_json.gateway_error` on failure
+- `mail_events` logs `mail_message.queued`, `mail_message.sending`, `mail_message.dispatch_requested`, then `mail_message.sent` or `mail_message.failed`
+- if a delayed job wakes up after a draft was unscheduled or a recipient/campaign is no longer dispatchable, Laravel skips the send and logs `mail_message.dispatch_skipped`
+
 ## Settings actually used by outbound scheduling and dispatch
+
+Actual persisted keys in the current repo:
+
+- `settings.mail`
+- `settings.general`
+- `settings.deliverability`
+
+There is currently no separate persisted `settings.throttling` key. Cadence and auto-stop settings live under `settings.general` in this phase.
 
 ### settings.mail
 
@@ -576,6 +673,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `sender_name`
 - `global_signature_html`
 - `global_signature_text`
+- `clear_signature` optional on `PUT /api/settings/mail` only
 - `mailbox_username`
 - `imap_host`
 - `imap_port`
@@ -599,6 +697,17 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `stop_on_consecutive_failures`
 - `stop_on_hard_bounce_threshold`
 
+Behavior:
+
+- `daily_limit_default`, `hourly_limit_default`, `min_delay_seconds`, `jitter_*`, `slow_mode_enabled` drive progressive slot planning before queue placement
+- `stop_on_consecutive_failures` and `stop_on_hard_bounce_threshold` drive the simple auto-stop check before each dispatch
+
+Mail settings update rule:
+
+- `PUT /api/settings/mail` preserves the existing global signature when `global_signature_html` / `global_signature_text` are sent as `null`
+- explicit signature clearing now requires `clear_signature = true`
+- `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` can run directly from unsaved form overrides if the payload already contains all required connection fields
+
 ### settings.deliverability used by preflight
 
 - `tracking_opens_enabled`
@@ -611,6 +720,8 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 ## Inbound business rules frozen in this phase
 
 - `auto_reply`, `out_of_office` and `auto_ack` remain visible but never count as human reply
+- inbound messages skipped because a mailbox lock is active log `mailbox.sync_skipped_locked`
+- UID cursor advances only after each successfully ingested message, so retry resumes safely after partial failure
 - `human_reply` sets `mail_threads.reply_received = true`
 - `auto_reply`, `out_of_office`, `auto_ack` set `mail_threads.auto_reply_received = true`
 - `hard_bounce` remains distinct from `soft_bounce`
@@ -643,12 +754,16 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `errors`: required array
 - `warnings`: required array
 - `deliverableRecipients`: required array
+- `excludedRecipients`: required array
+- `optOutRecipients`: required array
+- `invalidRecipients`: required array
 
 ### recipientSummary
 
 - `total`: required integer
 - `deliverable`: required integer
 - `excluded`: required integer
+  hard-bounced recipients only
 - `optOut`: required integer
 - `invalid`: required integer
 
@@ -664,3 +779,19 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 
 - `code`: required string
 - `message`: required string
+
+### Recipient detail arrays
+
+- `deliverableRecipients[]`: array of recipient detail objects
+- `excludedRecipients[]`: array of recipient detail objects with `reason = hard_bounced`
+- `optOutRecipients[]`: array of recipient detail objects with `reason = opt_out`
+- `invalidRecipients[]`: array of recipient detail objects with `reason = invalid_email`
+
+### Recipient detail object
+
+- `email`: nullable string
+- `contactId`: nullable integer
+- `contactEmailId`: nullable integer
+- `organizationId`: nullable integer
+- `name`: nullable string
+- `reason`: nullable string on `deliverableRecipients[]`, required on exclusion arrays

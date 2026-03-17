@@ -17,8 +17,8 @@
     </div>
     <!-- Details -->
     <div class="min-w-0 flex-1">
-      <p class="text-sm text-gray-900">{{ check.label }}</p>
-      <p v-if="check.detail" class="mt-0.5 text-xs text-gray-500">{{ check.detail }}</p>
+      <p class="text-sm font-medium text-slate-900">{{ check.label }}</p>
+      <p v-if="check.detail" class="mt-0.5 text-xs text-slate-500">{{ check.detail }}</p>
     </div>
   </div>
 </template>

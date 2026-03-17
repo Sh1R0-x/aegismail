@@ -1,7 +1,7 @@
 <template>
-  <div class="rounded-lg border bg-white">
-    <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-      <h3 class="text-sm font-semibold text-gray-900">Vérification pré-envoi</h3>
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+      <h3 class="text-sm font-bold text-slate-900">Vérification pré-envoi</h3>
       <span
         :class="[
           'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
@@ -13,14 +13,14 @@
         {{ overallStatus === 'pass' ? 'OK' : overallStatus === 'warning' ? 'Avertissements' : 'Bloqué' }}
       </span>
     </div>
-    <div class="divide-y divide-gray-50">
+    <div class="divide-y divide-slate-50">
       <PreflightRow
         v-for="check in checks"
         :key="check.id"
         :check="check"
       />
     </div>
-    <div v-if="checks.length === 0" class="px-4 py-6 text-center text-sm text-gray-400">
+    <div v-if="checks.length === 0" class="px-6 py-16 text-center text-sm font-medium text-slate-400">
       Aucune vérification lancée.
     </div>
   </div>

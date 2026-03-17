@@ -38,7 +38,7 @@ class InboundMessageClassifier
             return 'system';
         }
 
-        return 'human_reply';
+        return $this->looksLikeHumanReply($payload, $subject) ? 'human_reply' : 'unknown';
     }
 
     private function isAutoReply(string $subject, string $text, array $headers): bool
@@ -112,5 +112,14 @@ class InboundMessageClassifier
     {
         return Str::contains($fromEmail, ['noreply', 'no-reply', 'system', 'notification'])
             || in_array(Str::lower((string) ($headers['precedence'] ?? '')), ['bulk', 'list', 'junk'], true);
+    }
+
+    private function looksLikeHumanReply(array $payload, string $subject): bool
+    {
+        if (filled($payload['in_reply_to_header'] ?? null) || filled($payload['references_header'] ?? null)) {
+            return true;
+        }
+
+        return preg_match('/^(re)\s*:/i', trim($subject)) === 1;
     }
 }

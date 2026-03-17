@@ -15,6 +15,7 @@ use App\Models\Setting;
 use App\Services\Mailing\Contracts\MailGatewayClient;
 use App\Services\Mailing\Inbound\MailboxSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -258,6 +259,223 @@ class MailboxSyncTest extends TestCase
         $this->assertSame('hard_bounced', $contactEmail->fresh()->bounce_status);
         $this->assertSame('cancelled', $queuedFollowUp->fresh()->status);
         $this->assertDatabaseHas('mail_events', ['event_type' => 'mail_campaign.follow_up_cancelled']);
+    }
+
+    public function test_sync_skips_when_mailbox_folder_lock_is_active(): void
+    {
+        [$mailbox] = $this->seedConversation();
+        $lock = Cache::lock("mailbox-sync:{$mailbox->id}:INBOX", 120);
+        $this->assertTrue($lock->get());
+
+        try {
+            $result = app(MailboxSyncService::class)->sync([
+                'mailbox_account_id' => $mailbox->id,
+                'folder' => 'INBOX',
+                'idempotency_key' => 'mailbox.sync.locked-test',
+            ], app(MailGatewayClient::class));
+
+            $this->assertTrue($result['success']);
+            $this->assertSame(0, $result['processed']);
+            $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.sync_skipped_locked']);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function test_sync_resumes_safely_after_partial_failure_using_uid_cursor(): void
+    {
+        Carbon::setTestNow('2026-03-15 13:00:00');
+        [$mailbox, , $contactEmail, $recipient, , $outboundMessage] = $this->seedConversation();
+
+        try {
+            $this->runSync([
+                'mailbox_account_id' => $mailbox->id,
+                'folder' => 'INBOX',
+                'idempotency_key' => 'mailbox.sync.partial-failure',
+                'stub_messages' => [
+                    [
+                        'uid' => 201,
+                        'message_id_header' => '<reply-201@acme.test>',
+                        'in_reply_to_header' => $outboundMessage->message_id_header,
+                        'from_email' => $contactEmail->email,
+                        'to_emails' => ['ops@aegis.test'],
+                        'subject' => 'Re: Offre AEGIS',
+                        'text_body' => 'Premier message traité.',
+                        'received_at' => '2026-03-15T13:00:00+00:00',
+                    ],
+                    [
+                        'uid' => 202,
+                        'message_id_header' => '<broken-202@acme.test>',
+                        'from_email' => $contactEmail->email,
+                        'to_emails' => ['ops@aegis.test'],
+                        'subject' => 'Re: Offre AEGIS',
+                        'text_body' => 'Message cassé.',
+                        'received_at' => 'not-a-date',
+                    ],
+                ],
+            ]);
+
+            $this->fail('The sync should fail on the malformed second message.');
+        } catch (\Throwable $exception) {
+            $this->assertStringContainsString('not-a-date', $exception->getMessage());
+        }
+
+        $this->assertSame(201, $mailbox->fresh()->last_inbox_uid);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.sync_failed']);
+        $this->assertDatabaseHas('mail_messages', ['message_id_header' => '<reply-201@acme.test>']);
+        $this->assertDatabaseMissing('mail_messages', ['message_id_header' => '<broken-202@acme.test>']);
+
+        $this->runSync([
+            'mailbox_account_id' => $mailbox->id,
+            'folder' => 'INBOX',
+            'idempotency_key' => 'mailbox.sync.partial-retry',
+            'stub_messages' => [
+                [
+                    'uid' => 201,
+                    'message_id_header' => '<reply-201@acme.test>',
+                    'in_reply_to_header' => $outboundMessage->message_id_header,
+                    'from_email' => $contactEmail->email,
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Re: Offre AEGIS',
+                    'text_body' => 'Premier message traité.',
+                    'received_at' => '2026-03-15T13:00:00+00:00',
+                ],
+                [
+                    'uid' => 202,
+                    'message_id_header' => '<reply-202@acme.test>',
+                    'in_reply_to_header' => $outboundMessage->message_id_header,
+                    'from_email' => $contactEmail->email,
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Re: Offre AEGIS',
+                    'text_body' => 'Deuxième message après reprise.',
+                    'received_at' => '2026-03-15T13:05:00+00:00',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(202, $mailbox->fresh()->last_inbox_uid);
+        $this->assertDatabaseHas('mail_messages', ['message_id_header' => '<reply-202@acme.test>']);
+    }
+
+    public function test_references_header_matches_existing_thread_when_in_reply_to_is_missing(): void
+    {
+        Carbon::setTestNow('2026-03-15 13:30:00');
+        [$mailbox, , $contactEmail, $recipient, , $outboundMessage] = $this->seedConversation();
+
+        $this->runSync([
+            'mailbox_account_id' => $mailbox->id,
+            'folder' => 'INBOX',
+            'idempotency_key' => 'mailbox.sync.references',
+            'stub_messages' => [
+                [
+                    'uid' => 301,
+                    'message_id_header' => '<reply-ref-1@acme.test>',
+                    'references_header' => ['<older@acme.test>', $outboundMessage->message_id_header],
+                    'from_email' => $contactEmail->email,
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Re: Offre AEGIS',
+                    'text_body' => 'Réponse via references.',
+                    'received_at' => '2026-03-15T13:30:00+00:00',
+                ],
+            ],
+        ]);
+
+        $inbound = MailMessage::query()->where('message_id_header', '<reply-ref-1@acme.test>')->firstOrFail();
+
+        $this->assertSame($outboundMessage->thread_id, $inbound->thread_id);
+        $this->assertSame($recipient->id, $inbound->recipient_id);
+        $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.message_synced']);
+    }
+
+    public function test_heuristic_threading_ignores_mailbox_address_and_keeps_human_reply_distinct(): void
+    {
+        Carbon::setTestNow('2026-03-15 14:00:00');
+        [$mailbox, , $contactEmail, $recipient, , $outboundMessage] = $this->seedConversation();
+
+        $this->runSync([
+            'mailbox_account_id' => $mailbox->id,
+            'folder' => 'INBOX',
+            'idempotency_key' => 'mailbox.sync.heuristic',
+            'stub_messages' => [
+                [
+                    'uid' => 401,
+                    'message_id_header' => '<reply-heuristic-1@acme.test>',
+                    'from_email' => $contactEmail->email,
+                    'to_emails' => ['ops@aegis.test'],
+                    'cc_emails' => ['finance@acme.test'],
+                    'subject' => 'Offre AEGIS',
+                    'text_body' => 'Je réponds sans headers de reply.',
+                    'received_at' => '2026-03-15T14:00:00+00:00',
+                ],
+            ],
+        ]);
+
+        $inbound = MailMessage::query()->where('message_id_header', '<reply-heuristic-1@acme.test>')->firstOrFail();
+
+        $this->assertSame($outboundMessage->thread_id, $inbound->thread_id);
+        $this->assertSame('human_reply', $inbound->classification);
+        $this->assertSame('replied', $recipient->fresh()->status);
+    }
+
+    public function test_auto_ack_system_and_unknown_classifications_are_distinct_and_timeline_safe(): void
+    {
+        Carbon::setTestNow('2026-03-15 15:00:00');
+        [$mailbox, , $contactEmail, , , $outboundMessage] = $this->seedConversation();
+
+        $this->runSync([
+            'mailbox_account_id' => $mailbox->id,
+            'folder' => 'INBOX',
+            'idempotency_key' => 'mailbox.sync.classifications',
+            'stub_messages' => [
+                [
+                    'uid' => 501,
+                    'message_id_header' => '<ack-1@acme.test>',
+                    'in_reply_to_header' => $outboundMessage->message_id_header,
+                    'from_email' => $contactEmail->email,
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Accusé de réception',
+                    'text_body' => 'Nous avons bien reçu votre message.',
+                    'received_at' => '2026-03-15T15:00:00+00:00',
+                    'headers_json' => ['Auto-Submitted' => 'auto-replied'],
+                ],
+                [
+                    'uid' => 502,
+                    'message_id_header' => '<system-1@notify.test>',
+                    'from_email' => 'noreply@notify.test',
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Notification système',
+                    'text_body' => 'Ceci est une notification.',
+                    'received_at' => '2026-03-15T15:01:00+00:00',
+                    'headers_json' => ['Precedence' => 'bulk'],
+                ],
+                [
+                    'uid' => 503,
+                    'message_id_header' => '<unknown-1@random.test>',
+                    'from_email' => 'hello@random.test',
+                    'to_emails' => ['ops@aegis.test'],
+                    'subject' => 'Bonjour',
+                    'text_body' => 'Premier contact sans threading.',
+                    'received_at' => '2026-03-15T15:02:00+00:00',
+                ],
+            ],
+        ]);
+
+        $this->assertDatabaseHas('mail_messages', ['message_id_header' => '<ack-1@acme.test>', 'classification' => 'auto_ack']);
+        $this->assertDatabaseHas('mail_messages', ['message_id_header' => '<system-1@notify.test>', 'classification' => 'system']);
+        $this->assertDatabaseHas('mail_messages', ['message_id_header' => '<unknown-1@random.test>', 'classification' => 'unknown']);
+
+        $this->get('/activity')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Activity/Index')
+                ->has('events', 4)
+                ->has('events.0', fn (Assert $event) => $event
+                    ->where('status', 'delivered_if_known')
+                    ->where('isAutoReply', false)
+                    ->where('isBounce', false)
+                    ->etc()
+                )
+            );
     }
 
     private function runSync(array $payload): void

@@ -99,7 +99,7 @@ class DraftController extends Controller
 
         if ($mailbox === null) {
             return response()->json([
-                'message' => 'Mailbox is not configured.',
+                'message' => 'La boîte OVH MX Plan doit être configurée avant de créer une campagne.',
             ], 422);
         }
 
@@ -111,8 +111,13 @@ class DraftController extends Controller
         );
 
         if ($campaign === null) {
+            $messages = array_column($preflight['errors'] ?? [], 'message');
+
             return response()->json([
-                'message' => 'Preflight failed.',
+                'message' => $messages !== [] ? implode(' ', $messages) : 'Le preflight contient des erreurs bloquantes.',
+                'errors' => [
+                    'preflight' => $messages !== [] ? $messages : ['Le preflight contient des erreurs bloquantes.'],
+                ],
                 'preflight' => $preflight,
             ], 422);
         }

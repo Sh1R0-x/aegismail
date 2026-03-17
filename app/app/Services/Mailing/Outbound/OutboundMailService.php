@@ -30,13 +30,14 @@ class OutboundMailService
     {
         $mailbox = $campaign->mailboxAccount()->firstOrFail();
         $slots = $this->plannedSlots($mailbox, $requestedStart, $campaign->recipients()->count());
+        $firstScheduledFor = $slots[0] ?? $requestedStart;
         $draft->loadMissing('attachments');
         $campaign->load('recipients.contact', 'recipients.organization');
         $mailSettings = $this->settingsStore->get('mail', config('mailing.defaults.mail', []));
 
-        DB::transaction(function () use ($campaign, $draft, $slots, $mailbox, $mailSettings, $requestedStart): void {
+        DB::transaction(function () use ($campaign, $draft, $slots, $mailbox, $mailSettings, $firstScheduledFor): void {
             foreach ($campaign->recipients->values() as $index => $recipient) {
-                $scheduledFor = $slots[$index] ?? $requestedStart->copy();
+                $scheduledFor = $slots[$index] ?? $firstScheduledFor->copy();
                 $message = $this->createQueuedMessage($draft, $recipient, $mailbox, $scheduledFor, $mailSettings);
 
                 $recipient->forceFill([
@@ -73,7 +74,9 @@ class OutboundMailService
             }
 
             $campaign->forceFill([
-                'status' => $requestedStart->greaterThan(now()) ? 'scheduled' : 'queued',
+                'status' => $firstScheduledFor->greaterThan(now()) ? 'scheduled' : 'queued',
+                'started_at' => null,
+                'completed_at' => null,
             ])->save();
         });
 
@@ -93,6 +96,10 @@ class OutboundMailService
             return;
         }
 
+        if (! $this->canDispatchQueuedMessage($message, $recipient, $campaign)) {
+            return;
+        }
+
         if ($this->shouldAutoStop($campaign)) {
             $this->markRecipientCancelled($message, $recipient, $campaign);
 
@@ -104,7 +111,10 @@ class OutboundMailService
             'last_event_at' => now(),
         ])->save();
 
-        $campaign->forceFill(['status' => 'sending'])->save();
+        $campaign->forceFill([
+            'status' => 'sending',
+            'started_at' => $campaign->started_at ?? now(),
+        ])->save();
 
         $this->eventLogger->log(
             'mail_message.sending',
@@ -353,13 +363,14 @@ class OutboundMailService
     private function markSent(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign, array $result): void
     {
         $sentAt = isset($result['accepted_at']) ? Carbon::parse($result['accepted_at']) : now();
+        $messageIdHeader = $result['message_id_header'] ?? $message->message_id_header;
+        $headersJson = $this->mergeGatewayHeaders($message->headers_json ?? [], $result);
 
-        DB::transaction(function () use ($message, $recipient, $campaign, $result, $sentAt): void {
+        DB::transaction(function () use ($message, $recipient, $campaign, $result, $sentAt, $messageIdHeader, $headersJson): void {
             $message->forceFill([
+                'message_id_header' => $messageIdHeader,
                 'sent_at' => $sentAt,
-                'headers_json' => array_replace($message->headers_json ?? [], [
-                    'gateway' => array_diff_key($result, array_flip(['password'])),
-                ]),
+                'headers_json' => $headersJson,
             ])->save();
 
             $message->thread->forceFill([
@@ -378,7 +389,7 @@ class OutboundMailService
                 [
                     'mail_message_id' => $message->id,
                     'accepted_at' => $sentAt->toIso8601String(),
-                    'message_id_header' => $message->message_id_header,
+                    'message_id_header' => $messageIdHeader,
                 ],
                 [
                     'mailbox_account_id' => $message->mailbox_account_id,
@@ -396,11 +407,13 @@ class OutboundMailService
 
     private function markFailed(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign, array $result): void
     {
-        DB::transaction(function () use ($message, $recipient, $campaign, $result): void {
+        $messageIdHeader = $result['message_id_header'] ?? $message->message_id_header;
+        $headersJson = $this->mergeGatewayHeaders($message->headers_json ?? [], $result, false);
+
+        DB::transaction(function () use ($message, $recipient, $campaign, $result, $messageIdHeader, $headersJson): void {
             $message->forceFill([
-                'headers_json' => array_replace($message->headers_json ?? [], [
-                    'gateway_error' => array_diff_key($result, array_flip(['password'])),
-                ]),
+                'message_id_header' => $messageIdHeader,
+                'headers_json' => $headersJson,
             ])->save();
 
             $recipient->forceFill([
@@ -438,6 +451,33 @@ class OutboundMailService
         $hardBounceCount = $campaign->recipients()->where('status', 'hard_bounced')->count();
 
         return $failedCount >= $failedLimit || $hardBounceCount >= $hardBounceLimit || in_array($campaign->status, ['cancelled', 'failed'], true);
+    }
+
+    private function canDispatchQueuedMessage(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign): bool
+    {
+        if ($recipient->status === 'queued' && in_array($campaign->status, ['queued', 'scheduled', 'sending'], true)) {
+            return true;
+        }
+
+        $this->eventLogger->log(
+            'mail_message.dispatch_skipped',
+            [
+                'mail_message_id' => $message->id,
+                'recipient_status' => $recipient->status,
+                'campaign_status' => $campaign->status,
+                'reason' => 'message_is_no_longer_dispatchable',
+            ],
+            [
+                'mailbox_account_id' => $message->mailbox_account_id,
+                'campaign_id' => $campaign->id,
+                'recipient_id' => $recipient->id,
+                'thread_id' => $message->thread_id,
+                'message_id' => $message->id,
+            ],
+            'mail_message.dispatch_skipped.'.$message->id.'.'.$recipient->status.'.'.$campaign->status,
+        );
+
+        return false;
     }
 
     private function markRecipientCancelled(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign): void
@@ -481,10 +521,24 @@ class OutboundMailService
             return;
         }
 
-        $campaign->forceFill([
-            'status' => $failed > 0 ? 'failed' : 'sent',
-            'completed_at' => now(),
-        ])->save();
+            $campaign->forceFill([
+                'status' => $failed > 0 ? 'failed' : 'sent',
+                'completed_at' => now(),
+            ])->save();
+    }
+
+    private function mergeGatewayHeaders(array $existingHeaders, array $result, bool $successful = true): array
+    {
+        $sanitizedResult = array_diff_key($result, array_flip(['password', 'mailbox_password']));
+        $gatewayHeaders = is_array($result['headers_json'] ?? null) ? $result['headers_json'] : [];
+
+        if (isset($result['message_id_header']) && is_string($result['message_id_header']) && $result['message_id_header'] !== '') {
+            $gatewayHeaders['Message-ID'] = $result['message_id_header'];
+        }
+
+        return array_replace($existingHeaders, $gatewayHeaders, [
+            $successful ? 'gateway' : 'gateway_error' => $sanitizedResult,
+        ]);
     }
 
     private function messageIdHeader(string $senderEmail): string
@@ -500,13 +554,24 @@ class OutboundMailService
 
     private function htmlBody(MailDraft $draft, array $mailSettings): ?string
     {
+        $htmlBody = $draft->html_body;
+
+        if (! filled(trim((string) $htmlBody)) && filled(trim((string) $draft->text_body))) {
+            $htmlBody = $this->textToHtml($draft->text_body);
+        }
+
         $signature = $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? null);
 
-        if ($draft->html_body === null && $signature === null) {
+        $parts = collect([$htmlBody, $signature])
+            ->map(fn ($part) => is_string($part) ? trim($part) : null)
+            ->filter(fn ($part) => filled($part))
+            ->values();
+
+        if ($parts->isEmpty()) {
             return null;
         }
 
-        return trim((string) $draft->html_body."\n\n".(string) $signature);
+        return $parts->implode("\n\n");
     }
 
     private function textBody(MailDraft $draft, array $mailSettings): ?string
@@ -518,5 +583,26 @@ class OutboundMailService
         }
 
         return trim((string) $draft->text_body."\n\n".(string) $signatureText);
+    }
+
+    private function textToHtml(?string $textBody): ?string
+    {
+        $normalized = trim(str_replace(["\r\n", "\r"], "\n", (string) $textBody));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $paragraphs = preg_split("/\n{2,}/", $normalized) ?: [];
+
+        return collect($paragraphs)
+            ->map(function (string $paragraph): string {
+                $escaped = htmlspecialchars(trim($paragraph), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $withBreaks = str_replace("<br>\n", '<br>', nl2br($escaped, false));
+
+                return '<p>'.$withBreaks.'</p>';
+            })
+            ->filter()
+            ->implode("\n");
     }
 }

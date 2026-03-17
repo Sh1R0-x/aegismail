@@ -65,10 +65,22 @@ class ThreadResolver
             return null;
         }
 
-        $participants = collect([$payload['from_email'] ?? null, ...($payload['to_emails'] ?? [])])
+        $mailboxEmail = Str::lower($mailbox->email);
+        $participants = collect([
+            $payload['from_email'] ?? null,
+            ...($payload['to_emails'] ?? []),
+            ...($payload['cc_emails'] ?? []),
+            ...($payload['bcc_emails'] ?? []),
+        ])
             ->filter()
             ->map(fn ($email) => Str::lower((string) $email))
+            ->reject(fn ($email) => $email === $mailboxEmail)
+            ->unique()
             ->values();
+
+        if ($participants->isEmpty()) {
+            return null;
+        }
 
         return MailThread::query()
             ->where('mailbox_account_id', $mailbox->id)
@@ -76,11 +88,18 @@ class ThreadResolver
             ->where('last_message_at', '>=', $this->messageTimestamp($payload)->copy()->subDays(30))
             ->with(['messages' => fn ($query) => $query->latest('created_at')->limit(5)])
             ->get()
-            ->first(function (MailThread $thread) use ($participants): bool {
+            ->first(function (MailThread $thread) use ($participants, $mailboxEmail): bool {
                 $threadParticipants = $thread->messages
-                    ->flatMap(fn (MailMessage $message) => [$message->from_email, ...($message->to_emails ?? [])])
+                    ->flatMap(fn (MailMessage $message) => [
+                        $message->from_email,
+                        ...($message->to_emails ?? []),
+                        ...($message->cc_emails ?? []),
+                        ...($message->bcc_emails ?? []),
+                    ])
                     ->filter()
-                    ->map(fn ($email) => Str::lower((string) $email));
+                    ->map(fn ($email) => Str::lower((string) $email))
+                    ->reject(fn ($email) => $email === $mailboxEmail)
+                    ->unique();
 
                 return $threadParticipants->intersect($participants)->isNotEmpty();
             });

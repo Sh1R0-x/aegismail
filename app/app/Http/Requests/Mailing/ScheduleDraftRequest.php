@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Mailing;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 
-class ScheduleDraftRequest extends FormRequest
+class ScheduleDraftRequest extends ApiFormRequest
 {
     public function authorize(): bool
     {
@@ -16,6 +16,14 @@ class ScheduleDraftRequest extends FormRequest
         return [
             'scheduledAt' => ['required', 'date'],
             'name' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'scheduledAt' => 'la date de planification',
+            'name' => 'le nom de campagne',
         ];
     }
 }

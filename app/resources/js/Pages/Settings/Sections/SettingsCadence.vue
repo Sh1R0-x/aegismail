@@ -12,7 +12,7 @@
         <FieldGroup label="Délai minimum" :value="settings.minDelay || '30'" suffix="secondes" />
         <FieldGroup label="Jitter maximum" :value="settings.maxJitter || '15'" suffix="secondes" />
       </div>
-      <p class="mt-2 text-xs text-gray-400">
+      <p class="mt-2 text-xs text-slate-400">
         Le jitter ajoute un délai aléatoire entre les messages pour simuler un envoi naturel.
       </p>
     </SectionCard>

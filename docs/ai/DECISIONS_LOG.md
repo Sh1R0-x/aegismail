@@ -24,6 +24,10 @@
 - `auto_reply`, `out_of_office` and `auto_ack` remain distinct from human replies
 - `hard_bounce` remains distinct from `soft_bounce` and updates exclusion state
 - Activity timeline is fed from persisted `mail_messages`, not from speculative frontend state
+- Local smoke/E2E validation uses Playwright with a dedicated seeded SQLite database and no Docker/Sail
+- Full OVH production realism for V1 means a VPS baseline; OVH mutualized is only acceptable for a degraded or demo mode
+- Drafts and templates are text-first in V1: `text_body` / `text_template` can be the primary authored content, `html_*` stays optional, and Laravel synthesizes a minimal HTML body at dispatch time when only text is provided
+- Preflight blocks scheduling when both text and HTML bodies are empty
 
 ## Documentation alignment
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.

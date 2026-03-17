@@ -165,7 +165,7 @@ class DraftService
 
         if ($campaign === null) {
             throw ValidationException::withMessages([
-                'preflight' => ['Le preflight contient des erreurs bloquantes.'],
+                'preflight' => array_column($preflight['errors'], 'message') ?: ['Le preflight contient des erreurs bloquantes.'],
             ]);
         }
 

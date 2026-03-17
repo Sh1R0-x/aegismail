@@ -233,7 +233,17 @@ La cible de déploiement est un hébergement web OVH classique (mutualisé ou VP
 
 ### Recommandation réaliste
 
-Pour la V1 complète (avec queue worker + mail-gateway), un **VPS OVH basique** est le minimum viable. Un mutualisé peut convenir pour un mode dégradé sans envoi progressif temps réel.
+Pour la V1 complète (avec queue worker + scheduler + gateway HTTP réel), un **VPS OVH basique** est le minimum viable. Un mutualisé peut convenir pour un mode dégradé sans envoi progressif temps réel.
+
+Important :
+
+- Laravel est prêt pour un déploiement sobre sur VPS
+- le repo sait déjà parler à un mail-gateway `stub|http`
+- le dossier `mail-gateway/` reste toutefois un squelette de contrats TypeScript et n’est pas encore un serveur Node prêt à lancer en production
+
+Runbook détaillé :
+
+- `docs/ai/DEPLOY_OVH_RUNBOOK.md`
 
 ## État actuel V1
 

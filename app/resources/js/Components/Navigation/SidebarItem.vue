@@ -3,18 +3,13 @@
     <Link
       :href="item.href"
       :class="[
-        'group flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
         active
-          ? 'bg-gray-100 text-gray-900'
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+          ? 'border border-blue-500/20 bg-blue-600/10 font-bold text-blue-500'
+          : 'font-medium text-slate-400 hover:bg-slate-800/50 hover:text-white',
       ]"
     >
-      <span
-        :class="[
-          'flex h-5 w-5 shrink-0 items-center justify-center',
-          active ? 'text-gray-700' : 'text-gray-400 group-hover:text-gray-600',
-        ]"
-      >
+      <span class="flex h-5 w-5 shrink-0 items-center justify-center">
         <component :is="iconComponent" />
       </span>
       {{ item.label }}

@@ -53,7 +53,7 @@ class MailboxConnectionTester
                 'success' => false,
                 'protocol' => $protocol,
                 'driver' => config('mailing.gateway.driver'),
-                'message' => 'Mail gateway unavailable.',
+                'message' => "Le service de test {$protocol} est indisponible pour le moment.",
                 'status_code' => 502,
             ];
         }
@@ -91,7 +91,7 @@ class MailboxConnectionTester
 
         foreach ($requiredKeys as $key) {
             if (! array_key_exists($key, $resolved) || $resolved[$key] === null || $resolved[$key] === '') {
-                $missing[$key] = ["This field is required to test the {$protocol} connection."];
+                $missing[$key] = [$this->missingFieldMessage($key, $protocol)];
             }
         }
 
@@ -108,5 +108,23 @@ class MailboxConnectionTester
             "{$protocol}_port" => $resolved["{$protocol}_port"],
             "{$protocol}_secure" => $resolved["{$protocol}_secure"],
         ];
+    }
+
+    private function missingFieldMessage(string $key, string $protocol): string
+    {
+        $protocolLabel = strtoupper($protocol);
+        $messages = [
+            'sender_email' => "L’adresse d’envoi est requise pour tester la connexion {$protocolLabel}.",
+            'mailbox_username' => "L’identifiant de la boîte mail est requis pour tester la connexion {$protocolLabel}.",
+            'mailbox_password' => "Le mot de passe de la boîte mail est requis pour tester la connexion {$protocolLabel}.",
+            'imap_host' => "L’hôte IMAP est requis pour tester la connexion {$protocolLabel}.",
+            'imap_port' => "Le port IMAP est requis pour tester la connexion {$protocolLabel}.",
+            'imap_secure' => "Le mode de sécurité IMAP est requis pour tester la connexion {$protocolLabel}.",
+            'smtp_host' => "L’hôte SMTP est requis pour tester la connexion {$protocolLabel}.",
+            'smtp_port' => "Le port SMTP est requis pour tester la connexion {$protocolLabel}.",
+            'smtp_secure' => "Le mode de sécurité SMTP est requis pour tester la connexion {$protocolLabel}.",
+        ];
+
+        return $messages[$key] ?? "Le champ {$key} est requis pour tester la connexion {$protocolLabel}.";
     }
 }

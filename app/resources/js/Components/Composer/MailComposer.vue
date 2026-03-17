@@ -1,232 +1,281 @@
 <template>
-  <!-- Backdrop -->
-  <div class="fixed inset-0 z-40 bg-black/30" @click="close" />
+  <!-- Full-page inline composer — no backdrop, no fixed positioning -->
+  <div class="flex flex-col gap-6">
 
-  <!-- Slide-over panel -->
-  <div class="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-white shadow-2xl ring-1 ring-black/5">
-
-    <!-- Header -->
-    <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-3">
-      <div class="flex min-w-0 items-center gap-3">
-        <!-- Mode toggle -->
-        <div class="flex rounded border border-gray-200 bg-gray-50 p-0.5">
-          <button
-            :class="[
-              'rounded px-3 py-1 text-xs font-medium transition-colors',
-              form.mode === 'single' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
-            ]"
-            @click="setMode('single')"
-          >
-            Simple
-          </button>
-          <button
-            :class="[
-              'rounded px-3 py-1 text-xs font-medium transition-colors',
-              form.mode === 'multiple' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
-            ]"
-            @click="setMode('multiple')"
-          >
-            Multiple
-          </button>
-        </div>
-        <span v-if="draftId" class="truncate text-xs text-gray-400">Brouillon #{{ draftId }}</span>
-        <span v-if="savedAt" class="shrink-0 text-xs text-green-600">Sauvegardé {{ savedAtLabel }}</span>
+    <!-- Action bar -->
+    <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+      <!-- Mode toggle -->
+      <div class="flex rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+        <button
+          :class="[
+            'rounded-lg px-4 py-1.5 text-xs font-bold transition-colors',
+            form.mode === 'single' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+          ]"
+          @click="setMode('single')"
+        >
+          Simple
+        </button>
+        <button
+          :class="[
+            'rounded-lg px-4 py-1.5 text-xs font-bold transition-colors',
+            form.mode === 'multiple' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+          ]"
+          @click="setMode('multiple')"
+        >
+          Multiple
+        </button>
       </div>
-      <button
-        class="ml-3 shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-        @click="close"
-      >
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      <span v-if="draftId" class="text-xs font-medium text-slate-400">Brouillon #{{ draftId }}</span>
+      <span v-if="savedAt" class="text-xs font-bold text-emerald-600">Sauvegardé {{ savedAtLabel }}</span>
+
+      <!-- Action buttons -->
+      <div class="ml-auto flex flex-wrap items-center gap-3">
+        <button
+          :disabled="saving || !form.subject"
+          class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all disabled:opacity-40"
+          @click="saveDraft"
+        >
+          {{ saving ? 'Sauvegarde…' : draftId ? 'Mettre à jour' : 'Sauvegarder brouillon' }}
+        </button>
+        <button
+          :disabled="!draftId || preflightLoading"
+          :title="!draftId ? 'Sauvegardez d\'abord le brouillon' : ''"
+          class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm disabled:opacity-40 transition-all"
+          @click="runPreflight"
+        >
+          {{ preflightLoading ? 'Vérification…' : 'Vérifier (preflight)' }}
+        </button>
+        <button
+          v-if="preflight?.ok && !showSchedule"
+          class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+          @click="showSchedule = true"
+        >
+          Planifier
+        </button>
+      </div>
     </div>
 
     <!-- Error banner -->
     <div
       v-if="error"
-      class="flex shrink-0 items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-5 py-2"
+      class="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4"
     >
-      <p class="text-sm text-red-700">{{ error }}</p>
-      <button class="shrink-0 text-xs text-red-600 hover:text-red-800" @click="error = null">✕</button>
+      <p class="text-sm font-semibold text-red-700">{{ error }}</p>
+      <button class="shrink-0 text-xs font-bold text-red-500 hover:text-red-800" @click="error = null">✕</button>
     </div>
 
-    <!-- Scrollable form body -->
-    <div class="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+    <!-- 2-column layout: form | right panel -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
 
-      <!-- Recipients -->
-      <div>
-        <label class="mb-1.5 block text-sm font-medium text-gray-700">
-          {{ form.mode === 'multiple' ? 'Destinataires' : 'Destinataire' }}
-        </label>
+      <!-- ── Left: form fields ──────────────────────────────── -->
+      <div class="space-y-6">
 
-        <!-- Single mode -->
-        <div v-if="form.mode === 'single'" class="flex gap-2">
-          <input
-            v-model="singleEmail"
-            type="email"
-            placeholder="adresse@exemple.fr"
-            class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-          />
-          <input
-            v-model="singleName"
-            type="text"
-            placeholder="Nom (optionnel)"
-            class="w-44 rounded-md border border-gray-300 px-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-          />
+        <!-- Metadata card: recipients + subject + template -->
+        <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm space-y-5">
+
+          <!-- Recipients -->
+          <div>
+            <label class="mb-2 block text-sm font-bold text-slate-700">
+              {{ form.mode === 'multiple' ? 'Destinataires' : 'Destinataire' }}
+            </label>
+            <div v-if="form.mode === 'single'" class="flex gap-3">
+              <input
+                v-model="singleEmail"
+                type="email"
+                placeholder="adresse@exemple.fr"
+                class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+              />
+              <input
+                v-model="singleName"
+                type="text"
+                placeholder="Nom (optionnel)"
+                class="w-44 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+              />
+            </div>
+            <div v-else>
+              <textarea
+                v-model="multipleText"
+                rows="4"
+                placeholder="Un destinataire par ligne&#10;Format accepté : adresse@exemple.fr ou Prénom Nom <adresse@exemple.fr>"
+                class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+              />
+              <p class="mt-1.5 text-xs font-medium text-slate-400">
+                {{ parsedRecipients.length }} destinataire(s) identifié(s) · Chaque destinataire reçoit un mail individuel
+              </p>
+            </div>
+          </div>
+
+          <!-- Subject -->
+          <div>
+            <label class="mb-2 block text-sm font-bold text-slate-700">Sujet</label>
+            <input
+              v-model="form.subject"
+              type="text"
+              placeholder="Objet du message"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+            />
+          </div>
+
+          <!-- Template selector -->
+          <div v-if="activeTemplates.length > 0">
+            <label class="mb-2 block text-sm font-bold text-slate-700">Modèle (optionnel)</label>
+            <select
+              v-model="selectedTemplateId"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/30 outline-none"
+              @change="applyTemplate"
+            >
+              <option value="">— Aucun modèle —</option>
+              <option v-for="tpl in activeTemplates" :key="tpl.id" :value="tpl.id">
+                {{ tpl.name }}{{ tpl.subject ? ' — ' + tpl.subject : '' }}
+              </option>
+            </select>
+            <p v-if="templateApplied" class="mt-1.5 text-xs font-bold text-emerald-600">Modèle appliqué.</p>
+          </div>
         </div>
 
-        <!-- Multiple mode -->
-        <div v-else>
-          <textarea
-            v-model="multipleText"
-            rows="4"
-            placeholder="Un destinataire par ligne&#10;Format accepté : adresse@exemple.fr ou Prénom Nom <adresse@exemple.fr>"
-            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-          />
-          <p class="mt-1 text-xs text-gray-400">
-            {{ parsedRecipients.length }} destinataire(s) identifié(s) · Chaque destinataire reçoit un mail individuel
-          </p>
+        <!-- ── TEXT BODY (primary) ─────────────────────── -->
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div class="border-b border-slate-100 px-6 py-4">
+            <h3 class="text-sm font-bold text-slate-900">Corps du message</h3>
+            <p class="mt-0.5 text-xs font-medium text-slate-400">
+              Texte brut — prioritaire pour la délivrabilité
+              <span v-if="!form.textBody" class="ml-2 font-bold text-amber-600">Recommandé</span>
+            </p>
+          </div>
+          <div class="px-6 py-5">
+            <textarea
+              v-model="form.textBody"
+              rows="10"
+              placeholder="Rédigez votre message ici, en texte simple (sans balises HTML)…"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+            />
+          </div>
         </div>
-      </div>
 
-      <!-- Subject -->
-      <div>
-        <label class="mb-1.5 block text-sm font-medium text-gray-700">Sujet</label>
-        <input
-          v-model="form.subject"
-          type="text"
-          placeholder="Objet du message"
-          class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-        />
-      </div>
-
-      <!-- Template selector -->
-      <div v-if="activeTemplates.length > 0">
-        <label class="mb-1.5 block text-sm font-medium text-gray-700">Modèle (optionnel)</label>
-        <select
-          v-model="selectedTemplateId"
-          class="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-          @change="applyTemplate"
-        >
-          <option value="">— Aucun modèle —</option>
-          <option v-for="tpl in activeTemplates" :key="tpl.id" :value="tpl.id">
-            {{ tpl.name }}{{ tpl.subject ? ' — ' + tpl.subject : '' }}
-          </option>
-        </select>
-        <p v-if="templateApplied" class="mt-1 text-xs text-green-600">Modèle appliqué.</p>
-      </div>
-
-      <!-- HTML body -->
-      <div>
-        <div class="mb-1.5 flex items-center justify-between">
-          <label class="text-sm font-medium text-gray-700">Contenu HTML</label>
-          <span class="text-xs text-gray-400">{{ htmlSizeKb }} Ko</span>
+        <!-- ── HTML BODY (secondary, collapsible) ───────── -->
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+            @click="htmlExpanded = !htmlExpanded"
+          >
+            <div class="flex items-center gap-3 text-left">
+              <h3 class="text-sm font-bold text-slate-700">Version HTML</h3>
+              <span class="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Optionnel</span>
+              <span v-if="form.htmlBody" class="text-xs font-medium text-slate-400">{{ htmlSizeKb }} Ko</span>
+            </div>
+            <svg
+              :class="['h-4 w-4 text-slate-400 transition-transform', htmlExpanded ? 'rotate-180' : '']"
+              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+            >
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <div v-if="htmlExpanded" class="border-t border-slate-100 px-6 py-5 space-y-3">
+            <p class="text-xs font-medium text-slate-400">
+              Si vide, une version HTML est générée automatiquement à partir du texte brut lors de l'envoi.
+            </p>
+            <div class="flex items-center justify-end">
+              <button
+                type="button"
+                :class="[
+                  'rounded-lg px-3 py-1 text-xs font-bold transition-colors',
+                  previewHtml ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+                ]"
+                @click="previewHtml = !previewHtml"
+              >
+                {{ previewHtml ? 'Éditer' : 'Aperçu HTML' }}
+              </button>
+            </div>
+            <textarea
+              v-if="!previewHtml"
+              v-model="form.htmlBody"
+              rows="14"
+              placeholder="<p>Votre message HTML optionnel…</p>"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+            />
+            <iframe
+              v-else
+              :srcdoc="form.htmlBody || '<p style=\'color:#9ca3af;font-family:sans-serif;padding:1rem\'>Aperçu vide — saisissez du HTML ci-dessus.</p>'"
+              sandbox="allow-same-origin"
+              class="w-full rounded-xl border border-slate-200 bg-white"
+              style="height: 22rem;"
+            />
+          </div>
         </div>
-        <textarea
-          v-model="form.htmlBody"
-          rows="12"
-          placeholder="<p>Votre message…</p>"
-          class="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-        />
-      </div>
 
-      <!-- Text version -->
-      <div>
-        <div class="mb-1.5 flex items-center justify-between">
-          <label class="text-sm font-medium text-gray-700">Version texte</label>
-          <span v-if="!form.textBody" class="text-xs text-amber-600">
-            Recommandé pour la délivrabilité
-          </span>
+        <!-- Attachments note -->
+        <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-4 text-xs font-medium text-slate-500">
+          Les pièces jointes peuvent être ajoutées après sauvegarde du brouillon via l'API.
         </div>
-        <textarea
-          v-model="form.textBody"
-          rows="4"
-          placeholder="Version texte brut du message (sans balises HTML)…"
-          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-        />
+
       </div>
 
-      <!-- Attachments note -->
-      <div class="rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-        Les pièces jointes peuvent être ajoutées après sauvegarde du brouillon via l'API.
+      <!-- ── Right panel ────────────────────────────────── -->
+      <div class="space-y-4 lg:sticky lg:top-6 self-start">
+
+        <!-- Preflight result or placeholder -->
+        <template v-if="preflight">
+          <PreflightResult :result="preflight" />
+        </template>
+        <div v-else class="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 text-center">
+          <p class="text-sm font-bold text-slate-500">Preflight</p>
+          <p class="mt-1 text-xs font-medium text-slate-400">Sauvegardez le brouillon, puis lancez le preflight pour évaluer la délivrabilité.</p>
+          <button
+            v-if="draftId"
+            :disabled="preflightLoading"
+            class="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40"
+            @click="runPreflight"
+          >
+            {{ preflightLoading ? 'Analyse…' : 'Lancer le preflight' }}
+          </button>
+        </div>
+
+        <!-- Schedule form -->
+        <div class="rounded-2xl border border-blue-100 bg-blue-50 px-6 py-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-black uppercase tracking-[0.1em] text-blue-600">Planification</p>
+            <button
+              type="button"
+              :class="['rounded-lg px-3 py-1 text-xs font-bold transition-colors', showSchedule ? 'bg-blue-600 text-white' : 'border border-blue-200 text-blue-600 hover:bg-blue-100']"
+              @click="showSchedule = !showSchedule"
+            >
+              {{ showSchedule ? 'Masquer' : 'Planifier' }}
+            </button>
+          </div>
+          <template v-if="showSchedule">
+            <div class="space-y-3">
+              <div>
+                <label class="mb-1 block text-xs font-bold text-blue-700">Date et heure d'envoi</label>
+                <input
+                  v-model="scheduledAt"
+                  type="datetime-local"
+                  :min="minScheduledAt"
+                  class="w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/30 outline-none"
+                />
+              </div>
+              <p v-if="schedule_error" class="text-xs font-semibold text-red-600">{{ schedule_error }}</p>
+              <button
+                :disabled="!scheduledAt || scheduling || !draftId"
+                class="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-40"
+                @click="scheduleDraft"
+              >
+                {{ scheduling ? 'Planification…' : 'Confirmer la planification' }}
+              </button>
+              <p v-if="!draftId" class="text-center text-xs font-medium text-blue-400">Sauvegardez d'abord le brouillon.</p>
+            </div>
+          </template>
+        </div>
+
+        <!-- Draft info -->
+        <div v-if="draftId" class="rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Brouillon</p>
+          <p class="mt-1 text-xs font-medium text-slate-600">ID : {{ draftId }}</p>
+          <p v-if="savedAt" class="mt-0.5 text-xs font-medium text-emerald-600">Sauvegardé {{ savedAtLabel }}</p>
+        </div>
+
       </div>
-
     </div>
-
-    <!-- Preflight result -->
-    <div v-if="preflight" class="shrink-0 border-t border-gray-100 max-h-72 overflow-y-auto">
-      <PreflightResult :result="preflight" />
-    </div>
-
-    <!-- Schedule inline form -->
-    <div
-      v-if="showSchedule"
-      class="shrink-0 border-t border-gray-100 bg-gray-50 px-5 py-4 space-y-3"
-    >
-      <p class="text-sm font-medium text-gray-700">Planifier l'envoi</p>
-      <div>
-        <label class="text-xs text-gray-600">Date et heure d'envoi</label>
-        <input
-          v-model="scheduledAt"
-          type="datetime-local"
-          :min="minScheduledAt"
-          class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-        />
-      </div>
-      <div class="flex items-center gap-2">
-        <button
-          :disabled="!scheduledAt || scheduling"
-          class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40"
-          @click="scheduleDraft"
-        >
-          {{ scheduling ? 'Planification…' : 'Confirmer la planification' }}
-        </button>
-        <button
-          class="text-sm text-gray-500 hover:text-gray-700"
-          @click="showSchedule = false"
-        >
-          Annuler
-        </button>
-      </div>
-      <p v-if="schedule_error" class="text-xs text-red-600">{{ schedule_error }}</p>
-    </div>
-
-    <!-- Footer actions -->
-    <div class="shrink-0 flex items-center gap-2 border-t border-gray-100 bg-white px-5 py-3">
-      <button
-        :disabled="saving || !form.subject"
-        class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40"
-        @click="saveDraft"
-      >
-        {{ saving ? 'Sauvegarde…' : draftId ? 'Mettre à jour' : 'Sauvegarder brouillon' }}
-      </button>
-
-      <button
-        :disabled="!draftId || preflightLoading"
-        :title="!draftId ? 'Sauvegardez d\'abord le brouillon' : ''"
-        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-        @click="runPreflight"
-      >
-        {{ preflightLoading ? 'Vérification…' : 'Vérifier (preflight)' }}
-      </button>
-
-      <button
-        v-if="preflight?.ok && !showSchedule"
-        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        @click="showSchedule = true"
-      >
-        Planifier
-      </button>
-
-      <button
-        class="ml-auto text-sm text-gray-500 hover:text-gray-700"
-        @click="close"
-      >
-        Fermer
-      </button>
-    </div>
-
   </div>
 </template>
 
@@ -279,6 +328,10 @@ const error = ref(null);
 // ── Preflight state ────────────────────────────────────────
 const preflight = ref(null);
 const preflightLoading = ref(false);
+
+// ── Preview state ──────────────────────────────────────────
+const previewHtml = ref(false);
+const htmlExpanded = ref(Boolean(props.draft?.htmlBody));
 
 // ── Schedule state ─────────────────────────────────────────
 const showSchedule = ref(false);
@@ -334,8 +387,9 @@ const minScheduledAt = computed(() => {
 // ── Methods ────────────────────────────────────────────────
 function setMode(mode) {
   form.value.mode = mode;
-  // Reset preflight when mode changes
+  // Reset preflight and preview when mode changes
   preflight.value = null;
+  previewHtml.value = false;
 }
 
 function applyTemplate() {

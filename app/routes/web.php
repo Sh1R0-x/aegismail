@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DraftsController;
 use App\Http\Controllers\Web\MailsController;
 use App\Http\Controllers\Web\OrganizationsController;
+use App\Http\Controllers\Web\SettingsController;
 use App\Http\Controllers\Web\TemplatesController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,9 +32,7 @@ Route::get('/campaigns', CampaignsController::class);
 
 Route::get('/activity', ActivityController::class);
 
-Route::get('/settings', function () {
-    return Inertia::render('Settings/Index');
-});
+Route::get('/settings', SettingsController::class);
 
 Route::get('/users', function () {
     return Inertia::render('Users/Index');

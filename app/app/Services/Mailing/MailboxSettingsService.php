@@ -80,8 +80,16 @@ class MailboxSettingsService
     {
         $mailbox = $this->mailbox();
         $password = $this->resolvePassword($validated, $mailbox);
+        $currentMailSettings = $this->settingsStore->get('mail', config('mailing.defaults.mail', []));
+        $mailSettingsPayload = array_merge(
+            $this->resolveSignatureSettings($validated, $currentMailSettings),
+            Arr::only($validated, [
+                'send_window_start',
+                'send_window_end',
+            ]),
+        );
 
-        DB::transaction(function () use ($mailbox, $password, $updatedBy, $validated): void {
+        DB::transaction(function () use ($mailbox, $password, $updatedBy, $validated, $mailSettingsPayload): void {
             $mailbox = MailboxAccount::query()->updateOrCreate(
                 ['provider' => config('mailing.provider')],
                 [
@@ -104,12 +112,7 @@ class MailboxSettingsService
                 ],
             );
 
-            $this->settingsStore->put('mail', Arr::only($validated, [
-                'global_signature_html',
-                'global_signature_text',
-                'send_window_start',
-                'send_window_end',
-            ]), $updatedBy);
+            $this->settingsStore->put('mail', $mailSettingsPayload, $updatedBy);
 
             $this->eventLogger->log(
                 'settings.mail.updated',
@@ -133,6 +136,21 @@ class MailboxSettingsService
         });
 
         return $this->getSettings();
+    }
+
+    private function resolveSignatureSettings(array $validated, array $currentMailSettings): array
+    {
+        if ((bool) ($validated['clear_signature'] ?? false)) {
+            return [
+                'global_signature_html' => null,
+                'global_signature_text' => null,
+            ];
+        }
+
+        return [
+            'global_signature_html' => $validated['global_signature_html'] ?? $currentMailSettings['global_signature_html'] ?? null,
+            'global_signature_text' => $validated['global_signature_text'] ?? $currentMailSettings['global_signature_text'] ?? null,
+        ];
     }
 
     public function updateHealth(bool $healthy, string $message): ?MailboxAccount

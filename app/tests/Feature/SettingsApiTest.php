@@ -56,6 +56,39 @@ class SettingsApiTest extends TestCase
         $this->assertSame('super-secret-password', $mailbox->password_encrypted);
     }
 
+    public function test_mail_settings_preserve_existing_signature_when_standard_save_sends_null_fields(): void
+    {
+        $payload = $this->validMailPayload();
+
+        $this->putJson('/api/settings/mail', $payload)->assertOk();
+
+        $this->putJson('/api/settings/mail', array_merge($payload, [
+            'sender_name' => 'AEGIS Delivery',
+            'mailbox_password' => null,
+            'global_signature_html' => null,
+            'global_signature_text' => null,
+        ]))->assertOk()
+            ->assertJsonPath('mail.sender_name', 'AEGIS Delivery')
+            ->assertJsonPath('mail.global_signature_html', '<p>Cordialement,<br>AEGIS</p>')
+            ->assertJsonPath('mail.global_signature_text', "Cordialement,\nAEGIS");
+    }
+
+    public function test_mail_settings_can_explicitly_clear_signature_when_requested(): void
+    {
+        $payload = $this->validMailPayload();
+
+        $this->putJson('/api/settings/mail', $payload)->assertOk();
+
+        $this->putJson('/api/settings/mail', array_merge($payload, [
+            'mailbox_password' => null,
+            'global_signature_html' => null,
+            'global_signature_text' => null,
+            'clear_signature' => true,
+        ]))->assertOk()
+            ->assertJsonPath('mail.global_signature_html', null)
+            ->assertJsonPath('mail.global_signature_text', null);
+    }
+
     public function test_it_validates_mail_settings_payload(): void
     {
         $response = $this->putJson('/api/settings/mail', [
@@ -90,6 +123,9 @@ class SettingsApiTest extends TestCase
                 'send_window_start',
                 'send_window_end',
             ]);
+
+        $this->assertStringContainsString('Le champ l’adresse d’envoi doit être une adresse e-mail valide.', $response->json('message'));
+        $this->assertStringContainsString('Le champ le nom d’expéditeur est obligatoire.', $response->json('message'));
     }
 
     public function test_it_updates_general_and_deliverability_settings(): void
@@ -147,6 +183,76 @@ class SettingsApiTest extends TestCase
         $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.test_imap_succeeded']);
         $this->assertDatabaseHas('mail_events', ['event_type' => 'mailbox.test_smtp_succeeded']);
         $this->assertDatabaseHas('mailbox_accounts', ['health_status' => 'healthy']);
+    }
+
+    public function test_smtp_test_returns_precise_validation_messages_for_missing_fields(): void
+    {
+        $response = $this->postJson('/api/settings/mail/test-smtp', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'sender_email',
+                'mailbox_username',
+                'mailbox_password',
+                'smtp_host',
+                'smtp_port',
+                'smtp_secure',
+            ]);
+
+        $this->assertStringContainsString('L’adresse d’envoi est requise pour tester la connexion SMTP.', $response->json('message'));
+        $this->assertStringContainsString('L’identifiant de la boîte mail est requis pour tester la connexion SMTP.', $response->json('message'));
+        $this->assertStringContainsString('Le mot de passe de la boîte mail est requis pour tester la connexion SMTP.', $response->json('message'));
+    }
+
+    public function test_imap_test_returns_precise_validation_messages_for_missing_fields(): void
+    {
+        $response = $this->postJson('/api/settings/mail/test-imap', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'sender_email',
+                'mailbox_username',
+                'mailbox_password',
+                'imap_host',
+                'imap_port',
+                'imap_secure',
+            ]);
+
+        $this->assertStringContainsString('L’adresse d’envoi est requise pour tester la connexion IMAP.', $response->json('message'));
+        $this->assertStringContainsString('L’hôte IMAP est requis pour tester la connexion IMAP.', $response->json('message'));
+    }
+
+    public function test_smtp_and_imap_tests_can_run_from_unsaved_overrides_only(): void
+    {
+        $smtpPayload = [
+            'sender_email' => 'ops@aegis-mail.test',
+            'mailbox_username' => 'ops@aegis-mail.test',
+            'mailbox_password' => 'secret-pass',
+            'smtp_host' => 'smtp.mail.ovh.net',
+            'smtp_port' => 465,
+            'smtp_secure' => true,
+        ];
+
+        $imapPayload = [
+            'sender_email' => 'ops@aegis-mail.test',
+            'mailbox_username' => 'ops@aegis-mail.test',
+            'mailbox_password' => 'secret-pass',
+            'imap_host' => 'imap.mail.ovh.net',
+            'imap_port' => 993,
+            'imap_secure' => true,
+        ];
+
+        $this->postJson('/api/settings/mail/test-smtp', $smtpPayload)
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('protocol', 'smtp');
+
+        $this->postJson('/api/settings/mail/test-imap', $imapPayload)
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('protocol', 'imap');
+
+        $this->assertDatabaseMissing('mailbox_accounts', ['provider' => 'ovh_mx_plan']);
     }
 
     private function validMailPayload(): array

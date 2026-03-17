@@ -1,70 +1,94 @@
 <template>
-  <CrmLayout title="Brouillons" current-page="drafts">
+  <CrmLayout
+    :title="composerOpen ? (editingDraft ? 'Modifier le brouillon' : 'Nouveau brouillon') : 'Brouillons'"
+    :subtitle="composerOpen ? 'Composez et planifiez votre envoi' : 'G\u00e9rez vos brouillons et planifications'"
+    current-page="drafts"
+  >
     <template #header-actions>
-      <button
-        class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
-        @click="openNewDraft"
-      >
-        Nouveau brouillon
-      </button>
+      <template v-if="composerOpen">
+        <button
+          class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+          @click="closeComposer"
+        >
+          \u2190 Retour aux brouillons
+        </button>
+      </template>
+      <template v-else>
+        <button
+          class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all"
+          @click="openNewDraft"
+        >
+          Nouveau brouillon
+        </button>
+      </template>
     </template>
 
-    <div class="rounded-lg border border-gray-200 bg-white">
-      <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-        <h2 class="text-sm font-semibold text-gray-900">Brouillons enregistrés</h2>
-        <span class="text-xs text-gray-400">{{ drafts.length }} brouillon(s)</span>
+    <MailComposer
+      v-if="composerOpen"
+      :mode="composerMode"
+      :draft="editingDraft"
+      :templates="templates"
+      @close="closeComposer"
+      @saved="onSaved"
+      @scheduled="onScheduled"
+    />
+
+    <div v-else class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
+        <h2 class="text-sm font-bold text-slate-900">Brouillons enregistrés</h2>
+        <span class="text-xs font-bold text-slate-400">{{ drafts.length }} brouillon(s)</span>
       </div>
 
-      <div v-if="drafts.length === 0" class="px-4 py-12 text-center">
-        <p class="text-sm text-gray-500">Aucun brouillon.</p>
-        <p class="mt-1 text-xs text-gray-400">Les brouillons sauvegardés depuis le compositeur apparaîtront ici.</p>
+      <div v-if="drafts.length === 0" class="px-6 py-16 text-center">
+        <p class="text-sm font-medium text-slate-400">Aucun brouillon.</p>
+        <p class="mt-1 text-xs text-slate-400">Les brouillons sauvegardés depuis le compositeur apparaîtront ici.</p>
       </div>
 
       <table v-else class="w-full text-sm">
         <thead>
-          <tr class="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-            <th class="px-4 py-2.5">Sujet</th>
-            <th class="px-4 py-2.5">Destinataire(s)</th>
-            <th class="px-4 py-2.5">Type</th>
-            <th class="px-4 py-2.5">Statut</th>
-            <th class="px-4 py-2.5">Planifié</th>
-            <th class="px-4 py-2.5">Modifié</th>
-            <th class="px-4 py-2.5 text-right">Actions</th>
+          <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+            <th class="px-6 py-4">Sujet</th>
+            <th class="px-6 py-4">Destinataire(s)</th>
+            <th class="px-6 py-4">Type</th>
+            <th class="px-6 py-4">Statut</th>
+            <th class="px-6 py-4">Planifié</th>
+            <th class="px-6 py-4">Modifié</th>
+            <th class="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-50">
-          <tr v-for="draft in drafts" :key="draft.id" class="hover:bg-gray-50">
-            <td class="px-4 py-2.5 font-medium text-gray-900">{{ draft.subject || '(sans sujet)' }}</td>
-            <td class="px-4 py-2.5 text-gray-600">{{ draft.recipientCount }} dest.</td>
-            <td class="px-4 py-2.5">
-              <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+        <tbody class="divide-y divide-slate-100">
+          <tr v-for="draft in drafts" :key="draft.id" class="hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">{{ draft.subject || '(sans sujet)' }}</td>
+            <td class="px-6 py-4 text-slate-600">{{ draft.recipientCount }} dest.</td>
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
                 {{ draft.type === 'multiple' ? 'Multiple' : 'Simple' }}
               </span>
             </td>
-            <td class="px-4 py-2.5">
+            <td class="px-6 py-4">
               <StatusBadge :status="draft.status" />
             </td>
-            <td class="px-4 py-2.5 text-gray-500">{{ draft.scheduledAt ?? '—' }}</td>
-            <td class="px-4 py-2.5 text-gray-400">{{ draft.updatedAt }}</td>
-            <td class="px-4 py-2.5 text-right space-x-2">
+            <td class="px-6 py-4 text-slate-500">{{ draft.scheduledAt ?? '—' }}</td>
+            <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ draft.updatedAt }}</td>
+            <td class="px-6 py-4 text-right space-x-3">
               <button
-                class="text-xs font-medium text-blue-600 hover:text-blue-800"
+                class="text-xs font-bold text-blue-600 hover:text-blue-800"
                 :disabled="loadingId === draft.id"
                 @click="editDraft(draft.id)"
               >
                 Éditer
               </button>
-              <span class="text-gray-300">·</span>
+              <span class="text-slate-200">·</span>
               <button
-                class="text-xs font-medium text-gray-500 hover:text-gray-700"
+                class="text-xs font-bold text-slate-500 hover:text-slate-700"
                 @click="duplicateDraft(draft.id)"
               >
                 Dupliquer
               </button>
               <template v-if="draft.status === 'scheduled'">
-                <span class="text-gray-300">·</span>
+                <span class="text-slate-200">·</span>
                 <button
-                  class="text-xs font-medium text-amber-600 hover:text-amber-800"
+                  class="text-xs font-bold text-amber-600 hover:text-amber-800"
                   @click="unscheduleDraft(draft.id)"
                 >
                   Déprogrammer
@@ -75,17 +99,6 @@
         </tbody>
       </table>
     </div>
-
-    <!-- Composer slide-over -->
-    <MailComposer
-      v-if="composerOpen"
-      :mode="composerMode"
-      :draft="editingDraft"
-      :templates="templates"
-      @close="closeComposer"
-      @saved="onSaved"
-      @scheduled="onScheduled"
-    />
   </CrmLayout>
 </template>
 

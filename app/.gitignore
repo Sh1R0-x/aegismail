@@ -9,6 +9,7 @@
 .env
 .env.backup
 .env.production
+.env.e2e
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -16,6 +17,9 @@ Homestead.yaml
 npm-debug.log
 yarn-error.log
 /auth.json
+/playwright-report
+/test-results
+/database/e2e.sqlite
 /.fleet
 /.idea
 /.codex

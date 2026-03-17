@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Settings;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 
-class GeneralSettingsRequest extends FormRequest
+class GeneralSettingsRequest extends ApiFormRequest
 {
     public function authorize(): bool
     {
@@ -30,6 +30,35 @@ class GeneralSettingsRequest extends FormRequest
             'hard_bounce_points' => ['required', 'integer', 'between:-100,100'],
             'unsubscribe_points' => ['required', 'integer', 'between:-100,100'],
             'inactivity_decay_days' => ['required', 'integer', 'min:1', 'max:3650'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return parent::messages() + [
+            'jitter_max_seconds.gte' => 'Le jitter maximum doit être supérieur ou égal au jitter minimum.',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'daily_limit_default' => 'le plafond journalier',
+            'hourly_limit_default' => 'le plafond horaire',
+            'min_delay_seconds' => 'le délai minimum entre deux envois',
+            'jitter_min_seconds' => 'le jitter minimum',
+            'jitter_max_seconds' => 'le jitter maximum',
+            'slow_mode_enabled' => 'le mode lent',
+            'stop_on_consecutive_failures' => 'le seuil d’arrêt sur échecs',
+            'stop_on_hard_bounce_threshold' => 'le seuil d’arrêt sur hard bounce',
+            'open_points' => 'les points d’ouverture',
+            'click_points' => 'les points de clic',
+            'reply_points' => 'les points de réponse',
+            'auto_reply_points' => 'les points d’auto-réponse',
+            'soft_bounce_points' => 'les points de soft bounce',
+            'hard_bounce_points' => 'les points de hard bounce',
+            'unsubscribe_points' => 'les points de désinscription',
+            'inactivity_decay_days' => 'le délai de décroissance d’inactivité',
         ];
     }
 }

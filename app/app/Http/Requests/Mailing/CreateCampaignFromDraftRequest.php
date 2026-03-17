@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Mailing;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\ApiFormRequest;
 
-class CreateCampaignFromDraftRequest extends FormRequest
+class CreateCampaignFromDraftRequest extends ApiFormRequest
 {
     public function authorize(): bool
     {
@@ -16,6 +16,14 @@ class CreateCampaignFromDraftRequest extends FormRequest
         return [
             'name' => ['nullable', 'string', 'max:255'],
             'scheduledAt' => ['nullable', 'date'],
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'name' => 'le nom de campagne',
+            'scheduledAt' => 'la date de planification',
         ];
     }
 }

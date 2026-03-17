@@ -21,6 +21,7 @@ Route::post('/templates', [TemplateController::class, 'store']);
 Route::put('/templates/{template}', [TemplateController::class, 'update']);
 Route::post('/templates/{template}/duplicate', [TemplateController::class, 'duplicate']);
 Route::post('/templates/{template}/archive', [TemplateController::class, 'archive']);
+Route::post('/templates/{template}/activate', [TemplateController::class, 'activate']);
 
 Route::get('/drafts', [DraftController::class, 'index']);
 Route::post('/drafts', [DraftController::class, 'store']);

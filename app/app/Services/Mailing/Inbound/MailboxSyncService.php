@@ -152,13 +152,13 @@ class MailboxSyncService
         }
 
         $contactContext = $this->resolveContactContext($mailbox, $normalized);
-        $classification = $normalized['direction'] === 'in'
-            ? $this->classifier->classify($normalized)
-            : 'unknown';
         $resolution = $this->threadResolver->resolve($mailbox, array_replace($normalized, [
             'contact_id' => $contactContext['contact_id'],
             'organization_id' => $contactContext['organization_id'],
         ]));
+        $classification = $normalized['direction'] === 'in'
+            ? $this->resolveInboundClassification($normalized, $resolution['strategy'])
+            : 'unknown';
         $thread = $resolution['thread'];
         $occurredAt = $this->messageTimestamp($normalized);
         $recipient = $this->resolveRecipient($mailbox, $thread->id, $normalized, $classification, $contactContext, $resolution['matched_message']?->recipient_id);
@@ -596,5 +596,16 @@ class MailboxSyncService
             'hard_bounce' => 'hard_bounced',
             default => 'active',
         };
+    }
+
+    private function resolveInboundClassification(array $normalized, string $strategy): string
+    {
+        $classification = $this->classifier->classify($normalized);
+
+        if ($classification !== 'unknown') {
+            return $classification;
+        }
+
+        return $strategy === 'new_thread' ? 'unknown' : 'human_reply';
     }
 }

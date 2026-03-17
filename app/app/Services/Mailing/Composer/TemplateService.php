@@ -31,8 +31,8 @@ class TemplateService
                 'name' => $validated['name'],
                 'slug' => $this->uniqueSlug($validated['name']),
                 'subject_template' => $validated['subject'],
-                'html_template' => $validated['htmlBody'] ?? '',
-                'text_template' => $validated['textBody'] ?? '',
+                'html_template' => $this->normalizedTemplateBody($validated['htmlBody'] ?? null),
+                'text_template' => $this->normalizedTemplateBody($validated['textBody'] ?? null),
                 'is_active' => $validated['active'] ?? true,
                 'created_by' => $createdBy,
             ]);
@@ -55,8 +55,8 @@ class TemplateService
         $template->fill([
             'name' => $validated['name'],
             'subject_template' => $validated['subject'],
-            'html_template' => $validated['htmlBody'] ?? '',
-            'text_template' => $validated['textBody'] ?? '',
+            'html_template' => $this->normalizedTemplateBody($validated['htmlBody'] ?? null),
+            'text_template' => $this->normalizedTemplateBody($validated['textBody'] ?? null),
             'is_active' => $validated['active'] ?? $template->is_active,
         ])->save();
 
@@ -94,16 +94,12 @@ class TemplateService
 
     public function archive(MailTemplate $template): MailTemplate
     {
-        $template->forceFill(['is_active' => false])->save();
+        return $this->setActiveState($template, false, 'mail_template.archived');
+    }
 
-        $this->eventLogger->log(
-            'mail_template.archived',
-            ['template_id' => $template->id],
-            [],
-            'mail_template.archived.'.$template->id,
-        );
-
-        return $template->loadCount('drafts');
+    public function activate(MailTemplate $template): MailTemplate
+    {
+        return $this->setActiveState($template, true, 'mail_template.activated');
     }
 
     public function serialize(MailTemplate $template): array
@@ -115,8 +111,8 @@ class TemplateService
             'name' => $template->name,
             'slug' => $template->slug,
             'subject' => $template->subject_template,
-            'htmlBody' => $template->html_template,
-            'textBody' => $template->text_template,
+            'htmlBody' => $this->serializedTemplateBody($template->html_template),
+            'textBody' => $this->serializedTemplateBody($template->text_template),
             'active' => $template->is_active,
             'usageCount' => $template->drafts_count ?? 0,
             'createdAt' => $template->created_at?->toIso8601String(),
@@ -130,8 +126,8 @@ class TemplateService
             'id' => $template->id,
             'name' => $template->name,
             'subject' => $template->subject_template,
-            'htmlBody' => $template->html_template,
-            'textBody' => $template->text_template,
+            'htmlBody' => $this->serializedTemplateBody($template->html_template),
+            'textBody' => $this->serializedTemplateBody($template->text_template),
             'active' => $template->is_active,
             'usageCount' => $template->drafts_count ?? 0,
             'updatedAt' => $this->formatDate($template->updated_at),
@@ -155,5 +151,31 @@ class TemplateService
     private function formatDate($value): ?string
     {
         return $value?->timezone(config('app.timezone'))->format('Y-m-d H:i');
+    }
+
+    private function setActiveState(MailTemplate $template, bool $isActive, string $eventType): MailTemplate
+    {
+        $template->forceFill(['is_active' => $isActive])->save();
+
+        $this->eventLogger->log(
+            $eventType,
+            ['template_id' => $template->id],
+            [],
+            $eventType.'.'.$template->id,
+        );
+
+        return $template->loadCount('drafts');
+    }
+
+    private function normalizedTemplateBody(?string $value): string
+    {
+        return trim((string) $value);
+    }
+
+    private function serializedTemplateBody(?string $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
     }
 }

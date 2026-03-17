@@ -3,9 +3,13 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "e2e:install": "playwright install chromium",
+        "test:e2e:smoke": "playwright test",
+        "test:e2e:smoke:headed": "playwright test --headed"
     },
     "devDependencies": {
+        "@playwright/test": "^1.54.2",
         "@tailwindcss/vite": "^4.0.0",
         "axios": "^1.7.4",
         "concurrently": "^9.0.1",

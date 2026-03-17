@@ -1,10 +1,10 @@
 <template>
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-lg font-semibold text-gray-900">{{ title }}</h1>
-      <p v-if="subtitle" class="mt-0.5 text-sm text-gray-500">{{ subtitle }}</p>
+  <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+    <div class="space-y-1">
+      <h2 class="text-3xl font-extrabold tracking-tight text-slate-900">{{ title }}</h2>
+      <p v-if="subtitle" class="font-medium text-slate-500">{{ subtitle }}</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-3">
       <slot />
     </div>
   </div>

@@ -1,16 +1,16 @@
 <template>
-  <CrmLayout title="Réglages" current-page="settings">
-    <div class="flex gap-6">
+  <CrmLayout title="Réglages" subtitle="Configuration système et paramètres opérationnels" current-page="settings">
+    <div class="flex gap-8">
       <!-- Section nav -->
-      <nav class="w-48 shrink-0">
-        <ul class="space-y-0.5">
+      <nav class="w-52 shrink-0">
+        <ul class="space-y-1">
           <li v-for="section in sections" :key="section.id">
             <button
               :class="[
-                'w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
+                'w-full rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors',
                 activeSection === section.id
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
               ]"
               @click="activeSection = section.id"
             >

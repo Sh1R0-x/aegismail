@@ -1,11 +1,11 @@
 <template>
-  <div class="flex items-center justify-between rounded-md px-3 py-1.5">
+  <div class="flex items-center justify-between rounded-xl px-4 py-2.5">
     <div class="flex items-center gap-2">
-      <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', color]">
+      <span :class="['inline-flex items-center rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-wider', color]">
         {{ label }}
       </span>
     </div>
-    <span class="text-xs text-gray-500">{{ range }} pts</span>
+    <span class="text-xs font-bold text-slate-500">{{ range }} pts</span>
   </div>
 </template>
 

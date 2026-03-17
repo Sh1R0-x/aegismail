@@ -1,51 +1,74 @@
 <template>
-  <CrmLayout title="Mails" current-page="mails">
+  <CrmLayout
+    :title="composerOpen ? composerTitle : 'Mails'"
+    :subtitle="composerOpen ? 'Composez et planifiez votre envoi' : 'Suivi des envois et statuts de livraison'"
+    current-page="mails"
+  >
     <template #header-actions>
-      <div class="flex items-center gap-2">
+      <template v-if="composerOpen">
         <button
-          class="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          @click="openComposer('single')"
+          class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+          @click="composerOpen = false"
         >
-          Mail simple
+          ← Retour aux mails
         </button>
-        <button
-          class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
-          @click="openComposer('multiple')"
-        >
-          Envoi multiple
-        </button>
-      </div>
+      </template>
+      <template v-else>
+        <div class="flex items-center gap-3">
+          <button
+            class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+            @click="openComposer('single')"
+          >
+            Mail simple
+          </button>
+          <button
+            class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all"
+            @click="openComposer('multiple')"
+          >
+            Envoi multiple
+          </button>
+        </div>
+      </template>
     </template>
 
-    <div class="space-y-4">
+    <MailComposer
+      v-if="composerOpen"
+      :mode="composerMode"
+      :templates="templates"
+      @close="composerOpen = false"
+      @saved="onDraftSaved"
+      @scheduled="onDraftScheduled"
+    />
+
+    <div v-else class="space-y-6">
 
       <!-- Quota bar -->
-      <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
-        <div class="flex items-center gap-2 text-sm">
+      <div class="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+        <div class="flex items-center gap-3 text-sm">
           <span
-            class="h-2 w-2 rounded-full"
-            :class="quotaPercent > 90 ? 'bg-red-500' : quotaPercent > 70 ? 'bg-amber-500' : 'bg-green-500'"
+            class="h-2.5 w-2.5 rounded-full"
+            :class="quotaPercent > 90 ? 'bg-red-500' : quotaPercent > 70 ? 'bg-amber-500' : 'bg-emerald-500'"
           />
-          <span class="font-medium text-gray-900">{{ stats.sentToday }}</span>
-          <span class="text-gray-500">/ {{ stats.dailyLimit }} envoyés aujourd'hui</span>
+          <span class="font-bold text-slate-900">{{ stats.sentToday }}</span>
+          <span class="text-slate-500">/ {{ stats.dailyLimit }} envoyés aujourd'hui</span>
         </div>
         <div class="flex-1">
-          <div class="h-1.5 w-full rounded-full bg-gray-100">
+          <div class="h-2 w-full rounded-full bg-slate-100">
             <div
-              class="h-1.5 rounded-full transition-all"
-              :class="quotaPercent > 90 ? 'bg-red-500' : quotaPercent > 70 ? 'bg-amber-500' : 'bg-green-500'"
+              class="h-2 rounded-full transition-all"
+              :class="quotaPercent > 90 ? 'bg-red-500' : quotaPercent > 70 ? 'bg-amber-500' : 'bg-emerald-500'"
               :style="{ width: Math.min(quotaPercent, 100) + '%' }"
             />
           </div>
         </div>
-        <span class="text-xs text-gray-400">{{ quotaPercent }}%</span>
+        <span class="text-xs font-bold text-slate-400">{{ quotaPercent }}%</span>
       </div>
 
       <!-- Filters -->
       <div class="flex items-center gap-3">
         <select
           v-model="statusFilter"
-          class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700"
+          class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/30 outline-none"
         >
           <option value="all">Tous les statuts</option>
           <option value="sent">Envoyés</option>
@@ -64,26 +87,26 @@
           v-model="search"
           type="text"
           placeholder="Rechercher par adresse, sujet…"
-          class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm placeholder:text-gray-400"
+          class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
         />
       </div>
 
       <!-- Recipients table -->
-      <div class="rounded-lg border border-gray-200 bg-white">
+      <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table class="w-full text-sm">
           <thead>
-            <tr class="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-              <th class="px-4 py-2.5">Destinataire</th>
-              <th class="px-4 py-2.5">Sujet</th>
-              <th class="px-4 py-2.5">Statut</th>
-              <th class="px-4 py-2.5">Type</th>
-              <th class="px-4 py-2.5">Envoyé</th>
-              <th class="px-4 py-2.5 text-right">Actions</th>
+            <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+              <th class="px-6 py-4">Destinataire</th>
+              <th class="px-6 py-4">Sujet</th>
+              <th class="px-6 py-4">Statut</th>
+              <th class="px-6 py-4">Type</th>
+              <th class="px-6 py-4">Envoyé</th>
+              <th class="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-50">
+          <tbody class="divide-y divide-slate-100">
             <tr v-if="filteredRecipients.length === 0">
-              <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+              <td colspan="6" class="px-6 py-16 text-center text-sm font-medium text-slate-400">
                 <template v-if="recipients.length === 0">
                   Aucun envoi. Utilisez <strong>Mail simple</strong> ou <strong>Envoi multiple</strong> pour démarrer.
                 </template>
@@ -94,42 +117,37 @@
               v-for="r in filteredRecipients"
               :key="r.id"
               :class="[
-                'hover:bg-gray-50',
+                'hover:bg-slate-50 transition-colors',
                 r.status === 'hard_bounced' ? 'bg-red-50/40' : '',
                 r.status === 'auto_replied' ? 'bg-amber-50/30' : '',
               ]"
             >
-              <td class="px-4 py-2.5">
-                <p class="max-w-[200px] truncate font-medium text-gray-900">{{ r.email }}</p>
+              <td class="px-6 py-4">
+                <p class="max-w-[200px] truncate font-bold text-slate-900">{{ r.email }}</p>
               </td>
-              <td class="px-4 py-2.5 max-w-xs truncate text-gray-600">{{ r.subject }}</td>
-              <td class="px-4 py-2.5">
+              <td class="px-6 py-4 max-w-xs truncate text-slate-600">{{ r.subject }}</td>
+              <td class="px-6 py-4">
                 <StatusBadge :status="r.status" />
               </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
                   {{ r.type === 'multiple' ? 'Multiple' : 'Simple' }}
                 </span>
               </td>
-              <td class="px-4 py-2.5 text-xs text-gray-400">{{ r.sentAt ?? '—' }}</td>
-              <td class="px-4 py-2.5 text-right">
-                <button class="text-xs font-medium text-blue-600 hover:text-blue-800">Voir</button>
+              <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ r.sentAt ?? '—' }}</td>
+              <td class="px-6 py-4 text-right">
+                <span
+                  class="cursor-not-allowed text-xs font-bold text-slate-300"
+                  title="Vue détail thread — disponible dans une prochaine version"
+                >
+                  Voir
+                </span>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-
-    <!-- Composer slide-over -->
-    <MailComposer
-      v-if="composerOpen"
-      :mode="composerMode"
-      :templates="templates"
-      @close="composerOpen = false"
-      @saved="onDraftSaved"
-      @scheduled="onDraftScheduled"
-    />
   </CrmLayout>
 </template>
 
@@ -151,6 +169,10 @@ const statusFilter = ref(props.filters?.status || 'all');
 const search = ref('');
 const composerOpen = ref(false);
 const composerMode = ref('single');
+
+const composerTitle = computed(() =>
+  composerMode.value === 'multiple' ? 'Envoi multiple' : 'Mail simple',
+);
 
 const quotaPercent = computed(() => {
   if (!props.stats.dailyLimit) return 0;
