@@ -33,6 +33,9 @@
           </Link>
         </div>
       </header>
+      <div v-if="page.props.gatewayDriver === 'stub'" class="shrink-0 border-b border-amber-200 bg-amber-50 px-8 py-2 text-center text-xs font-semibold text-amber-700">
+        ⚠ Pilote d'envoi : <span class="font-black">stub</span> — aucun e-mail n'est réellement envoyé. Passez <code class="rounded bg-amber-100 px-1">MAIL_GATEWAY_DRIVER=http</code> dans .env pour activer les envois réels.
+      </div>
       <main class="flex-1 overflow-y-auto bg-slate-50 p-8 custom-scrollbar">
         <slot />
       </main>
@@ -50,4 +53,6 @@ const props = defineProps({
   subtitle: { type: String, default: '' },
   currentPage: { type: String, default: '' },
 });
+
+const page = usePage();
 </script>

@@ -44,6 +44,11 @@
 - Campaign Show page exposes an "unschedule" button when status is `scheduled`, calling the existing `POST /api/drafts/{draft}/unschedule` endpoint
 - Templates archive/activate UI removed in V1 closure pass; templates can only be created, edited, duplicated, or permanently deleted — no soft-archive toggle
 - Error messages referencing "preflight" in user-visible French text replaced with "vérification" for consistency with button labels
+- Gateway driver (`stub` vs `http`) is now exposed as an Inertia shared prop `gatewayDriver` on all pages; `CrmLayout` shows a permanent amber warning banner when running in stub mode
+- `POST /api/drafts/{draft}/send-now` and `POST /api/drafts/{draft}/schedule` JSON responses now include a `driver` field so the frontend can surface driver awareness at scheduling time
+- Real OVH MX Plan send was validated end-to-end: Laravel → HttpMailGatewayClient → Node gateway → ssl0.ovh.net:465 → delivery to external inbox (ludovic.bellavia@gmail.com), SMTP response `250 2.0.0 Ok`
+- SMTP credentials for real sends live exclusively on `mailbox_accounts` (columns: `username`, `password_encrypted`, `smtp_host`, `smtp_port`, `smtp_secure`); there are no global SMTP credentials in the `settings` table
+- Switching from stub to real sends requires only `MAIL_GATEWAY_DRIVER=http` in `.env` and the Node mail-gateway running on port 3001; no code changes needed
 
 ## Documentation alignment
 

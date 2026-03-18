@@ -13,6 +13,13 @@ Rules kept:
 - no multi-provider abstraction
 - one sending queue for all outgoing mail
 
+## Inertia shared props
+
+All Inertia pages receive these shared props via `HandleInertiaRequests`:
+
+- `auth.user`: authenticated user object
+- `gatewayDriver`: `string` — current mail gateway driver (`'stub'` or `'http'`). Used by `CrmLayout` to show a global warning banner when running in stub mode.
+
 ## Inertia routes
 
 - `GET /dashboard` -> `Dashboard`
@@ -55,9 +62,9 @@ Rules kept:
 - `DELETE /api/drafts/{draft}`
 - `POST /api/drafts/{draft}/duplicate`
 - `POST /api/drafts/{draft}/preflight`
-- `POST /api/drafts/{draft}/schedule`
+- `POST /api/drafts/{draft}/schedule` — returns: `{ ok, message, campaign, driver }`
 - `POST /api/drafts/{draft}/unschedule`
-- `POST /api/drafts/{draft}/send-now` — schedules for immediate dispatch (runs preflight, same pipeline as schedule)
+- `POST /api/drafts/{draft}/send-now` — schedules for immediate dispatch (runs preflight, same pipeline as schedule). Returns: `{ ok, message, campaign, driver }`
 - `POST /api/drafts/{draft}/test-send` — sends a test email via the gateway client without creating recipients/messages. Body: `{ email: string }`. Returns: `{ success, message, driver, acceptedAt }`
 - `POST /api/drafts/{draft}/campaign`
 
@@ -96,6 +103,7 @@ Rules kept:
 ## Outbound flow used in V1
 
 `POST /api/drafts/{draft}/schedule` now performs:
+
 - draft validation
 - preflight
 - campaign creation or update
@@ -111,6 +119,7 @@ Rules kept:
 `DispatchMailMessageJob` is the Laravel → mail-gateway boundary for outbound sends.
 
 Important runtime rule:
+
 - campaign state is based on the first effective scheduled slot after send-window and ceiling adjustments, not only on the raw `scheduledAt` request value
 - campaign creation stays technically `draft-first` in V1
 - operator entry is now `/campaigns/create`, not `/drafts`
@@ -123,19 +132,19 @@ Important runtime rule:
 - click metadata is persisted in `mail_messages.headers_json.tracking.clicks[]`
 - open metadata is persisted in `mail_messages.headers_json.tracking.open`
 - `GET /t/o/{token}.gif` always returns a transparent GIF and, on first valid hit:
-  - sets `mail_messages.opened_first_at`
-  - upgrades `mail_recipients.status` from `sent|delivered_if_known` to `opened`
-  - updates `mail_recipients.last_event_at`
-  - logs `mail_message.opened`
+    - sets `mail_messages.opened_first_at`
+    - upgrades `mail_recipients.status` from `sent|delivered_if_known` to `opened`
+    - updates `mail_recipients.last_event_at`
+    - logs `mail_message.opened`
 - `GET /t/c/{token}` validates the signature, redirects to the original URL and, on first valid hit:
-  - sets `mail_messages.clicked_first_at`
-  - backfills `mail_messages.opened_first_at` if still null
-  - upgrades `mail_recipients.status` from `sent|delivered_if_known|opened` to `clicked`
-  - updates `mail_recipients.last_event_at`
-  - logs `mail_message.clicked`
+    - sets `mail_messages.clicked_first_at`
+    - backfills `mail_messages.opened_first_at` if still null
+    - upgrades `mail_recipients.status` from `sent|delivered_if_known|opened` to `clicked`
+    - updates `mail_recipients.last_event_at`
+    - logs `mail_message.clicked`
 - when tracking is disabled in `settings.deliverability`, no new tracking events are persisted:
-  - open endpoint stays a transparent GIF no-op
-  - click endpoint returns `404` when no tracked link metadata is available
+    - open endpoint stays a transparent GIF no-op
+    - click endpoint returns `404` when no tracked link metadata is available
 
 ## IMAP sync flow used in V1
 
@@ -145,18 +154,19 @@ Important runtime rule:
 - queue used for sync jobs: `mail-sync`
 - mailbox lock key: `mailbox-sync:{mailbox_account_id}:{folder}`
 - resume cursor:
-  - `mailbox_accounts.last_inbox_uid` for `INBOX`
-  - `mailbox_accounts.last_sent_uid` for `SENT`
+    - `mailbox_accounts.last_inbox_uid` for `INBOX`
+    - `mailbox_accounts.last_sent_uid` for `SENT`
 - strict idempotence:
-  - dedupe first on `(mailbox_account_id, provider_folder, provider_uid)`
-  - then on `mail_messages.message_id_header`
-  - safe resume by advancing UID after each successfully ingested message
+    - dedupe first on `(mailbox_account_id, provider_folder, provider_uid)`
+    - then on `mail_messages.message_id_header`
+    - safe resume by advancing UID after each successfully ingested message
 
 `SyncMailboxFolderJob` is the Laravel → mail-gateway boundary for IMAP sync.
 
 ## IMAP sync payload between Laravel and mail-gateway
 
 `SyncMailboxFolderJob` resolves and sends a payload with:
+
 - `mailbox_account_id`: required integer
 - `folder`: required enum `INBOX|SENT`
 - `from_uid`: required integer, cursor for safe resume
@@ -272,8 +282,8 @@ Text-first rule now used by the backend:
 - preflight blocks scheduling when both `text_body` and `html_body` are empty
 - when `html_body` is empty but `text_body` is present, outbound dispatch synthesizes a minimal HTML version from the text body
 - global signature stays split:
-  - `global_signature_text` is appended to the outbound text body
-  - `global_signature_html` is appended to the outbound HTML body
+    - `global_signature_text` is appended to the outbound text body
+    - `global_signature_html` is appended to the outbound HTML body
 
 ## Validation response shape used by JSON endpoints
 
@@ -744,11 +754,11 @@ Notes:
 - `settings.signature` mirrors the global signature stored in mail settings
 - `settings.deliverability.checks` exposes per-mechanism payloads for `spf`, `dkim`, `dmarc`
 - each `settings.deliverability.checks.{mechanism}` object contains:
-  - `status`: required enum `pass|warning|fail|not_detected`
-  - `detected_value`: nullable string
-  - `checked_at`: nullable ISO-8601 string
-  - `diagnostic_message`: nullable string
-  - `logs`: required array
+    - `status`: required enum `pass|warning|fail|not_detected`
+    - `detected_value`: nullable string
+    - `checked_at`: nullable ISO-8601 string
+    - `diagnostic_message`: nullable string
+    - `logs`: required array
 - `settings.deliverability.refreshEndpoint` is the manual refresh endpoint
 
 ## Business rules frozen for page projections
@@ -888,8 +898,8 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `DELETE /api/drafts/{draft}` deletes the draft and its technical campaign artifacts only when no sent or post-send history exists
 - `DELETE /api/drafts` accepts `{ "ids": [1, 2, ...] }`
 - bulk deletion returns:
-  - `message`: required string
-  - `deletedCount`: required integer
+    - `message`: required string
+    - `deletedCount`: required integer
 
 ## Campaign API contract
 
@@ -964,6 +974,7 @@ Autosave behavior:
 ## Outbound dispatch payload between Laravel and mail-gateway
 
 `DispatchMailMessageJob` resolves and sends a payload with:
+
 - `mailbox_account_id`: required integer
 - `mail_message_id`: required integer
 - `thread_id`: required integer

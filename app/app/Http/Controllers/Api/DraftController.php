@@ -102,6 +102,7 @@ class DraftController extends Controller
             'draft' => $this->draftService->serialize($draft),
             'campaign' => $this->campaignService->serialize($campaign),
             'preflight' => $preflight,
+            'driver' => config('mailing.gateway.driver'),
         ]);
     }
 
@@ -123,6 +124,7 @@ class DraftController extends Controller
             'draft' => $this->draftService->serialize($draft),
             'campaign' => $this->campaignService->serialize($campaign),
             'preflight' => $preflight,
+            'driver' => config('mailing.gateway.driver'),
         ]);
     }
 
