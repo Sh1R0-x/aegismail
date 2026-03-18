@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $appPath = Join-Path $repoRoot 'app'
+$gatewayPath = Join-Path $repoRoot 'mail-gateway'
 $storagePath = Join-Path $appPath 'storage'
 $runtimePath = Join-Path $storagePath 'app\local-dev'
 $logPath = Join-Path $storagePath 'logs\local-dev'
@@ -15,6 +16,7 @@ $webHost = '127.0.0.1'
 $webPort = 8001
 $viteHost = '127.0.0.1'
 $vitePort = 5173
+$gatewayPort = 3001
 $dashboardUrl = "http://$webHost`:$webPort/dashboard"
 
 function Write-Step {
@@ -84,7 +86,8 @@ function Wait-ForHttpOk {
             if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
                 return $true
             }
-        } catch {
+        }
+        catch {
             Start-Sleep -Milliseconds 500
         }
     }
@@ -103,23 +106,33 @@ function Get-State {
 function Save-State {
     param(
         [int[]] $LaravelPids,
-        [int[]] $VitePids
+        [int[]] $VitePids,
+        [int[]] $GatewayPids = @(),
+        [int[]] $WorkerPids = @()
     )
 
     Ensure-Directory -Path $runtimePath
 
     [pscustomobject]@{
-        web = @{
+        web        = @{
             pids = @($LaravelPids | Select-Object -Unique)
             host = $webHost
             port = $webPort
             url  = $dashboardUrl
         }
-        vite = @{
+        vite       = @{
             pids = @($VitePids | Select-Object -Unique)
             host = $viteHost
             port = $vitePort
             url  = "http://$viteHost`:$vitePort/"
+        }
+        gateway    = @{
+            pids = @($GatewayPids | Select-Object -Unique)
+            port = $gatewayPort
+            url  = "http://$webHost`:$gatewayPort/"
+        }
+        worker     = @{
+            pids = @($WorkerPids | Select-Object -Unique)
         }
         started_at = (Get-Date).ToString('o')
     } | ConvertTo-Json -Depth 5 | Set-Content -Path $stateFile -Encoding UTF8
@@ -145,12 +158,17 @@ function Stop-StateProcesses {
         return
     }
 
-    foreach ($entry in @($state.web, $state.vite)) {
+    $entries = @($state.web, $state.vite)
+    if ($state.PSObject.Properties.Name -contains 'gateway') { $entries += $state.gateway }
+    if ($state.PSObject.Properties.Name -contains 'worker') { $entries += $state.worker }
+
+    foreach ($entry in $entries) {
         $entryPids = @()
 
         if ($entry.PSObject.Properties.Name -contains 'pids') {
             $entryPids = @($entry.pids)
-        } elseif ($entry.PSObject.Properties.Name -contains 'pid') {
+        }
+        elseif ($entry.PSObject.Properties.Name -contains 'pid') {
             $entryPids = @($entry.pid)
         }
 
@@ -188,6 +206,21 @@ function Ensure-Prerequisites {
         Fail 'Dependances Node absentes. Lancez npm install dans app/.'
     }
 
+    if (-not (Test-Path (Join-Path $gatewayPath 'node_modules'))) {
+        Fail 'Dependances Node du mail-gateway absentes. Lancez npm install dans mail-gateway/.'
+    }
+
+    if (-not (Test-Path (Join-Path $gatewayPath 'dist\index.js'))) {
+        Write-Step 'Build du mail-gateway'
+        Push-Location $gatewayPath
+        & npm run build 2>&1 | Out-Host
+        Pop-Location
+
+        if (-not (Test-Path (Join-Path $gatewayPath 'dist\index.js'))) {
+            Fail 'Le build du mail-gateway a echoue.'
+        }
+    }
+
     Ensure-Directory -Path $runtimePath
     Ensure-Directory -Path $logPath
 }
@@ -222,7 +255,7 @@ function Ensure-Environment {
 function Ensure-PortsAvailable {
     Write-Step 'Verification des ports'
 
-    foreach ($port in @($webPort, $vitePort)) {
+    foreach ($port in @($webPort, $vitePort, $gatewayPort)) {
         $listener = Get-PortListener -Port $port
 
         if ($listener) {
@@ -258,16 +291,33 @@ function Start-Services {
         Fail "L URL $dashboardUrl ne repond pas correctement."
     }
 
+    Write-Step 'Demarrage du mail-gateway'
+    $gatewayProcess = Start-Process node -ArgumentList 'dist/index.js' -WorkingDirectory $gatewayPath -RedirectStandardOutput (Join-Path $logPath 'gateway.out.log') -RedirectStandardError (Join-Path $logPath 'gateway.err.log') -PassThru
+
+    if (-not (Wait-ForPort -Port $gatewayPort)) {
+        Stop-Process -Id $laravelProcess.Id -Force -ErrorAction SilentlyContinue
+        Stop-Process -Id $viteProcess.Id -Force -ErrorAction SilentlyContinue
+        Stop-Process -Id $gatewayProcess.Id -Force -ErrorAction SilentlyContinue
+        Fail 'Le mail-gateway n a pas demarre a temps.'
+    }
+
+    Write-Step 'Demarrage du queue worker'
+    $workerProcess = Start-Process php -ArgumentList 'artisan', 'queue:work', '--queue=mail-outbound,mail-sync', '--sleep=3', '--tries=3', '--timeout=60' -WorkingDirectory $appPath -RedirectStandardOutput (Join-Path $logPath 'worker.out.log') -RedirectStandardError (Join-Path $logPath 'worker.err.log') -PassThru
+
     $webListener = Get-PortListener -Port $webPort
     $viteListener = Get-PortListener -Port $vitePort
+    $gatewayListener = Get-PortListener -Port $gatewayPort
 
-    Save-State -LaravelPids @($laravelProcess.Id, $webListener.OwningProcess) -VitePids @($viteProcess.Id, $viteListener.OwningProcess)
+    Save-State -LaravelPids @($laravelProcess.Id, $webListener.OwningProcess) -VitePids @($viteProcess.Id, $viteListener.OwningProcess) -GatewayPids @($gatewayProcess.Id, $gatewayListener.OwningProcess) -WorkerPids @($workerProcess.Id)
 
     Write-Host ''
-    Write-Host "Environnement local demarre." -ForegroundColor Green
+    Write-Host "Environnement local demarre (mode reel)." -ForegroundColor Green
     Write-Host "URL: $dashboardUrl" -ForegroundColor Green
+    Write-Host "Mail-gateway: http://$webHost`:$gatewayPort/" -ForegroundColor Green
     Write-Host "Laravel log: $(Join-Path $logPath 'laravel.out.log')"
     Write-Host "Vite log: $(Join-Path $logPath 'vite.out.log')"
+    Write-Host "Gateway log: $(Join-Path $logPath 'gateway.out.log')"
+    Write-Host "Worker log: $(Join-Path $logPath 'worker.out.log')"
     Write-Host "Arret propre: powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -Action stop"
 }
 
@@ -286,10 +336,22 @@ function Show-Status {
         $webPids = if ($state.web.PSObject.Properties.Name -contains 'pids') { @($state.web.pids) } else { @($state.web.pid) }
         $vitePids = if ($state.vite.PSObject.Properties.Name -contains 'pids') { @($state.vite.pids) } else { @($state.vite.pid) }
 
+        $gatewayPortActive = if ($state.PSObject.Properties.Name -contains 'gateway') { Get-PortListener -Port $state.gateway.port } else { $null }
+        $gatewayStatus = if ($gatewayPortActive) { 'ok' } else { 'arrete' }
+
+        $workerPids = @()
+        if ($state.PSObject.Properties.Name -contains 'worker') {
+            $workerPids = if ($state.worker.PSObject.Properties.Name -contains 'pids') { @($state.worker.pids) } else { @() }
+        }
+        $workerAlive = ($workerPids | Where-Object { Get-AliveProcess -ProcessId $_ }).Count -gt 0
+        $workerStatus = if ($workerAlive) { 'ok' } else { 'arrete' }
+
         Write-Host 'Statut: demarre' -ForegroundColor Green
         Write-Host "URL: $($state.web.url)"
         Write-Host "Laravel PID(s): $($webPids -join ', ')"
         Write-Host "Vite PID(s): $($vitePids -join ', ')"
+        Write-Host "Mail-gateway: $gatewayStatus"
+        Write-Host "Queue worker: $workerStatus"
         return
     }
 

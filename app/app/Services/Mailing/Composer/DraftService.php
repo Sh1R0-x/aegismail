@@ -310,6 +310,7 @@ class DraftService
         }
 
         $mailSettings = $this->mailboxSettingsService->getSettings();
+        $connection = $this->mailboxSettingsService->getConnectionConfiguration();
         $gatewayClient = app(\App\Services\Mailing\Contracts\MailGatewayClient::class);
 
         $textBody = trim((string) $draft->text_body);
@@ -337,12 +338,12 @@ class DraftService
             'recipient_id' => null,
             'provider' => config('mailing.provider'),
             'email' => $mailbox->email,
-            'username' => $mailSettings['mailbox_username'] ?? $mailbox->username,
-            'password' => $mailSettings['mailbox_password'] ?? null,
-            'smtp_host' => $mailSettings['smtp_host'] ?? $mailbox->smtp_host,
-            'smtp_port' => $mailSettings['smtp_port'] ?? $mailbox->smtp_port,
-            'smtp_secure' => $mailSettings['smtp_secure'] ?? $mailbox->smtp_secure,
-            'from_email' => $mailSettings['sender_email'] ?: $mailbox->email,
+            'username' => $connection['mailbox_username'] ?? $mailbox->username,
+            'password' => $connection['mailbox_password'] ?? null,
+            'smtp_host' => $connection['smtp_host'] ?? $mailbox->smtp_host,
+            'smtp_port' => $connection['smtp_port'] ?? $mailbox->smtp_port,
+            'smtp_secure' => $connection['smtp_secure'] ?? $mailbox->smtp_secure,
+            'from_email' => $connection['sender_email'] ?: $mailbox->email,
             'from_name' => $mailbox->display_name,
             'to_emails' => [$testEmail],
             'subject' => '[TEST] '.($draft->subject ?: '(Sans objet)'),

@@ -49,6 +49,10 @@
 - Real OVH MX Plan send was validated end-to-end: Laravel → HttpMailGatewayClient → Node gateway → ssl0.ovh.net:465 → delivery to external inbox (ludovic.bellavia@gmail.com), SMTP response `250 2.0.0 Ok`
 - SMTP credentials for real sends live exclusively on `mailbox_accounts` (columns: `username`, `password_encrypted`, `smtp_host`, `smtp_port`, `smtp_secure`); there are no global SMTP credentials in the `settings` table
 - Switching from stub to real sends requires only `MAIL_GATEWAY_DRIVER=http` in `.env` and the Node mail-gateway running on port 3001; no code changes needed
+- `DraftService::testSend()` must use `MailboxSettingsService::getConnectionConfiguration()` for SMTP credentials (username, password, host, port, secure); `getSettings()` only exposes `mailbox_password_configured: bool` for frontend display — it never returns the actual decrypted password
+- Default local environment is now `MAIL_GATEWAY_DRIVER=http` (real sends); `stub` is reserved for automated tests only (`e2e-serve.ps1` forces stub)
+- `scripts/dev.ps1` now auto-starts mail-gateway (Node, port 3001) and queue worker (`mail-outbound,mail-sync`) alongside Laravel and Vite; all four services managed as a single dev stack
+- Send window defaults remain `09:00–18:00`; `sendNow` at night schedules for the next morning — this is intentional for deliverability. Operators who need to send outside the window must adjust settings
 
 ## Documentation alignment
 
