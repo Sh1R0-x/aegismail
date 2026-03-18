@@ -28,12 +28,16 @@ class CrmManagementService
     {
         return DB::transaction(function () use ($validated): Contact {
             $contact = Contact::query()->create([
-                'organization_id' => $validated['organizationId'] ?? null,
+                'organization_id' => $validated['organizationId'],
                 'first_name' => $this->nullableString($validated['firstName'] ?? null),
                 'last_name' => $this->nullableString($validated['lastName'] ?? null),
                 'full_name' => $this->resolvedFullName($validated),
                 'job_title' => $this->nullableString($validated['title'] ?? null),
                 'phone' => $this->nullableString($validated['phone'] ?? null),
+                'linkedin_url' => $this->nullableString($validated['linkedinUrl'] ?? null),
+                'country' => $this->nullableString($validated['country'] ?? null),
+                'city' => $this->nullableString($validated['city'] ?? null),
+                'tags_json' => $this->normalizedTags($validated['tags'] ?? []),
                 'notes' => $this->nullableString($validated['notes'] ?? null),
                 'status' => $this->nullableString($validated['status'] ?? null),
             ]);
@@ -61,11 +65,15 @@ class CrmManagementService
 
     public function deleteOrganization(Organization $organization): void
     {
+        if (Contact::query()->where('organization_id', $organization->id)->exists()) {
+            throw ValidationException::withMessages([
+                'organization' => ['Cette organisation ne peut pas être supprimée tant que des contacts y sont rattachés.'],
+            ]);
+        }
+
         DB::transaction(function () use ($organization): void {
-            Contact::query()->where('organization_id', $organization->id)->update(['organization_id' => null]);
             MailThread::query()->where('organization_id', $organization->id)->update(['organization_id' => null]);
             MailRecipient::query()->where('organization_id', $organization->id)->update(['organization_id' => null]);
-
             $organization->delete();
         });
     }
@@ -74,12 +82,16 @@ class CrmManagementService
     {
         return DB::transaction(function () use ($contact, $validated): Contact {
             $contact->fill([
-                'organization_id' => $validated['organizationId'] ?? null,
+                'organization_id' => $validated['organizationId'],
                 'first_name' => $this->nullableString($validated['firstName'] ?? null),
                 'last_name' => $this->nullableString($validated['lastName'] ?? null),
                 'full_name' => $this->resolvedFullName($validated),
                 'job_title' => $this->nullableString($validated['title'] ?? null),
                 'phone' => $this->nullableString($validated['phone'] ?? null),
+                'linkedin_url' => $this->nullableString($validated['linkedinUrl'] ?? null),
+                'country' => $this->nullableString($validated['country'] ?? null),
+                'city' => $this->nullableString($validated['city'] ?? null),
+                'tags_json' => $this->normalizedTags($validated['tags'] ?? []),
                 'notes' => $this->nullableString($validated['notes'] ?? null),
                 'status' => $this->nullableString($validated['status'] ?? null),
             ])->save();
@@ -188,6 +200,10 @@ class CrmManagementService
             'fullName' => $contact->full_name,
             'title' => $contact->job_title,
             'phone' => $contact->phone,
+            'linkedinUrl' => $contact->linkedin_url,
+            'country' => $contact->country,
+            'city' => $contact->city,
+            'tags' => $contact->tags_json ?? [],
             'notes' => $contact->notes,
             'status' => $contact->status,
             'organizationId' => $contact->organization_id,
@@ -282,6 +298,53 @@ class CrmManagementService
             ])->all();
     }
 
+    public function campaignAudienceContacts(int $limit = 200): array
+    {
+        return Contact::query()
+            ->with([
+                'organization:id,name,domain',
+                'contactEmails' => fn ($query) => $query
+                    ->where('is_primary', true)
+                    ->orderByDesc('is_primary')
+                    ->orderBy('id'),
+            ])
+            ->whereNotNull('organization_id')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Contact $contact): array => $this->serializeAudienceContact($contact))
+            ->all();
+    }
+
+    public function campaignAudienceOrganizations(): array
+    {
+        return Organization::query()
+            ->with([
+                'contacts.organization',
+                'contacts.contactEmails' => fn ($query) => $query
+                    ->where('is_primary', true)
+                    ->orderByDesc('is_primary')
+                    ->orderBy('id'),
+            ])
+            ->withCount('contacts')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Organization $organization): array {
+                return [
+                    'organizationId' => $organization->id,
+                    'organizationName' => $organization->name,
+                    'domain' => $organization->domain,
+                    'contactCount' => (int) $organization->contacts_count,
+                    'contacts' => $organization->contacts
+                        ->filter(fn (Contact $contact) => $contact->organization_id !== null)
+                        ->map(fn (Contact $contact): array => $this->serializeAudienceContact($contact))
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->all();
+    }
+
     public function serializeOrganization(Organization $organization): array
     {
         return [
@@ -320,6 +383,21 @@ class CrmManagementService
         ];
     }
 
+    private function serializeAudienceContact(Contact $contact): array
+    {
+        $primaryEmail = $contact->contactEmails->sortByDesc('is_primary')->first();
+
+        return [
+            'contactId' => $contact->id,
+            'contactEmailId' => $primaryEmail?->id,
+            'organizationId' => $contact->organization_id,
+            'organizationName' => $contact->organization?->name,
+            'email' => $primaryEmail?->email,
+            'name' => $contact->full_name ?: trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')),
+            'jobTitle' => $contact->job_title,
+        ];
+    }
+
     private function resolvedFullName(array $validated): ?string
     {
         $fullName = $this->nullableString($validated['fullName'] ?? null);
@@ -340,6 +418,16 @@ class CrmManagementService
         $normalized = trim((string) $value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizedTags(array $tags): array
+    {
+        return collect($tags)
+            ->map(fn ($tag): string => trim((string) $tag))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function latestDate(array $dates): ?Carbon

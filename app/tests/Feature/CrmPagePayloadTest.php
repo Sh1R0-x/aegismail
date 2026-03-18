@@ -4,12 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Contact;
 use App\Models\ContactEmail;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\MailThread;
-use App\Models\MailboxAccount;
 use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,8 +48,13 @@ class CrmPagePayloadTest extends TestCase
                 ->component('Contacts/Index')
                 ->has('contacts', 0)
                 ->has('organizations', 0)
+                ->has('recentImports', 0)
                 ->where('capabilities.canCreate', true)
                 ->where('capabilities.createEndpoint', '/api/contacts')
+                ->where('capabilities.organizationRequired', true)
+                ->where('capabilities.imports.previewEndpoint', '/api/contacts/imports/preview')
+                ->where('capabilities.imports.confirmEndpoint', '/api/contacts/imports')
+                ->where('capabilities.imports.templateEndpoint', '/api/contacts/imports/template')
             );
     }
 
@@ -155,8 +160,11 @@ class CrmPagePayloadTest extends TestCase
                 ->has('organizations', 1)
                 ->where('organizations.0.id', 1)
                 ->where('organizations.0.name', 'Acme')
+                ->has('recentImports', 0)
                 ->where('capabilities.canCreate', true)
                 ->where('capabilities.createEndpoint', '/api/contacts')
+                ->where('capabilities.organizationRequired', true)
+                ->where('capabilities.imports.previewEndpoint', '/api/contacts/imports/preview')
             );
     }
 

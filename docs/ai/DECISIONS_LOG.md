@@ -30,6 +30,10 @@
 - Preflight blocks scheduling when both text and HTML bodies are empty
 - Contacts and organizations are creatable in V1 through Laravel API endpoints; page payloads expose explicit `capabilities.canCreate` and `capabilities.createEndpoint`
 - Campaign creation stays technically `draft-first` in V1, but the visible operator entry point is now `/campaigns/create`; draft remains an internal technical layer and should no longer be the visible product destination for “create campaign”
+- Campaign editing now exposes a backend autosave contract; the internal draft remains, but business flow must no longer depend on a manual "save draft" action
+- Contact imports are preview-first in V1 when possible: Laravel validates rows before confirmation, requires `organization_name` and `primary_email`, and persists recent import batches for campaign audience reuse
+- Organizations are mandatory for manual contact creation and contact imports; deleting an organization with attached contacts is now blocked server-side
+- Deliverability checks are now persisted as structured per-mechanism payloads (`spf`, `dkim`, `dmarc`) with manual refresh and technical logs
 - Fake CTAs are not acceptable in V1: any visible action must now be either functional, explicitly unavailable with a reason, or removed from the UI
 - The current repo still has no coherent RBAC layer or admin policy system; backend create access is not blocked by roles in this phase
 

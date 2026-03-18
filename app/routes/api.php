@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\CampaignAutosaveController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\CampaignManagementController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\ContactImportController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\SettingsController;
@@ -15,6 +17,7 @@ Route::prefix('settings')->group(function () {
     Route::put('/general', [SettingsController::class, 'updateGeneral']);
     Route::put('/mail', [SettingsController::class, 'updateMail']);
     Route::put('/deliverability', [SettingsController::class, 'updateDeliverability']);
+    Route::post('/deliverability/checks/refresh', [SettingsController::class, 'refreshDeliverabilityChecks']);
     Route::post('/mail/test-imap', [SettingsController::class, 'testImap']);
     Route::post('/mail/test-smtp', [SettingsController::class, 'testSmtp']);
 });
@@ -39,10 +42,15 @@ Route::post('/drafts/{draft}/unschedule', [DraftController::class, 'unschedule']
 Route::post('/drafts/{draft}/campaign', [DraftController::class, 'createCampaign']);
 
 Route::get('/campaigns', [CampaignController::class, 'index']);
+Route::get('/campaigns/audiences', [CampaignAutosaveController::class, 'audiences']);
+Route::post('/campaigns/autosave', [CampaignAutosaveController::class, 'autosave']);
 Route::delete('/campaigns/{campaign}', [CampaignManagementController::class, 'destroy']);
 Route::get('/threads', [ThreadController::class, 'index']);
 Route::get('/threads/{thread}', [ThreadController::class, 'show']);
 Route::post('/contacts', [ContactController::class, 'store']);
+Route::get('/contacts/imports/template', [ContactImportController::class, 'template']);
+Route::post('/contacts/imports/preview', [ContactImportController::class, 'preview']);
+Route::post('/contacts/imports', [ContactImportController::class, 'store']);
 Route::get('/contacts/{contact}', [ContactController::class, 'show']);
 Route::put('/contacts/{contact}', [ContactController::class, 'update']);
 Route::delete('/contacts/{contact}', [ContactController::class, 'destroy']);

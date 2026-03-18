@@ -59,6 +59,8 @@ Rules kept:
 ### Campaigns
 
 - `GET /api/campaigns`
+- `GET /api/campaigns/audiences`
+- `POST /api/campaigns/autosave`
 - `DELETE /api/campaigns/{campaign}`
 
 ### Threads
@@ -69,6 +71,9 @@ Rules kept:
 ### CRM
 
 - `POST /api/contacts`
+- `GET /api/contacts/imports/template`
+- `POST /api/contacts/imports/preview`
+- `POST /api/contacts/imports`
 - `GET /api/contacts/{contact}`
 - `PUT /api/contacts/{contact}`
 - `DELETE /api/contacts/{contact}`
@@ -78,6 +83,10 @@ Rules kept:
 - `GET /api/organizations/{organization}`
 - `PUT /api/organizations/{organization}`
 - `DELETE /api/organizations/{organization}`
+
+### Deliverability
+
+- `POST /api/settings/deliverability/checks/refresh`
 
 ## Outbound flow used in V1
 
@@ -98,7 +107,7 @@ Important runtime rule:
 - campaign state is based on the first effective scheduled slot after send-window and ceiling adjustments, not only on the raw `scheduledAt` request value
 - campaign creation stays technically `draft-first` in V1
 - operator entry is now `/campaigns/create`, not `/drafts`
-- there is still no standalone `POST /api/campaigns` endpoint; Laravel materializes a campaign from an internal draft created or edited from the Campaigns module
+- there is still no standalone `POST /api/campaigns` create endpoint for immediate dispatch; Laravel keeps an internal draft layer and now also exposes `POST /api/campaigns/autosave` to upsert that internal draft+campaign pair without a mandatory manual "save draft" action
 
 ## IMAP sync flow used in V1
 
@@ -331,25 +340,29 @@ Rules:
 
 ### DELETE /api/organizations/{organization}
 
-- removes the organization
-- keeps contacts, threads and recipients by detaching `organization_id`
-- returns `{ "message": "Organisation supprimée." }`
+- rejects deletion while contacts are still attached
+- keeps threads and recipients by detaching `organization_id` only when the organization can be deleted
+- returns `{ "message": "Organisation supprimée." }` on success
 
 ### contacts
 
 - `id`: required integer
-- `organization_id`: nullable integer
+- `organization_id`: required integer in all manual create/update and import flows
 - `first_name`: nullable string
 - `last_name`: nullable string
 - `full_name`: nullable string
 - `job_title`: nullable string
 - `phone`: nullable string
+- `linkedin_url`: nullable string
+- `country`: nullable string
+- `city`: nullable string
+- `tags_json`: required array, possibly empty
 - `notes`: nullable string
 - `status`: nullable string
 
 ### POST /api/contacts request
 
-- `organizationId`: nullable integer, must exist when present
+- `organizationId`: required integer, must exist
 - `firstName`: nullable string
 - `lastName`: nullable string
 - `fullName`: nullable string
@@ -387,6 +400,10 @@ Rules:
 - `contact.fullName`: nullable string
 - `contact.title`: nullable string
 - `contact.phone`: nullable string
+- `contact.linkedinUrl`: nullable string
+- `contact.country`: nullable string
+- `contact.city`: nullable string
+- `contact.tags`: required array
 - `contact.notes`: nullable string
 - `contact.status`: nullable string
 - `contact.organizationId`: nullable integer
@@ -397,7 +414,7 @@ Rules:
 
 ### PUT /api/contacts/{contact} request
 
-- `organizationId`: nullable integer, must exist when present
+- `organizationId`: required integer, must exist
 - `firstName`: nullable string
 - `lastName`: nullable string
 - `fullName`: nullable string
@@ -412,6 +429,94 @@ Rules:
 - removes the contact and its linked `contact_emails`
 - keeps historical threads and recipients by detaching `contact_id` / `contact_email_id`
 - returns `{ "message": "Contact supprimé." }`
+
+### Contact import preview contract
+
+`POST /api/contacts/imports/preview` expects a multipart file upload:
+
+- `file`: required file, `csv|txt|xlsx`
+
+Response shape:
+
+- `preview.previewToken`: required string
+- `preview.sourceName`: required string
+- `preview.sourceType`: required enum `csv|txt|xlsx`
+- `preview.summary`: required object
+- `preview.rows`: required array
+
+`preview.summary`:
+
+- `totalRows`: required integer
+- `validRows`: required integer
+- `invalidRows`: required integer
+- `duplicateExistingRows`: required integer
+- `duplicateFileRows`: required integer
+- `organizationMatches`: required integer
+- `organizationCreates`: required integer
+
+`preview.rows[]`:
+
+- `lineNumber`: required integer
+- `status`: required enum `valid|invalid|duplicate_existing|duplicate_in_file`
+- `reasonCode`: nullable string
+- `reason`: nullable string
+- `organization`: required object
+- `contact`: required object
+
+Business rules now enforced during preview/import:
+
+- `organization_name` is required
+- `primary_email` is required
+- one row maps to one contact
+- `primary_email` is deduped against existing contacts and inside the file
+- a contact import always resolves to an organization
+- organizations match first on exact domain, then on normalized exact name, otherwise Laravel creates the organization
+- invalid or skipped rows keep an explicit reason
+
+### Contact import confirm contract
+
+`POST /api/contacts/imports` request:
+
+- `previewToken`: required string returned by preview
+
+Response shape:
+
+- `message`: required string
+- `batch`: required object
+- `summary`: required object
+- `rows`: required array
+
+`batch`:
+
+- `id`: required integer
+- `sourceName`: required string
+- `sourceType`: required string
+- `status`: required string
+- `importedContactsCount`: required integer
+- `skippedRowsCount`: required integer
+- `invalidRowsCount`: required integer
+- `summary`: required object
+- `processedAt`: nullable ISO-8601 string
+
+### Contact import template download
+
+`GET /api/contacts/imports/template` returns a CSV download whose headers are:
+
+- `organization_name`
+- `organization_domain`
+- `organization_website`
+- `contact_first_name`
+- `contact_last_name`
+- `contact_full_name`
+- `job_title`
+- `primary_email`
+- `secondary_email`
+- `phone`
+- `linkedin_url`
+- `country`
+- `city`
+- `tags`
+- `notes`
 
 ### POST /api/contacts/{contact}/emails request
 
@@ -609,6 +714,14 @@ Notes:
 - `settings.cadence` is derived from `settings.general`
 - `settings.scoring` is derived from `settings.general`
 - `settings.signature` mirrors the global signature stored in mail settings
+- `settings.deliverability.checks` exposes per-mechanism payloads for `spf`, `dkim`, `dmarc`
+- each `settings.deliverability.checks.{mechanism}` object contains:
+  - `status`: required enum `pass|warning|fail|not_detected`
+  - `detected_value`: nullable string
+  - `checked_at`: nullable ISO-8601 string
+  - `diagnostic_message`: nullable string
+  - `logs`: required array
+- `settings.deliverability.refreshEndpoint` is the manual refresh endpoint
 
 ## Business rules frozen for page projections
 
@@ -767,6 +880,38 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `scheduledAt`: nullable `YYYY-MM-DD HH:mm`
 - `createdAt`: nullable ISO-8601 string
 - `updatedAt`: nullable `YYYY-MM-DD HH:mm`
+- `lastEditedAt`: nullable ISO-8601 string
+
+### Campaign autosave request
+
+`POST /api/campaigns/autosave` request:
+
+- `campaignId`: nullable integer
+- `draftId`: nullable integer
+- `expectedUpdatedAt`: nullable ISO-8601 string used for simple stale-write rejection
+- `name`: nullable string
+- `type`: required enum `single|bulk`
+- `templateId`: nullable integer
+- `subject`: required string
+- `htmlBody`: nullable string
+- `textBody`: nullable string
+- `signatureHtml`: nullable string
+- `recipients`: nullable array
+
+Autosave behavior:
+
+- Laravel keeps the technical `mail_drafts` layer
+- autosave creates or updates the linked `mail_campaigns` row on every significant change
+- unsent and unscheduled campaigns remain in business status `draft`
+- stale autosave writes return HTTP `409`
+
+### Campaign audiences payload
+
+`GET /api/campaigns/audiences` returns:
+
+- `contacts`: required array of selectable contacts
+- `organizations`: required array of selectable organizations with nested contacts
+- `recentImports`: required array of recent contact import batches with nested contacts
 
 ### Campaign detail payload used by `Campaigns/Show`
 

@@ -18,9 +18,20 @@ class Contact extends Model
         'full_name',
         'job_title',
         'phone',
+        'linkedin_url',
+        'country',
+        'city',
+        'tags_json',
         'notes',
         'status',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'tags_json' => 'array',
+        ];
+    }
 
     public function organization(): BelongsTo
     {

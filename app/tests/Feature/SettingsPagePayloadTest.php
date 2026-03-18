@@ -23,6 +23,8 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.cadence.dailyLimit', 100)
                 ->where('settings.scoring.replyPoints', 8)
                 ->where('settings.signature.global_signature_html', null)
+                ->where('settings.deliverability.checks.spf.status', 'not_detected')
+                ->where('settings.deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh')
                 ->etc()
             );
     }
@@ -57,6 +59,15 @@ class SettingsPagePayloadTest extends TestCase
                 'max_remote_images_warning_threshold' => 2,
                 'html_size_warning_kb' => 80,
                 'attachment_size_warning_mb' => 5,
+                'checks' => [
+                    'spf' => [
+                        'status' => 'pass',
+                        'detected_value' => 'v=spf1 include:mx.ovh.com ~all',
+                        'checked_at' => '2026-03-15T08:10:00+01:00',
+                        'diagnostic_message' => 'SPF détecté et exploitable.',
+                        'logs' => [['level' => 'info', 'message' => 'ok']],
+                    ],
+                ],
             ])],
         );
 
@@ -95,6 +106,8 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.mail.send_window_start', '08:00')
                 ->where('settings.deliverability.trackOpens', false)
                 ->where('settings.deliverability.maxLinks', 6)
+                ->where('settings.deliverability.checks.spf.status', 'pass')
+                ->where('settings.deliverability.checks.spf.detected_value', 'v=spf1 include:mx.ovh.com ~all')
                 ->where('settings.cadence.dailyLimit', 150)
                 ->where('settings.cadence.maxConsecutiveErrors', 4)
                 ->where('settings.scoring.replyPoints', 9)

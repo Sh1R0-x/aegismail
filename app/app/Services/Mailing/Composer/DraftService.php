@@ -2,17 +2,19 @@
 
 namespace App\Services\Mailing\Composer;
 
+use App\Models\MailboxAccount;
+use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailEvent;
-use App\Models\MailboxAccount;
 use App\Models\MailMessage;
-use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailboxSettingsService;
+use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\Outbound\OutboundMailService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class DraftService
 {
@@ -22,8 +24,7 @@ class DraftService
         private readonly CampaignService $campaignService,
         private readonly DraftPreflightService $preflightService,
         private readonly OutboundMailService $outboundMailService,
-    ) {
-    }
+    ) {}
 
     public function list(): array
     {
@@ -326,6 +327,68 @@ class DraftService
         return MailboxAccount::query()->where('provider', config('mailing.provider'))->first();
     }
 
+    public function autosaveCampaign(array $validated, ?int $userId = null): array
+    {
+        $mailbox = $this->mailbox();
+
+        if ($mailbox === null) {
+            throw ValidationException::withMessages([
+                'mailbox' => ['La boîte OVH MX Plan doit être configurée avant de préparer une campagne.'],
+            ]);
+        }
+
+        $draft = isset($validated['draftId'])
+            ? MailDraft::query()->findOrFail($validated['draftId'])
+            : null;
+
+        $existingCampaign = isset($validated['campaignId'])
+            ? MailCampaign::query()->findOrFail($validated['campaignId'])
+            : ($draft?->campaigns()->latest('id')->first());
+
+        if ($existingCampaign !== null) {
+            $this->assertAutosaveNotStale($existingCampaign, $validated['expectedUpdatedAt'] ?? null);
+        }
+
+        $mailSettings = $this->mailboxSettingsService->getSettings();
+        $draftPayload = [
+            'type' => $validated['type'],
+            'templateId' => $validated['templateId'] ?? null,
+            'subject' => $validated['subject'],
+            'htmlBody' => $validated['htmlBody'] ?? null,
+            'textBody' => $validated['textBody'] ?? null,
+            'signatureHtml' => $validated['signatureHtml'] ?? $mailSettings['global_signature_html'] ?? null,
+            'recipients' => array_values($validated['recipients'] ?? []),
+        ];
+
+        $created = $draft === null && $existingCampaign === null;
+
+        $draft = $draft === null
+            ? $this->create($draftPayload, $userId)
+            : $this->update($draft, $draftPayload);
+
+        $campaign = $this->campaignService->syncAutosavedCampaign(
+            $draft,
+            $mailbox,
+            $validated['name'] ?? null,
+            $userId,
+        );
+
+        $this->eventLogger->log(
+            'mail_campaign.autosaved',
+            [
+                'draft_id' => $draft->id,
+                'campaign_id' => $campaign->id,
+                'recipient_count' => count($draft->payload_json['recipients'] ?? []),
+            ],
+            [
+                'mailbox_account_id' => $mailbox->id,
+                'campaign_id' => $campaign->id,
+            ],
+        );
+
+        return [$draft->fresh(['campaigns.recipients', 'attachments']), $campaign->fresh('recipients'), $created];
+    }
+
     private function recipientCount(MailDraft $draft): int
     {
         $campaign = $draft->campaigns->sortByDesc('id')->first();
@@ -341,5 +404,19 @@ class DraftService
         }
 
         return $draft->mode === 'single' ? 1 : 0;
+    }
+
+    private function assertAutosaveNotStale(MailCampaign $campaign, ?string $expectedUpdatedAt): void
+    {
+        if ($expectedUpdatedAt === null || $expectedUpdatedAt === '') {
+            return;
+        }
+
+        $expected = Carbon::parse($expectedUpdatedAt);
+        $current = $campaign->last_edited_at ?? $campaign->updated_at;
+
+        if ($current !== null && $current->greaterThan($expected)) {
+            throw new ConflictHttpException('Une version plus récente de la campagne existe déjà. Rechargez la page avant de continuer.');
+        }
     }
 }

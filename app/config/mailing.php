@@ -61,6 +61,9 @@ return [
             'max_remote_images_warning_threshold' => 3,
             'html_size_warning_kb' => 100,
             'attachment_size_warning_mb' => 10,
+            'domain_override' => null,
+            'dkim_selectors' => ['selector1', 'selector2', 'default', 'mail'],
+            'checks' => [],
         ],
     ],
 ];

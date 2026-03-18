@@ -4,13 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Contact;
 use App\Models\ContactEmail;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\MailTemplate;
 use App\Models\MailThread;
-use App\Models\MailboxAccount;
 use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,6 +117,11 @@ class ComposerPagePayloadTest extends TestCase
                 ->component('Campaigns/Create')
                 ->has('templates', 1)
                 ->where('templates.0.id', $draft->template_id)
+                ->where('autosave.endpoint', '/api/campaigns/autosave')
+                ->where('autosave.conflictMode', 'reject_on_stale_updated_at')
+                ->has('audiences.contacts', 2)
+                ->has('audiences.organizations', 1)
+                ->has('audiences.recentImports', 0)
             );
 
         $this->get('/campaigns/'.$campaign->id)

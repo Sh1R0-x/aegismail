@@ -20,7 +20,7 @@ class UpdateContactRequest extends ApiFormRequest
         $primaryEmailId = $contact?->contactEmails()->where('is_primary', true)->value('id');
 
         return [
-            'organizationId' => ['nullable', 'integer', 'exists:organizations,id'],
+            'organizationId' => ['required', 'integer', 'exists:organizations,id'],
             'firstName' => ['nullable', 'string', 'max:255'],
             'lastName' => ['nullable', 'string', 'max:255'],
             'fullName' => ['nullable', 'string', 'max:255'],

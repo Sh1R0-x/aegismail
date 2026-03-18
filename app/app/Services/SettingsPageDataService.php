@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Mailing\DeliverabilityDomainCheckService;
 use App\Services\Mailing\MailboxSettingsService;
 
 class SettingsPageDataService
@@ -9,28 +10,19 @@ class SettingsPageDataService
     public function __construct(
         private readonly SettingsStore $settingsStore,
         private readonly MailboxSettingsService $mailboxSettingsService,
-    ) {
-    }
+        private readonly DeliverabilityDomainCheckService $deliverabilityDomainCheckService,
+    ) {}
 
     public function page(): array
     {
         $general = $this->settingsStore->get('general', config('mailing.defaults.general', []));
         $mail = $this->mailboxSettingsService->getSettings();
-        $deliverability = $this->settingsStore->get('deliverability', config('mailing.defaults.deliverability', []));
+        $deliverability = $this->deliverabilityDomainCheckService->payload();
 
         return [
             'settings' => [
                 'mail' => $mail,
                 'deliverability' => array_merge($deliverability, [
-                    'spfValid' => false,
-                    'dkimValid' => false,
-                    'dmarcValid' => false,
-                    'trackOpens' => (bool) ($deliverability['tracking_opens_enabled'] ?? true),
-                    'trackClicks' => (bool) ($deliverability['tracking_clicks_enabled'] ?? true),
-                    'maxLinks' => (int) ($deliverability['max_links_warning_threshold'] ?? 8),
-                    'maxImages' => (int) ($deliverability['max_remote_images_warning_threshold'] ?? 3),
-                    'maxHtmlSizeKb' => (int) ($deliverability['html_size_warning_kb'] ?? 100),
-                    'maxAttachmentSizeMb' => (int) ($deliverability['attachment_size_warning_mb'] ?? 10),
                     'maxConsecutiveHardBounces' => (int) ($general['stop_on_hard_bounce_threshold'] ?? 3),
                     'bounceWarningThreshold' => null,
                     'bounceCriticalThreshold' => null,

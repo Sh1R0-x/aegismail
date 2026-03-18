@@ -18,6 +18,7 @@ class MailCampaign extends Model
         'mode',
         'draft_id',
         'status',
+        'last_edited_at',
         'send_window_json',
         'throttling_json',
         'started_at',
@@ -29,6 +30,7 @@ class MailCampaign extends Model
         return [
             'send_window_json' => 'array',
             'throttling_json' => 'array',
+            'last_edited_at' => 'immutable_datetime',
             'started_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
         ];

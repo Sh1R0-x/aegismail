@@ -4,10 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Contact;
 use App\Models\ContactEmail;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailRecipient;
 use App\Models\MailThread;
-use App\Models\MailboxAccount;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -90,11 +90,10 @@ class CrmApiTest extends TestCase
     public function test_contact_creation_returns_precise_validation_errors(): void
     {
         $this->postJson('/api/contacts', [
-            'organizationId' => 999,
             'email' => 'bad-email',
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['organizationId', 'email'])
-            ->assertJsonPath('errors.organizationId.0', 'La valeur sélectionnée pour l’organisation est introuvable.')
+            ->assertJsonPath('errors.organizationId.0', 'Le champ l’organisation est obligatoire.')
             ->assertJsonPath('errors.email.0', 'Le champ l’adresse e-mail doit être une adresse e-mail valide.');
     }
 
@@ -123,7 +122,7 @@ class CrmApiTest extends TestCase
         $this->assertStringContainsString('La valeur de l’adresse e-mail est déjà utilisée.', $response->json('message'));
     }
 
-    public function test_admin_can_show_update_and_delete_an_organization_with_real_detail_payload(): void
+    public function test_admin_can_show_and_update_an_organization_with_real_detail_payload(): void
     {
         $organization = Organization::query()->create([
             'name' => 'Acme Industries',
@@ -161,16 +160,32 @@ class CrmApiTest extends TestCase
             ->assertJsonPath('message', 'Organisation mise à jour.')
             ->assertJsonPath('organization.name', 'Acme Europe')
             ->assertJsonPath('organization.domain', 'eu.acme.test');
+    }
+
+    public function test_organization_delete_is_rejected_when_contacts_are_still_attached(): void
+    {
+        $organization = Organization::query()->create([
+            'name' => 'Acme Industries',
+        ]);
+
+        $contact = Contact::query()->create([
+            'organization_id' => $organization->id,
+            'first_name' => 'Alice',
+            'last_name' => 'Martin',
+        ]);
+
+        ContactEmail::query()->create([
+            'contact_id' => $contact->id,
+            'email' => 'alice@acme.test',
+            'is_primary' => true,
+        ]);
 
         $this->deleteJson('/api/organizations/'.$organization->id)
-            ->assertOk()
-            ->assertJsonPath('message', 'Organisation supprimée.');
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['organization'])
+            ->assertJsonPath('errors.organization.0', 'Cette organisation ne peut pas être supprimée tant que des contacts y sont rattachés.');
 
-        $this->assertDatabaseMissing('organizations', ['id' => $organization->id]);
-        $this->assertDatabaseHas('contacts', [
-            'id' => $contact->id,
-            'organization_id' => null,
-        ]);
+        $this->assertDatabaseHas('organizations', ['id' => $organization->id]);
     }
 
     public function test_admin_can_show_update_and_delete_a_contact_with_organization_reassignment(): void

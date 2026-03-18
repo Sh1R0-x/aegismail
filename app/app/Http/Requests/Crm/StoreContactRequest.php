@@ -14,7 +14,7 @@ class StoreContactRequest extends ApiFormRequest
     public function rules(): array
     {
         return [
-            'organizationId' => ['nullable', 'integer', 'exists:organizations,id'],
+            'organizationId' => ['required', 'integer', 'exists:organizations,id'],
             'firstName' => ['nullable', 'string', 'max:255'],
             'lastName' => ['nullable', 'string', 'max:255'],
             'fullName' => ['nullable', 'string', 'max:255'],

@@ -18,7 +18,9 @@ class SettingsApiTest extends TestCase
             ->assertJsonPath('mail.provider', 'ovh_mx_plan')
             ->assertJsonPath('mail.mailbox_password_configured', false)
             ->assertJsonPath('general.daily_limit_default', 100)
-            ->assertJsonPath('deliverability.tracking_opens_enabled', true);
+            ->assertJsonPath('deliverability.tracking_opens_enabled', true)
+            ->assertJsonPath('deliverability.checks.spf.status', 'not_detected')
+            ->assertJsonPath('deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh');
     }
 
     public function test_it_updates_mail_settings_and_keeps_a_single_mailbox_account(): void

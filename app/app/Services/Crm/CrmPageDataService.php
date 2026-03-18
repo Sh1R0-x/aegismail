@@ -3,13 +3,12 @@
 namespace App\Services\Crm;
 
 use App\Models\Contact;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
-use App\Models\MailboxAccount;
 use App\Models\Organization;
-use App\Services\Crm\CrmManagementService;
 use App\Services\SettingsStore;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -20,8 +19,8 @@ class CrmPageDataService
     public function __construct(
         private readonly SettingsStore $settingsStore,
         private readonly CrmManagementService $crmManagementService,
-    ) {
-    }
+        private readonly ContactImportService $contactImportService,
+    ) {}
 
     public function dashboard(): array
     {
@@ -156,7 +155,15 @@ class CrmPageDataService
             'capabilities' => [
                 'canCreate' => true,
                 'createEndpoint' => '/api/contacts',
+                'organizationRequired' => true,
+                'imports' => [
+                    'canImport' => true,
+                    'previewEndpoint' => '/api/contacts/imports/preview',
+                    'confirmEndpoint' => '/api/contacts/imports',
+                    'templateEndpoint' => '/api/contacts/imports/template',
+                ],
             ],
+            'recentImports' => $this->contactImportService->recentImports(),
         ];
     }
 

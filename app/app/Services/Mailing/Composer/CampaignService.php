@@ -2,10 +2,10 @@
 
 namespace App\Services\Mailing\Composer;
 
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailRecipient;
-use App\Models\MailboxAccount;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
@@ -17,17 +17,42 @@ class CampaignService
         private readonly DraftPreflightService $preflightService,
         private readonly MailEventLogger $eventLogger,
         private readonly SettingsStore $settingsStore,
-    ) {
-    }
+    ) {}
 
     public function list(): array
     {
         return MailCampaign::query()
             ->with('recipients')
-            ->orderByDesc('created_at')
+            ->orderByDesc('last_edited_at')
+            ->orderByDesc('updated_at')
             ->get()
             ->map(fn (MailCampaign $campaign) => $this->serializeListItem($campaign))
             ->all();
+    }
+
+    public function syncAutosavedCampaign(
+        MailDraft $draft,
+        MailboxAccount $mailbox,
+        ?string $name = null,
+        ?int $userId = null,
+    ): MailCampaign {
+        $existingCampaign = MailCampaign::query()->where('draft_id', $draft->id)->first();
+
+        $campaign = MailCampaign::query()->updateOrCreate(
+            ['draft_id' => $draft->id],
+            [
+                'mailbox_account_id' => $mailbox->id,
+                'user_id' => $userId ?? $draft->user_id,
+                'name' => $name ?: $draft->subject ?: 'Campagne sans nom',
+                'mode' => $draft->mode,
+                'status' => in_array((string) $existingCampaign?->status, ['scheduled', 'queued', 'sending', 'sent'], true)
+                    ? $existingCampaign->status
+                    : 'draft',
+                'last_edited_at' => now(),
+            ],
+        );
+
+        return $campaign->fresh('recipients');
     }
 
     public function createFromDraft(
@@ -149,6 +174,7 @@ class CampaignService
             'scheduledAt' => $campaign->recipients->sortBy('scheduled_for')->first()?->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
             'createdAt' => $campaign->created_at?->toIso8601String(),
             'updatedAt' => $campaign->updated_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'lastEditedAt' => $campaign->last_edited_at?->toIso8601String(),
         ];
     }
 
@@ -163,18 +189,30 @@ class CampaignService
 
         return array_merge($this->serialize($campaign), [
             'draft' => $draftPayload,
-            'recipients' => $campaign->recipients
-                ->sortBy('scheduled_for')
-                ->values()
-                ->map(fn (MailRecipient $recipient): array => [
-                    'id' => $recipient->id,
-                    'email' => $recipient->email,
-                    'status' => $recipient->status,
-                    'contactName' => trim((string) ($recipient->contact?->first_name.' '.$recipient->contact?->last_name)) ?: null,
-                    'organization' => $recipient->organization?->name,
-                    'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
-                    'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
-                ])->all(),
+            'recipients' => $campaign->recipients->isNotEmpty()
+                ? $campaign->recipients
+                    ->sortBy('scheduled_for')
+                    ->values()
+                    ->map(fn (MailRecipient $recipient): array => [
+                        'id' => $recipient->id,
+                        'email' => $recipient->email,
+                        'status' => $recipient->status,
+                        'contactName' => trim((string) ($recipient->contact?->first_name.' '.$recipient->contact?->last_name)) ?: null,
+                        'organization' => $recipient->organization?->name,
+                        'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                        'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                    ])->all()
+                : collect($draftPayload['recipients'] ?? [])
+                    ->map(fn (array $recipient, int $index): array => [
+                        'id' => null,
+                        'email' => $recipient['email'] ?? null,
+                        'status' => 'draft',
+                        'contactName' => $recipient['name'] ?? null,
+                        'organization' => $recipient['organizationName'] ?? null,
+                        'scheduledFor' => null,
+                        'lastEventAt' => null,
+                        'position' => $index,
+                    ])->all(),
         ]);
     }
 
