@@ -887,4 +887,103 @@ class ComposerApiTest extends TestCase
 
         return [$contact, $primaryEmail, $optOutEmail, $bouncedEmail];
     }
+
+    public function test_template_can_be_permanently_deleted(): void
+    {
+        $this->seedMailboxAndSettings();
+
+        $created = $this->postJson('/api/templates', [
+            'name' => 'To Delete',
+            'subject' => 'Test',
+            'textBody' => 'body',
+        ])->assertCreated();
+
+        $templateId = $created->json('template.id');
+
+        // Create a draft linked to this template
+        $draftResp = $this->postJson('/api/drafts', [
+            'type' => 'single',
+            'subject' => 'Draft linked',
+            'textBody' => 'body',
+            'recipients' => [],
+            'templateId' => $templateId,
+        ])->assertCreated();
+
+        $draftId = $draftResp->json('draft.id');
+
+        $this->deleteJson("/api/templates/{$templateId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Modèle supprimé.');
+
+        $this->assertDatabaseMissing('mail_templates', ['id' => $templateId]);
+
+        // Draft should still exist but with null template_id
+        $draft = MailDraft::find($draftId);
+        $this->assertNotNull($draft);
+        $this->assertNull($draft->template_id);
+    }
+
+    public function test_send_now_dispatches_draft_immediately(): void
+    {
+        [$contact, $primaryEmail] = $this->seedContacts();
+
+        $draftResp = $this->postJson('/api/drafts', [
+            'type' => 'bulk',
+            'subject' => 'Urgent mail',
+            'textBody' => 'Body content',
+            'recipients' => [['email' => $primaryEmail->email]],
+        ])->assertCreated();
+
+        $draftId = $draftResp->json('draft.id');
+
+        Queue::fake();
+
+        $resp = $this->postJson("/api/drafts/{$draftId}/send-now")
+            ->assertOk();
+
+        $this->assertSame('scheduled', $resp->json('draft.status'));
+
+        // Draft should now be scheduled
+        $draft = MailDraft::find($draftId);
+        $this->assertNotNull($draft->scheduled_at);
+    }
+
+    public function test_test_send_dispatches_to_gateway(): void
+    {
+        $this->seedMailboxAndSettings();
+
+        $draftResp = $this->postJson('/api/drafts', [
+            'type' => 'single',
+            'subject' => 'Test subject',
+            'textBody' => 'Test body',
+            'recipients' => [],
+        ])->assertCreated();
+
+        $draftId = $draftResp->json('draft.id');
+
+        $resp = $this->postJson("/api/drafts/{$draftId}/test-send", [
+            'email' => 'test@gmail.com',
+        ])->assertOk();
+
+        $this->assertTrue($resp->json('success'));
+        $this->assertNotNull($resp->json('acceptedAt'));
+    }
+
+    public function test_test_send_validates_email_format(): void
+    {
+        $this->seedMailboxAndSettings();
+
+        $draftResp = $this->postJson('/api/drafts', [
+            'type' => 'single',
+            'subject' => 'Test',
+            'textBody' => 'Body',
+            'recipients' => [],
+        ])->assertCreated();
+
+        $draftId = $draftResp->json('draft.id');
+
+        $this->postJson("/api/drafts/{$draftId}/test-send", [
+            'email' => 'not-an-email',
+        ])->assertUnprocessable();
+    }
 }

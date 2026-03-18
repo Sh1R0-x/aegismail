@@ -66,4 +66,13 @@ class TemplateController extends Controller
             'template' => $this->templateService->serialize($template),
         ]);
     }
+
+    public function destroy(MailTemplate $template): JsonResponse
+    {
+        $this->templateService->destroy($template);
+
+        return response()->json([
+            'message' => 'Modèle supprimé.',
+        ]);
+    }
 }

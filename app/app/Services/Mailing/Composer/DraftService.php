@@ -288,6 +288,95 @@ class DraftService
         return [$draft->fresh(['campaigns.recipients', 'attachments']), $campaign];
     }
 
+    public function sendNow(MailDraft $draft, ?string $name = null): array
+    {
+        return $this->schedule($draft, Carbon::now(), $name);
+    }
+
+    public function testSend(MailDraft $draft, string $testEmail): array
+    {
+        $mailbox = $this->mailbox();
+
+        if ($mailbox === null) {
+            throw ValidationException::withMessages([
+                'mailbox' => ['La boîte OVH MX Plan doit être configurée avant l\'envoi de test.'],
+            ]);
+        }
+
+        if (empty(trim($draft->text_body)) && empty(trim((string) $draft->html_body))) {
+            throw ValidationException::withMessages([
+                'body' => ['Le brouillon ne contient aucun contenu à envoyer.'],
+            ]);
+        }
+
+        $mailSettings = $this->mailboxSettingsService->getSettings();
+        $gatewayClient = app(\App\Services\Mailing\Contracts\MailGatewayClient::class);
+
+        $textBody = trim((string) $draft->text_body);
+        $htmlBody = trim((string) $draft->html_body);
+
+        $signatureText = $mailSettings['global_signature_text'] ?? '';
+        $signatureHtml = $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? '');
+
+        if ($textBody !== '' && $signatureText !== '') {
+            $textBody .= "\n\n".$signatureText;
+        }
+        if ($htmlBody !== '' && $signatureHtml !== '') {
+            $htmlBody .= $signatureHtml;
+        }
+
+        if ($htmlBody === '' && $textBody !== '') {
+            $htmlBody = '<pre style="font-family:sans-serif;white-space:pre-wrap">'.e($textBody).'</pre>';
+        }
+
+        $payload = [
+            'mailbox_account_id' => $mailbox->id,
+            'mail_message_id' => null,
+            'thread_id' => null,
+            'campaign_id' => null,
+            'recipient_id' => null,
+            'provider' => config('mailing.provider'),
+            'email' => $mailbox->email,
+            'username' => $mailSettings['mailbox_username'] ?? $mailbox->username,
+            'password' => $mailSettings['mailbox_password'] ?? null,
+            'smtp_host' => $mailSettings['smtp_host'] ?? $mailbox->smtp_host,
+            'smtp_port' => $mailSettings['smtp_port'] ?? $mailbox->smtp_port,
+            'smtp_secure' => $mailSettings['smtp_secure'] ?? $mailbox->smtp_secure,
+            'from_email' => $mailSettings['sender_email'] ?: $mailbox->email,
+            'from_name' => $mailbox->display_name,
+            'to_emails' => [$testEmail],
+            'subject' => '[TEST] '.($draft->subject ?: '(Sans objet)'),
+            'html_body' => $htmlBody,
+            'text_body' => $textBody,
+            'message_id_header' => '<test-'.now()->timestamp.'-'.uniqid().'@'.($mailbox->email ? explode('@', $mailbox->email)[1] : 'aegis.local').'>',
+            'in_reply_to_header' => null,
+            'references_header' => null,
+            'aegis_tracking_id' => null,
+            'headers_json' => ['X-Aegis-Test' => 'true'],
+            'attachments' => [],
+        ];
+
+        $result = $gatewayClient->dispatchMessage($payload);
+
+        $this->eventLogger->log(
+            'mail_draft.test_sent',
+            [
+                'draft_id' => $draft->id,
+                'test_email' => $testEmail,
+                'success' => $result['success'] ?? false,
+                'driver' => $result['driver'] ?? config('mailing.gateway.driver'),
+            ],
+            ['mailbox_account_id' => $mailbox->id],
+        );
+
+        return [
+            'success' => $result['success'] ?? false,
+            'message' => $result['message'] ?? ($result['success'] ? 'Test envoyé.' : 'Échec de l\'envoi de test.'),
+            'driver' => $result['driver'] ?? config('mailing.gateway.driver'),
+            'acceptedAt' => $result['accepted_at'] ?? null,
+        ];
+    }
+
     public function serialize(MailDraft $draft): array
     {
         $draft->loadMissing(['campaigns.recipients', 'attachments']);

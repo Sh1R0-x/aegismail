@@ -92,6 +92,27 @@ class TemplateService
         return $copy->loadCount('drafts');
     }
 
+    public function destroy(MailTemplate $template): void
+    {
+        $usageCount = $template->drafts()->count();
+
+        if ($usageCount > 0) {
+            // Detach template from drafts before deletion
+            $template->drafts()->update(['template_id' => null]);
+        }
+
+        DB::transaction(function () use ($template): void {
+            $this->eventLogger->log(
+                'mail_template.deleted',
+                ['template_id' => $template->id, 'name' => $template->name],
+                [],
+                'mail_template.deleted.'.$template->id,
+            );
+
+            $template->delete();
+        });
+    }
+
     public function archive(MailTemplate $template): MailTemplate
     {
         return $this->setActiveState($template, false, 'mail_template.archived');

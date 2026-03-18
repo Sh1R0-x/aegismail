@@ -46,7 +46,7 @@
           class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm disabled:opacity-40 transition-all"
           @click="triggerPreflightWithSave"
         >
-          {{ preflightLoading ? 'Vérification…' : 'Vérifier (preflight)' }}
+          {{ preflightLoading ? 'Vérification…' : 'Vérification avant envoi' }}
         </button>
         <button
           v-if="preflight?.ok && !showSchedule"
@@ -54,6 +54,14 @@
           @click="showSchedule = true"
         >
           Planifier
+        </button>
+        <button
+          v-if="preflight?.ok"
+          :disabled="sendingNow"
+          class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-40"
+          @click="sendNow"
+        >
+          {{ sendingNow ? 'Envoi…' : 'Envoyer maintenant' }}
         </button>
       </div>
     </div>
@@ -236,9 +244,9 @@
           <PreflightResult :result="preflight" />
         </template>
         <div v-else class="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 text-center">
-          <p class="text-sm font-bold text-slate-500">Preflight</p>
+          <p class="text-sm font-bold text-slate-500">Vérification avant envoi</p>
           <p class="mt-1 text-xs font-medium text-slate-400">
-            La campagne est sauvegardée automatiquement. Lancez le preflight pour évaluer la
+            La campagne est sauvegardée automatiquement. Lancez la vérification pour évaluer la
             délivrabilité avant planification.
           </p>
           <button
@@ -247,7 +255,7 @@
             class="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40"
             @click="triggerPreflightWithSave"
           >
-            {{ preflightLoading ? 'Analyse…' : 'Lancer le preflight' }}
+            {{ preflightLoading ? 'Analyse…' : 'Lancer la vérification' }}
           </button>
         </div>
 
@@ -311,6 +319,63 @@
             Chaque destinataire reçoit un mail individuel.
           </p>
         </div>
+
+        <!-- Test mail card -->
+        <div class="rounded-2xl border border-amber-100 bg-amber-50 px-6 py-5 space-y-3">
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-amber-700">Envoi de test</p>
+          <p class="text-xs font-medium text-amber-600">Envoyez un mail de test pour vérifier le rendu réel.</p>
+          <input
+            v-model="testEmail"
+            type="email"
+            placeholder="adresse@exemple.fr"
+            class="w-full rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-medium placeholder:text-amber-300 focus:ring-2 focus:ring-amber-500/30 outline-none"
+          />
+          <button
+            :disabled="!testEmail || !draftId || testSending"
+            class="w-full rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 transition-colors disabled:opacity-40"
+            @click="sendTestMail"
+          >
+            {{ testSending ? 'Envoi du test…' : 'Envoyer un test' }}
+          </button>
+          <div v-if="testResult" :class="['rounded-lg px-3 py-2 text-xs font-semibold', testResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200']">
+            {{ testResult.message }}
+            <span v-if="testResult.driver === 'stub'" class="block mt-1 text-[10px] font-medium opacity-70">
+              ⚠ Pilote stub — aucun envoi SMTP réel.
+            </span>
+          </div>
+        </div>
+
+        <!-- Email preview card -->
+        <div v-if="form.textBody || form.htmlBody" class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+            @click="showEmailPreview = !showEmailPreview"
+          >
+            <span class="text-xs font-black uppercase tracking-[0.1em] text-slate-500">Aperçu du mail</span>
+            <svg
+              :class="['h-4 w-4 text-slate-400 transition-transform', showEmailPreview ? 'rotate-180' : '']"
+              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+            >
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <div v-if="showEmailPreview" class="border-t border-slate-100 px-6 py-4 space-y-3">
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+              <strong>De :</strong> (boîte OVH configurée)<br />
+              <strong>À :</strong> {{ selectedRecipients.length > 0 ? selectedRecipients.length + ' destinataire(s)' : '—' }}<br />
+              <strong>Objet :</strong> {{ form.subject || '(Sans objet)' }}
+            </div>
+            <iframe
+              v-if="form.htmlBody"
+              :srcdoc="form.htmlBody"
+              sandbox="allow-same-origin"
+              class="w-full rounded-xl border border-slate-200 bg-white"
+              style="height: 16rem"
+            />
+            <pre v-else class="whitespace-pre-wrap rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 leading-relaxed max-h-64 overflow-y-auto">{{ form.textBody }}</pre>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -372,6 +437,17 @@ const showSchedule = ref(false);
 const scheduledAt = ref('');
 const scheduling = ref(false);
 const schedule_error = ref(null);
+
+// ── Send now state ─────────────────────────────────────────
+const sendingNow = ref(false);
+
+// ── Test mail state ────────────────────────────────────────
+const testEmail = ref('');
+const testSending = ref(false);
+const testResult = ref(null);
+
+// ── Email preview state ────────────────────────────────────
+const showEmailPreview = ref(false);
 
 // ── Template ───────────────────────────────────────────────
 const selectedTemplateId = ref(props.initialTemplateId ? String(props.initialTemplateId) : '');
@@ -507,6 +583,48 @@ async function scheduleWithSave() {
       'Erreur lors de la planification.';
   } finally {
     scheduling.value = false;
+  }
+}
+
+// ── Send now ───────────────────────────────────────────────
+async function sendNow() {
+  await triggerImmediateSave();
+  if (!draftId.value) return;
+
+  sendingNow.value = true;
+  error.value = null;
+  try {
+    await axios.post(`/api/drafts/${draftId.value}/send-now`);
+    emit('scheduled');
+  } catch (e) {
+    error.value =
+      e.response?.data?.errors?.preflight?.[0] ??
+      e.response?.data?.message ??
+      'Erreur lors de l\'envoi immédiat.';
+  } finally {
+    sendingNow.value = false;
+  }
+}
+
+// ── Test mail ──────────────────────────────────────────────
+async function sendTestMail() {
+  await triggerImmediateSave();
+  if (!draftId.value || !testEmail.value) return;
+
+  testSending.value = true;
+  testResult.value = null;
+  try {
+    const resp = await axios.post(`/api/drafts/${draftId.value}/test-send`, {
+      email: testEmail.value,
+    });
+    testResult.value = resp.data;
+  } catch (e) {
+    testResult.value = {
+      success: false,
+      message: e.response?.data?.message ?? 'Erreur lors de l\'envoi de test.',
+    };
+  } finally {
+    testSending.value = false;
   }
 }
 </script>

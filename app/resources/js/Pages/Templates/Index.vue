@@ -101,6 +101,14 @@
               >
                 {{ tpl.active ? 'Archiver' : 'Activer' }}
               </button>
+              <span class="text-slate-200">·</span>
+              <button
+                class="text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-40"
+                :disabled="actionLoading === tpl.id"
+                @click="deleteTemplate(tpl)"
+              >
+                Supprimer
+              </button>
             </td>
           </tr>
         </tbody>
@@ -154,6 +162,17 @@ async function toggleArchive(tpl) {
   try {
     const endpoint = tpl.active ? 'archive' : 'activate';
     await axios.post(`/api/templates/${tpl.id}/${endpoint}`);
+    router.reload({ preserveState: false });
+  } finally {
+    actionLoading.value = null;
+  }
+}
+
+async function deleteTemplate(tpl) {
+  if (!confirm(`Supprimer le modèle « ${tpl.name} » ? Cette action est irréversible.`)) return;
+  actionLoading.value = tpl.id;
+  try {
+    await axios.delete(`/api/templates/${tpl.id}`);
     router.reload({ preserveState: false });
   } finally {
     actionLoading.value = null;

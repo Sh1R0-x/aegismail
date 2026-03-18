@@ -8,6 +8,14 @@
         <button v-if="campaign.draft?.id" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all" @click="editing = !editing">
           {{ editing ? 'Voir le résumé' : 'Modifier' }}
         </button>
+        <button
+          v-if="campaign.status === 'scheduled' && campaign.draft?.id"
+          class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 shadow-sm transition-all"
+          :disabled="unscheduling"
+          @click="unscheduleCampaign"
+        >
+          {{ unscheduling ? 'Déprogrammation…' : 'Déprogrammer' }}
+        </button>
         <button class="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 shadow-sm transition-all" @click="removeCampaign">
           Supprimer
         </button>
@@ -125,6 +133,7 @@ const props = defineProps({
 
 const editing = ref(props.campaign.status === 'draft' && Boolean(props.campaign.draft?.id));
 const banner = ref(null);
+const unscheduling = ref(false);
 
 function onDraftSaved() {
   // Autosave doesn't close the editor — just silently confirm
@@ -143,6 +152,20 @@ async function removeCampaign() {
     router.visit('/campaigns');
   } catch (error) {
     banner.value = { type: 'error', message: error.response?.data?.message ?? 'Impossible de supprimer la campagne.' };
+  }
+}
+
+async function unscheduleCampaign() {
+  if (!props.campaign.draft?.id) return;
+  if (!window.confirm('Déprogrammer cette campagne ? Elle repassera en brouillon.')) return;
+  unscheduling.value = true;
+  try {
+    await axios.post(`/api/drafts/${props.campaign.draft.id}/unschedule`);
+    router.reload({ preserveState: false });
+  } catch (error) {
+    banner.value = { type: 'error', message: error.response?.data?.message ?? 'Impossible de déprogrammer.' };
+  } finally {
+    unscheduling.value = false;
   }
 }
 </script>

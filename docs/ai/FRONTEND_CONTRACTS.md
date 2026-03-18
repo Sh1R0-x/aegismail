@@ -148,6 +148,14 @@ Date format used by the current backend:
 - `scheduledAt`: nullable string
 - `updatedAt`: nullable string
 
+### Draft Actions (MailComposer / CampaignEditor)
+
+- Schedule: `POST /api/drafts/{id}/schedule` — runs preflight, creates recipients, queues dispatch
+- Send now: `POST /api/drafts/{id}/send-now` — same pipeline as schedule with `scheduledAt = now()`
+- Unschedule: `POST /api/drafts/{id}/unschedule` — reverts draft to `draft` status
+- Test send: `POST /api/drafts/{id}/test-send` — body `{ email: string }`, returns `{ success, message, driver, acceptedAt }`. Does not create recipients/messages.
+- Preflight: `POST /api/drafts/{id}/preflight` — returns verification checks
+
 ## Templates
 
 ### Component
@@ -168,6 +176,12 @@ Date format used by the current backend:
 - `active`: required boolean
 - `usageCount`: required integer
 - `updatedAt`: nullable string
+
+### Actions
+
+- Archive: `POST /api/templates/{id}/archive`
+- Activate: `POST /api/templates/{id}/activate`
+- Delete: `DELETE /api/templates/{id}` — permanently deletes template, detaches linked drafts
 
 ## Campaigns
 

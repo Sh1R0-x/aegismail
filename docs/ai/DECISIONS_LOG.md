@@ -37,6 +37,11 @@
 - Deliverability checks are now persisted as structured per-mechanism payloads (`spf`, `dkim`, `dmarc`) with manual refresh and technical logs
 - Fake CTAs are not acceptable in V1: any visible action must now be either functional, explicitly unavailable with a reason, or removed from the UI
 - The current repo still has no coherent RBAC layer or admin policy system; backend create access is not blocked by roles in this phase
+- Templates can now be permanently deleted (not just archived); linked drafts have their `template_id` set to null before deletion
+- Immediate send ("Envoyer maintenant") uses the same pipeline as scheduled send but with `scheduledAt = now()`; no separate dispatch path
+- Test send dispatches a single message via the gateway client without creating `MailRecipient` or `MailMessage` records; subject is prefixed with `[TEST]`
+- Application timezone is `Europe/Paris` (changed from UTC); all serializer dates use `config('app.timezone')` for consistent local display
+- Campaign Show page exposes an "unschedule" button when status is `scheduled`, calling the existing `POST /api/drafts/{draft}/unschedule` endpoint
 
 ## Documentation alignment
 

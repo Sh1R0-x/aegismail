@@ -43,6 +43,7 @@ Rules kept:
 - `POST /api/templates/{template}/duplicate`
 - `POST /api/templates/{template}/archive`
 - `POST /api/templates/{template}/activate`
+- `DELETE /api/templates/{template}` — permanently deletes the template; detaches linked drafts first
 
 ### Drafts
 
@@ -56,6 +57,8 @@ Rules kept:
 - `POST /api/drafts/{draft}/preflight`
 - `POST /api/drafts/{draft}/schedule`
 - `POST /api/drafts/{draft}/unschedule`
+- `POST /api/drafts/{draft}/send-now` — schedules for immediate dispatch (runs preflight, same pipeline as schedule)
+- `POST /api/drafts/{draft}/test-send` — sends a test email via the gateway client without creating recipients/messages. Body: `{ email: string }`. Returns: `{ success, message, driver, acceptedAt }`
 - `POST /api/drafts/{draft}/campaign`
 
 ### Campaigns

@@ -115,6 +115,31 @@ class DraftController extends Controller
         ]);
     }
 
+    public function sendNow(MailDraft $draft): JsonResponse
+    {
+        [$draft, $campaign, $preflight] = $this->draftService->sendNow($draft);
+
+        return response()->json([
+            'draft' => $this->draftService->serialize($draft),
+            'campaign' => $this->campaignService->serialize($campaign),
+            'preflight' => $preflight,
+        ]);
+    }
+
+    public function testSend(Request $request, MailDraft $draft): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email:rfc,dns'],
+        ], [
+            'email.required' => 'L\'adresse e-mail de test est requise.',
+            'email.email' => 'L\'adresse e-mail de test n\'est pas valide.',
+        ]);
+
+        $result = $this->draftService->testSend($draft, $request->input('email'));
+
+        return response()->json($result);
+    }
+
     public function createCampaign(CreateCampaignFromDraftRequest $request, MailDraft $draft): JsonResponse
     {
         $mailbox = $this->draftService->mailbox();

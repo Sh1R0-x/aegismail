@@ -15,13 +15,13 @@
           v-model="search"
           type="text"
           placeholder="Rechercher par e-mail, contact, organisation…"
-          class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+          class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/30 outline-none"
         />
       </div>
 
       <!-- Timeline -->
       <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div v-if="filteredEvents.length === 0" class="py-12 text-center text-sm font-medium text-slate-400">
+        <div v-if="filteredEvents.length === 0" class="py-12 text-center text-sm font-medium text-slate-500">
           <template v-if="events.length === 0">Aucune activité enregistrée.</template>
           <template v-else>Aucun résultat pour ces filtres.</template>
         </div>
