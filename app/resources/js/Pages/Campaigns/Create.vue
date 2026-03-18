@@ -1,75 +1,49 @@
 <template>
-  <CrmLayout title="Nouvelle campagne" subtitle="Préparez une campagne sans passer visiblement par le module Brouillons" current-page="campaigns">
+  <CrmLayout
+    title="Nouvelle campagne"
+    subtitle="Préparez votre campagne — sauvegarde automatique activée"
+    current-page="campaigns"
+  >
     <template #header-actions>
-      <Link href="/campaigns" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all">
+      <Link
+        href="/campaigns"
+        class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+      >
         ← Retour aux campagnes
       </Link>
     </template>
 
-    <div class="space-y-4">
-      <div v-if="banner" class="rounded-xl border px-4 py-3 text-sm font-medium" :class="banner.type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'">
-        {{ banner.message }}
-      </div>
-
-      <MailComposer
-        mode="multiple"
-        :templates="templates"
-        @close="router.visit('/campaigns')"
-        @saved="materializeCampaign"
-        @scheduled="materializeScheduledCampaign"
-      />
-    </div>
+    <CampaignEditor
+      :templates="templates"
+      :initial-audiences="audiences"
+      @autosaved="onAutosaved"
+      @scheduled="onScheduled"
+    />
   </CrmLayout>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
-import axios from 'axios';
+import { router } from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import MailComposer from '@/Components/Composer/MailComposer.vue';
+import CampaignEditor from '@/Components/Campaigns/CampaignEditor.vue';
 
 defineProps({
   templates: { type: Array, default: () => [] },
+  audiences: { type: Object, default: null },
+  autosave: { type: Object, default: null },
 });
 
-const banner = ref(null);
-const redirecting = ref(false);
-
-async function materializeCampaign(draft) {
-  if (!draft?.id || redirecting.value) return;
-
-  redirecting.value = true;
-  banner.value = null;
-
-  try {
-    const { data } = await axios.post(`/api/drafts/${draft.id}/campaign`, {
-      name: draft.subject || 'Nouvelle campagne',
-    });
-    router.visit(`/campaigns/${data.campaign.id}`);
-  } catch (error) {
-    redirecting.value = false;
-    banner.value = { type: 'error', message: error.response?.data?.message ?? 'Impossible de créer la campagne.' };
+function onAutosaved(data) {
+  const campaignId = data?.campaign?.id;
+  if (campaignId) {
+    // After first autosave, silently replace URL with campaign detail URL
+    // so refresh keeps user on the right page
+    window.history.replaceState({}, '', `/campaigns/${campaignId}`);
   }
 }
 
-async function materializeScheduledCampaign(draft) {
-  if (!draft?.id) {
-    router.visit('/campaigns');
-    return;
-  }
-
-  try {
-    const { data } = await axios.get('/api/campaigns');
-    const linked = data.campaigns.find((campaign) => campaign.draftId === draft.id);
-    if (linked) {
-      router.visit(`/campaigns/${linked.id}`);
-      return;
-    }
-  } catch {
-    // fallback below
-  }
-
+function onScheduled() {
   router.visit('/campaigns');
 }
 </script>

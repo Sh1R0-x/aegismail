@@ -24,6 +24,7 @@ Route::get('/', function () {
 Route::get('/dashboard', DashboardController::class);
 
 Route::get('/contacts', ContactsController::class);
+Route::get('/contacts/imports', fn () => Inertia::render('Contacts/Import'));
 Route::get('/contacts/{contact}', ContactShowController::class);
 
 Route::get('/organizations', OrganizationsController::class);

@@ -18,13 +18,18 @@
       {{ banner.message }}
     </div>
 
-    <MailComposer
+    <CampaignEditor
       v-if="editing && campaign.draft?.id"
-      :draft="campaign.draft"
+      :campaign-id="campaign.id"
+      :draft-id="campaign.draft.id"
+      :initial-name="campaign.name"
+      :initial-subject="campaign.draft.subject"
+      :initial-text-body="campaign.draft.textBody"
+      :initial-html-body="campaign.draft.htmlBody"
+      :initial-template-id="campaign.draft.templateId ?? null"
+      :initial-recipients="campaign.draft.recipients ?? []"
       :templates="templates"
-      :mode="campaign.type === 'multiple' ? 'multiple' : 'single'"
-      @close="editing = false"
-      @saved="onDraftSaved"
+      @autosaved="onDraftSaved"
       @scheduled="onDraftScheduled"
     />
 
@@ -96,7 +101,7 @@ import { ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import MailComposer from '@/Components/Composer/MailComposer.vue';
+import CampaignEditor from '@/Components/Campaigns/CampaignEditor.vue';
 
 const props = defineProps({
   campaign: { type: Object, required: true },
@@ -107,8 +112,7 @@ const editing = ref(props.campaign.status === 'draft' && Boolean(props.campaign.
 const banner = ref(null);
 
 function onDraftSaved() {
-  editing.value = false;
-  router.reload({ preserveState: false });
+  // Autosave doesn't close the editor — just silently confirm
 }
 
 function onDraftScheduled() {

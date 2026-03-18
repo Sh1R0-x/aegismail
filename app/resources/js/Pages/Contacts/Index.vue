@@ -1,6 +1,12 @@
 <template>
   <CrmLayout title="Contacts" subtitle="Gérez vos contacts et leur engagement" current-page="contacts">
     <template #header-actions>
+      <Link
+        href="/contacts/imports"
+        class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
+      >
+        ↑ Importer des contacts
+      </Link>
       <button
         v-if="capabilities.canCreate"
         class="btn-primary-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all"
