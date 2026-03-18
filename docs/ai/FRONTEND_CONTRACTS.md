@@ -449,7 +449,204 @@ Text-first behavior used by the backend:
 **API calls used by the page:**
 
 - `DELETE /api/campaigns/{id}`
-- edit mode uses `MailComposer` against the linked `campaign.draft`
+- edit mode now uses `CampaignEditor` (replaces MailComposer in campaign context)
+
+---
+
+## CampaignEditor
+
+**File:** `resources/js/Components/Campaigns/CampaignEditor.vue`
+
+**Props:**
+
+- `campaignId`: nullable integer — existing campaign ID (null on first create)
+- `draftId`: nullable integer — existing draft ID (null on first create)
+- `initialName`: string — campaign name
+- `initialSubject`: string
+- `initialTextBody`: string
+- `initialHtmlBody`: string
+- `initialTemplateId`: nullable integer
+- `initialRecipients`: array — existing recipients in autosave format
+- `initialAudiences`: nullable object — pre-loaded audience data (skips API call if provided)
+- `templates`: array
+
+**Emits:**
+
+- `autosaved(data)` — called after each successful autosave; `data = { draft, campaign }`
+- `scheduled()` — called after campaign is scheduled
+- `close()` — not used internally, available for parent
+
+**Autosave behavior:**
+
+- debounced 1.5s after each form change
+- calls `POST /api/campaigns/autosave`
+- autosave status: `idle | pending | saving | saved | error`
+- status displayed discretely in the status bar (no primary save button)
+- tracks `campaignId`, `draftId`, `expectedUpdatedAt` across saves
+- preflight and schedule require a saved draft (wait for autosave)
+
+**Autosave payload** (`POST /api/campaigns/autosave`):
+
+- `type`: always `'bulk'`
+- `campaignId`: nullable integer
+- `draftId`: nullable integer
+- `name`: string
+- `subject`: string
+- `htmlBody`: nullable string
+- `textBody`: nullable string
+- `templateId`: nullable integer
+- `expectedUpdatedAt`: nullable ISO-8601 string (conflict guard)
+- `recipients[]`: each with `{ email, contactId, contactEmailId, organizationId, organizationName, name }`
+
+**Autosave response:**
+
+- `draft`: serialized draft object
+- `campaign`: serialized campaign object (includes `id`, `lastEditedAt`, `updatedAt`)
+
+---
+
+## CampaignAudiencePicker
+
+**File:** `resources/js/Components/Campaigns/CampaignAudiencePicker.vue`
+
+**Props:**
+
+- `modelValue`: array — selected recipients in autosave format
+- `initialAudiences`: nullable object — pre-loaded `{ contacts[], organizations[], recentImports[] }`
+
+**Emits:** `update:modelValue`
+
+**API call (when `initialAudiences` is null):**
+
+- `GET /api/campaigns/audiences` → `{ contacts[], organizations[], recentImports[] }`
+
+**contacts[]:**
+
+- `contactId`: integer
+- `contactEmailId`: nullable integer
+- `organizationId`: nullable integer
+- `organizationName`: nullable string
+- `email`: nullable string
+- `name`: string
+- `jobTitle`: nullable string
+
+**organizations[]:**
+
+- `organizationId`: integer
+- `organizationName`: string
+- `domain`: nullable string
+- `contactCount`: integer
+- `contacts[]`: audience contacts (same shape)
+
+**recentImports[]:**
+
+- `id`: integer
+- `sourceName`: string
+- `sourceType`: string
+- `importedAt`: nullable ISO-8601 string
+- `contactCount`: integer
+- `contacts[]`: audience contacts (same shape)
+
+**UX rules:**
+
+- contacts without `email` are shown but are disabled (cannot be selected)
+- contacts without `organization_id` are excluded from the API result entirely
+- empty state shows CTA to add contacts or import
+
+---
+
+## Contacts/Import
+
+**File:** `resources/js/Pages/Contacts/Import.vue`
+
+**Route:** `GET /contacts/imports`
+
+**Props:** none — fully client-side
+
+**Steps:**
+
+1. Upload (idle): show template download CTA + file drop zone (CSV/XLSX)
+2. Preview: show summary + row table after `POST /api/contacts/imports/preview`
+3. Result: show batch summary after `POST /api/contacts/imports`
+
+**API calls:**
+
+- Template download: `GET /api/contacts/imports/template` (streamed CSV file)
+- Preview: `POST /api/contacts/imports/preview` (multipart, field `file`)
+- Confirm: `POST /api/contacts/imports` with `{ previewToken }`
+
+**Preview response** (`POST /api/contacts/imports/preview`):
+
+`data.preview`:
+
+- `previewToken`: string (UUID, 1-hour TTL)
+- `sourceName`: string
+- `sourceType`: string
+- `summary.totalRows`: integer
+- `summary.validRows`: integer
+- `summary.invalidRows`: integer
+- `summary.duplicateExistingRows`: integer
+- `summary.duplicateFileRows`: integer
+- `summary.organizationMatches`: integer
+- `summary.organizationCreates`: integer
+- `rows[]`: each with `{ lineNumber, status('valid'|'invalid'|'duplicate_existing'|'duplicate_in_file'), primaryEmail, name, organization.name, organization.action, reason }`
+
+**Import response** (`POST /api/contacts/imports`):
+
+- `message`: string
+- `batch`: batch summary object
+- `summary.importedRows`: integer
+- `summary.skippedRows`: integer
+- `summary.duplicateExistingRows`: integer
+- `summary.invalidRows`: integer
+- `rows[]`: each with `resultStatus('imported'|'skipped'|'duplicate_existing')`, `resultMessage`, `lineNumber`, `primaryEmail`
+
+---
+
+## SettingsDeliverability (updated)
+
+**File:** `resources/js/Pages/Settings/Sections/SettingsDeliverability.vue`
+
+**Props:** `settings` — the full deliverability payload from `SettingsPageDataService::page()`
+
+**Full deliverability payload shape:**
+
+- `domain`: nullable string
+- `dkimSelectors`: array of strings
+- `refreshEndpoint`: string (always `/api/settings/deliverability/checks/refresh`)
+- `spfValid`: boolean (shortcut)
+- `dkimValid`: boolean (shortcut)
+- `dmarcValid`: boolean (shortcut)
+- `trackOpens`: boolean
+- `trackClicks`: boolean
+- `maxLinks`: integer
+- `maxImages`: integer
+- `maxHtmlSizeKb`: integer
+- `maxAttachmentSizeMb`: integer
+- `checks.spf`: DeliverabilityCheck
+- `checks.dkim`: DeliverabilityCheck
+- `checks.dmarc`: DeliverabilityCheck
+
+**DeliverabilityCheck:**
+
+- `status`: enum `pass|warning|fail|not_detected`
+- `detected_value`: nullable string
+- `checked_at`: nullable ISO-8601 string
+- `diagnostic_message`: string
+- `logs[]`: each `{ level('info'|'warning'|'error'), message, context, ts(ISO-8601) }`
+
+**Retest API:**
+
+- `POST /api/settings/deliverability/checks/refresh` with `{ mechanisms: ['spf','dkim','dmarc'] }`
+- Response: `{ message, deliverability }` — `deliverability` has same shape as above
+
+**UI states covered:**
+
+- `pass` / `warning` / `fail` / `not_detected` for each mechanism
+- retesting loading state
+- retest error message
+- logs panel (collapsible, per mechanism)
+- empty logs state (logs button hidden)
 
 ### Threads/Show
 
@@ -475,41 +672,41 @@ Text-first behavior used by the backend:
 
 ## Action visibility status (V1)
 
-| Screen    | Action                | Status               | Reason                                                  |
-| --------- | --------------------- | -------------------- | ------------------------------------------------------- |
+| Screen    | Action                | Status               | Reason                                                                                                    |
+| --------- | --------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
 | Mails     | Voir                  | Active (conditional) | Opens `/threads/{threadId}` when a materialized thread exists; otherwise disabled with an explicit reason |
-| Campaigns | Détails               | Active               | Opens `/campaigns/{id}`                                 |
-| Campaigns | Préparer une campagne | Active               | Opens `/campaigns/create`; draft stays internal         |
-| Templates | Nouveau modèle        | Active               | Wired to TemplateEditor create mode                     |
-| Templates | Éditer                | Active               | Wired to TemplateEditor edit mode                       |
-| Templates | Dupliquer             | Active               | Wired to `POST /api/templates/{id}/duplicate`           |
-| Templates | Archiver/Activer      | Active               | Wired to `POST /api/templates/{id}/archive\|activate`   |
-| Drafts    | Éditer                | Active               | Loads draft via `GET /api/drafts/{id}` → MailComposer   |
-| Drafts    | Dupliquer             | Active               | Wired to `POST /api/drafts/{id}/duplicate`              |
-| Drafts    | Supprimer             | Active               | Wired to `DELETE /api/drafts/{id}`                      |
-| Drafts    | Suppression de masse  | Active               | Wired to `DELETE /api/drafts` with `ids[]`              |
-| Drafts    | Déprogrammer          | Active (conditional) | Only shown when `status === 'scheduled'`                |
-| Composer  | Sauvegarder brouillon | Active               | `POST /api/drafts` or `PUT /api/drafts/{id}`            |
-| Composer  | Vérifier (preflight)  | Active               | Requires saved draft first (disabled otherwise)         |
-| Composer  | Planifier             | Active (conditional) | Only shown when `preflight.ok === true`                 |
-| Composer  | Aperçu HTML           | Active               | Sandboxed iframe render toggle on HTML body field       |
-| Composer  | Pièces jointes        | Not implemented      | Attachment upload API not exposed in V1                 |
-| Contacts  | Ajouter un contact    | Active               | Wired to `POST /api/contacts`                           |
-| Contacts  | Fiche                 | Active               | Opens `/contacts/{id}`                                  |
-| Contacts  | Historique            | Active               | Jumps to `/contacts/{id}#historique`                    |
-| Contacts  | Modifier              | Active               | Wired to `PUT /api/contacts/{id}`                       |
-| Contacts  | Supprimer             | Active               | Wired to `DELETE /api/contacts/{id}`                    |
-| Contacts  | Ajouter un e-mail     | Active               | Wired to `POST /api/contacts/{id}/emails`               |
-| Contacts  | Supprimer un e-mail   | Active (conditional) | Wired to `DELETE /api/contacts/{id}/emails/{emailId}` when `canDelete = true` |
-| Orgs      | Ajouter organisation  | Active               | Wired to `POST /api/organizations`                      |
-| Orgs      | Fiche                 | Active               | Opens `/organizations/{id}`                             |
-| Orgs      | Historique            | Active               | Jumps to `/organizations/{id}#historique`               |
-| Orgs      | Modifier              | Active               | Wired to `PUT /api/organizations/{id}`                  |
-| Orgs      | Supprimer             | Active               | Wired to `DELETE /api/organizations/{id}`               |
-| Settings  | Enregistrer           | Active               | `PUT /api/settings/mail` — full mail settings payload   |
-| Settings  | Tester SMTP           | Active               | `POST /api/settings/mail/test-smtp`                     |
-| Settings  | Tester IMAP           | Active               | `POST /api/settings/mail/test-imap`                     |
-| Settings  | Signer. (signature)   | Active               | Fetches current settings, then `PUT /api/settings/mail` |
+| Campaigns | Détails               | Active               | Opens `/campaigns/{id}`                                                                                   |
+| Campaigns | Préparer une campagne | Active               | Opens `/campaigns/create`; draft stays internal                                                           |
+| Templates | Nouveau modèle        | Active               | Wired to TemplateEditor create mode                                                                       |
+| Templates | Éditer                | Active               | Wired to TemplateEditor edit mode                                                                         |
+| Templates | Dupliquer             | Active               | Wired to `POST /api/templates/{id}/duplicate`                                                             |
+| Templates | Archiver/Activer      | Active               | Wired to `POST /api/templates/{id}/archive\|activate`                                                     |
+| Drafts    | Éditer                | Active               | Loads draft via `GET /api/drafts/{id}` → MailComposer                                                     |
+| Drafts    | Dupliquer             | Active               | Wired to `POST /api/drafts/{id}/duplicate`                                                                |
+| Drafts    | Supprimer             | Active               | Wired to `DELETE /api/drafts/{id}`                                                                        |
+| Drafts    | Suppression de masse  | Active               | Wired to `DELETE /api/drafts` with `ids[]`                                                                |
+| Drafts    | Déprogrammer          | Active (conditional) | Only shown when `status === 'scheduled'`                                                                  |
+| Composer  | Sauvegarder brouillon | Active               | `POST /api/drafts` or `PUT /api/drafts/{id}`                                                              |
+| Composer  | Vérifier (preflight)  | Active               | Requires saved draft first (disabled otherwise)                                                           |
+| Composer  | Planifier             | Active (conditional) | Only shown when `preflight.ok === true`                                                                   |
+| Composer  | Aperçu HTML           | Active               | Sandboxed iframe render toggle on HTML body field                                                         |
+| Composer  | Pièces jointes        | Not implemented      | Attachment upload API not exposed in V1                                                                   |
+| Contacts  | Ajouter un contact    | Active               | Wired to `POST /api/contacts`                                                                             |
+| Contacts  | Fiche                 | Active               | Opens `/contacts/{id}`                                                                                    |
+| Contacts  | Historique            | Active               | Jumps to `/contacts/{id}#historique`                                                                      |
+| Contacts  | Modifier              | Active               | Wired to `PUT /api/contacts/{id}`                                                                         |
+| Contacts  | Supprimer             | Active               | Wired to `DELETE /api/contacts/{id}`                                                                      |
+| Contacts  | Ajouter un e-mail     | Active               | Wired to `POST /api/contacts/{id}/emails`                                                                 |
+| Contacts  | Supprimer un e-mail   | Active (conditional) | Wired to `DELETE /api/contacts/{id}/emails/{emailId}` when `canDelete = true`                             |
+| Orgs      | Ajouter organisation  | Active               | Wired to `POST /api/organizations`                                                                        |
+| Orgs      | Fiche                 | Active               | Opens `/organizations/{id}`                                                                               |
+| Orgs      | Historique            | Active               | Jumps to `/organizations/{id}#historique`                                                                 |
+| Orgs      | Modifier              | Active               | Wired to `PUT /api/organizations/{id}`                                                                    |
+| Orgs      | Supprimer             | Active               | Wired to `DELETE /api/organizations/{id}`                                                                 |
+| Settings  | Enregistrer           | Active               | `PUT /api/settings/mail` — full mail settings payload                                                     |
+| Settings  | Tester SMTP           | Active               | `POST /api/settings/mail/test-smtp`                                                                       |
+| Settings  | Tester IMAP           | Active               | `POST /api/settings/mail/test-imap`                                                                       |
+| Settings  | Signer. (signature)   | Active               | Fetches current settings, then `PUT /api/settings/mail`                                                   |
 
 ---
 

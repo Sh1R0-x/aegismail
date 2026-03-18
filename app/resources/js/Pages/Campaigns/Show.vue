@@ -37,7 +37,7 @@
       <section class="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Statut</p>
-          <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.status }}</p>
+          <div class="mt-2"><StatusBadge :status="campaign.status" /></div>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Destinataires</p>
@@ -53,12 +53,26 @@
         </div>
       </section>
 
+      <!-- Progress bar -->
+      <section v-if="campaign.recipientCount > 0" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Progression</p>
+          <p class="text-xs font-bold text-slate-700">{{ campaign.progressPercent ?? 0 }}%</p>
+        </div>
+        <div class="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-500"
+            :class="campaign.progressPercent >= 100 ? 'bg-emerald-500' : 'bg-blue-500'"
+            :style="{ width: Math.min(campaign.progressPercent ?? 0, 100) + '%' }"
+          />
+        </div>
+      </section>
+
       <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Campagne</p>
             <h2 class="mt-1 text-sm font-bold text-slate-900">{{ campaign.name }}</h2>
-            <p class="mt-1 text-xs text-slate-500">Couche technique interne: draft #{{ campaign.draftId ?? '—' }}</p>
           </div>
           <span class="text-xs font-medium text-slate-400">{{ campaign.updatedAt || '—' }}</span>
         </div>
@@ -86,7 +100,7 @@
               <td class="px-6 py-4 font-bold text-slate-900">{{ recipient.email }}</td>
               <td class="px-6 py-4 text-slate-600">{{ recipient.contactName || '—' }}</td>
               <td class="px-6 py-4 text-slate-600">{{ recipient.organization || '—' }}</td>
-              <td class="px-6 py-4 text-slate-600">{{ recipient.status }}</td>
+              <td class="px-6 py-4"><StatusBadge :status="recipient.status" /></td>
               <td class="px-6 py-4 text-slate-500">{{ recipient.scheduledFor || '—' }}</td>
             </tr>
           </tbody>
@@ -102,6 +116,7 @@ import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CampaignEditor from '@/Components/Campaigns/CampaignEditor.vue';
+import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 
 const props = defineProps({
   campaign: { type: Object, required: true },
