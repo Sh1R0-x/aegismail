@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\CampaignCreateController;
 use App\Http\Controllers\Web\CampaignShowController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DraftsController;
+use App\Http\Controllers\Web\MailingTrackingController;
 use App\Http\Controllers\Web\MailsController;
 use App\Http\Controllers\Web\OrganizationShowController;
 use App\Http\Controllers\Web\OrganizationsController;
@@ -20,6 +21,9 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return redirect('/dashboard');
 });
+
+Route::get('/t/o/{token}.gif', [MailingTrackingController::class, 'open'])->name('mailings.track.open');
+Route::get('/t/c/{token}', [MailingTrackingController::class, 'click'])->name('mailings.track.click');
 
 Route::get('/dashboard', DashboardController::class);
 

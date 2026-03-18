@@ -2,6 +2,7 @@
 
 namespace App\Services\Mailing\Inbound;
 
+use App\Models\MailEvent;
 use App\Models\MailMessage;
 use App\Models\MailThread;
 use Illuminate\Support\Carbon;
@@ -10,7 +11,7 @@ class MailboxActivityService
 {
     public function activity(): array
     {
-        $events = MailMessage::query()
+        $messageEvents = MailMessage::query()
             ->with(['thread.contact.organization'])
             ->orderByRaw('coalesce(received_at, sent_at, created_at) desc')
             ->limit(100)
@@ -25,7 +26,23 @@ class MailboxActivityService
                 'isAutoReply' => in_array($message->classification, ['auto_reply', 'out_of_office', 'auto_ack'], true),
                 'isBounce' => in_array($message->classification, ['soft_bounce', 'hard_bounce'], true),
                 'date' => $this->formatDate($message->received_at ?? $message->sent_at ?? $message->created_at),
-            ])
+                'sortDate' => $message->received_at ?? $message->sent_at ?? $message->created_at,
+            ]);
+
+        $trackingEvents = MailEvent::query()
+            ->with(['mailMessage.thread.contact.organization'])
+            ->whereIn('event_type', ['mail_message.opened', 'mail_message.clicked'])
+            ->orderByDesc('occurred_at')
+            ->limit(100)
+            ->get()
+            ->map(fn (MailEvent $event): ?array => $this->trackingEvent($event))
+            ->filter();
+
+        $events = $messageEvents
+            ->concat($trackingEvents)
+            ->sortByDesc(fn (array $event) => $event['sortDate'] ?? null)
+            ->take(100)
+            ->map(fn (array $event) => collect($event)->except('sortDate')->all())
             ->values()
             ->all();
 
@@ -117,6 +134,37 @@ class MailboxActivityService
             'hard_bounce' => 'hard_bounced',
             default => 'delivered_if_known',
         };
+    }
+
+    private function trackingEvent(MailEvent $event): ?array
+    {
+        $message = $event->mailMessage;
+
+        if ($message === null) {
+            return null;
+        }
+
+        $isClick = $event->event_type === 'mail_message.clicked';
+        $contact = trim((string) ($message->thread?->contact?->first_name.' '.$message->thread?->contact?->last_name));
+        $parts = [
+            $message->from_email,
+            $contact !== '' ? $contact : null,
+            $message->thread?->contact?->organization?->name,
+            $isClick ? data_get($event->event_payload, 'url') : null,
+        ];
+
+        return [
+            'id' => 'tracking-'.$event->id,
+            'threadId' => $message->thread?->id,
+            'title' => $message->subject !== '' ? $message->subject : '(Sans objet)',
+            'description' => implode(' · ', array_filter($parts)),
+            'status' => $isClick ? 'clicked' : 'opened',
+            'direction' => 'outbound',
+            'isAutoReply' => false,
+            'isBounce' => false,
+            'date' => $this->formatDate($event->occurred_at),
+            'sortDate' => $event->occurred_at,
+        ];
     }
 
     private function formatDate(mixed $value): ?string

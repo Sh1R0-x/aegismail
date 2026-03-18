@@ -3,5 +3,20 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Dedicated mail gateway skeleton for AEGIS MAILING."
+  "description": "Dedicated mail gateway for AEGIS MAILING.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "imapflow": "^1.0.195",
+    "mailparser": "^3.7.4",
+    "nodemailer": "^7.0.6"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^22.13.14",
+    "@types/nodemailer": "^7.0.11",
+    "typescript": "^5.8.3"
+  }
 }

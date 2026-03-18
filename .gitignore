@@ -9,3 +9,5 @@ Thumbs.db
 /.vscode/*
 !/.vscode/extensions.json
 !/.vscode/settings.json
+/mail-gateway/node_modules
+/mail-gateway/dist

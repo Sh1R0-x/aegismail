@@ -15,7 +15,7 @@ export interface MailboxProbePayload {
 
 export interface GatewayResult {
   success: boolean;
-  driver: 'stub' | 'http' | 'gateway';
+  driver: 'stub' | 'http' | 'gateway' | 'ovh_mx_plan';
   message: string;
   protocol?: GatewayProtocol;
   accepted_at?: string;

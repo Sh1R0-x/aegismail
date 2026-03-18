@@ -1,6 +1,6 @@
 # AEGIS MAILING mail-gateway
 
-Ce dossier est le squelette du moteur mail dédié en Node.js + TypeScript.
+Ce dossier embarque le moteur mail dédié en Node.js + TypeScript pour la V1 OVH MX Plan.
 
 Règles figées de la V1 :
 - une seule boîte OVH MX Plan
@@ -68,5 +68,27 @@ Réponse minimale attendue pour `POST /v1/mailboxes/sync` :
 - `highest_uid`
 - `messages[]`
 
-Le backend Laravel expose déjà ces appels via un client `stub|http`.
-La prochaine phase consistera à implémenter ici le serveur TypeScript et les workers IMAP/SMTP réels.
+## Implémentation actuelle
+
+- serveur HTTP minimal sur `HOST` / `PORT` (par défaut `127.0.0.1:3001`)
+- secret partagé optionnel via `MAIL_GATEWAY_SHARED_SECRET`
+- driver réel `ovh_mx_plan`
+- `POST /v1/tests/smtp` via `nodemailer.verify()`
+- `POST /v1/messages/send` via `nodemailer.sendMail()`
+- `POST /v1/tests/imap` via `imapflow`
+- `POST /v1/mailboxes/sync` via `imapflow` + `mailparser`
+
+## Lancer le gateway
+
+```bash
+npm install
+npm run build
+node dist/index.js
+```
+
+Variables utiles :
+
+- `HOST`
+- `PORT`
+- `MAIL_GATEWAY_SHARED_SECRET`
+- `LARAVEL_APP_ROOT` pour résoudre les pièces jointes locales

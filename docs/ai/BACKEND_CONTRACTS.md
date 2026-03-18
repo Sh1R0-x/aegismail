@@ -16,6 +16,8 @@ Rules kept:
 ## Inertia routes
 
 - `GET /dashboard` -> `Dashboard`
+- `GET /t/o/{token}.gif` -> transparent 1x1 open-tracking pixel
+- `GET /t/c/{token}` -> click-tracking redirect
 - `GET /mails` -> `Mails/Index` — served by `MailsController`, payload from `ComposerPageDataService::mails()`
 - `GET /contacts` -> `Contacts/Index`
 - `GET /contacts/{contact}` -> `Contacts/Show`
@@ -97,6 +99,8 @@ Rules kept:
 - deliverable `mail_recipients` creation
 - per-recipient `mail_threads` creation
 - per-recipient `mail_messages` creation before SMTP dispatch
+- click-tracking link rewrite in HTML + text bodies when enabled
+- 1x1 open-tracking pixel injection in HTML bodies when enabled
 - queue placement on the unique queue `mail-outbound`
 - delayed dispatch according to cadence settings
 - persistence of `sent` or `failed` outcomes in `mail_messages`, `mail_recipients`, `mail_events`
@@ -108,6 +112,27 @@ Important runtime rule:
 - campaign creation stays technically `draft-first` in V1
 - operator entry is now `/campaigns/create`, not `/drafts`
 - there is still no standalone `POST /api/campaigns` create endpoint for immediate dispatch; Laravel keeps an internal draft layer and now also exposes `POST /api/campaigns/autosave` to upsert that internal draft+campaign pair without a mandatory manual "save draft" action
+
+## Tracking flow used in V1
+
+- open token = outbound `mail_messages.aegis_tracking_id`
+- click token = `{aegis_tracking_id}.{link_index}.{signature}`
+- click metadata is persisted in `mail_messages.headers_json.tracking.clicks[]`
+- open metadata is persisted in `mail_messages.headers_json.tracking.open`
+- `GET /t/o/{token}.gif` always returns a transparent GIF and, on first valid hit:
+  - sets `mail_messages.opened_first_at`
+  - upgrades `mail_recipients.status` from `sent|delivered_if_known` to `opened`
+  - updates `mail_recipients.last_event_at`
+  - logs `mail_message.opened`
+- `GET /t/c/{token}` validates the signature, redirects to the original URL and, on first valid hit:
+  - sets `mail_messages.clicked_first_at`
+  - backfills `mail_messages.opened_first_at` if still null
+  - upgrades `mail_recipients.status` from `sent|delivered_if_known|opened` to `clicked`
+  - updates `mail_recipients.last_event_at`
+  - logs `mail_message.clicked`
+- when tracking is disabled in `settings.deliverability`, no new tracking events are persisted:
+  - open endpoint stays a transparent GIF no-op
+  - click endpoint returns `404` when no tracked link metadata is available
 
 ## IMAP sync flow used in V1
 
@@ -691,7 +716,7 @@ Current inbound fallback rule:
 - `id`: required integer
 - `title`: required string
 - `description`: nullable string
-- `status`: required enum `sent|replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`
+- `status`: required enum `sent|opened|clicked|replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`
 - `direction`: required enum `outbound|inbound`
 - `isAutoReply`: required boolean
 - `isBounce`: required boolean

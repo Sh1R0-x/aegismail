@@ -49,12 +49,17 @@ Le repo Laravel sait déjà parler à un client :
 - `stub`
 - `http`
 
-Mais le dossier `mail-gateway/` reste actuellement un squelette de contrats TypeScript, pas encore un serveur Node prêt à être lancé en production.
+Le dossier `mail-gateway/` embarque maintenant un serveur Node minimal compatible avec la V1 :
+
+- `POST /v1/tests/imap`
+- `POST /v1/tests/smtp`
+- `POST /v1/messages/send`
+- `POST /v1/mailboxes/sync`
 
 Conséquence pratique :
 
 - **déploiement applicatif prêt** : oui
-- **mise en ligne complète avec SMTP/IMAP réels via gateway HTTP** : seulement si un service mail-gateway compatible est effectivement implémenté et déployé
+- **mise en ligne complète avec SMTP/IMAP réels via gateway HTTP** : oui, si ce gateway Node est effectivement lancé et supervisé sur le serveur cible
 
 ## Prérequis serveur OVH recommandés
 
@@ -111,7 +116,7 @@ Variables obligatoires à ajuster :
 - `QUEUE_CONNECTION=redis`
 - `CACHE_STORE=redis`
 - `SESSION_DRIVER=redis`
-- `MAIL_GATEWAY_DRIVER=stub` tant que le gateway HTTP réel n’est pas prêt
+- `MAIL_GATEWAY_DRIVER=http` quand le gateway Node est déployé
 
 ## Procédure de déploiement
 
@@ -454,6 +459,6 @@ Checklist détaillée :
 
 ## Risques restants
 
-- le repo n’embarque pas encore un serveur mail-gateway Node prêt pour une prod réelle ; seul le contrat Laravel `stub|http` est prêt
+- le repo embarque maintenant un gateway Node minimal, mais il faut toujours le superviser proprement en production
 - un mutualisé OVH n’est pas une cible réaliste pour la V1 complète si on veut queue worker + scheduler + gateway
 - Redis reste recommandé pour une vraie cadence de production, même si `database` peut dépanner

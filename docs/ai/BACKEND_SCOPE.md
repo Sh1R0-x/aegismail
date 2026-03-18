@@ -6,10 +6,13 @@ The immediate goal is to support the existing frontend foundation with stable bu
 
 ## Current phase
 
-This phase wires CRM payloads for the existing frontend pages:
+This phase wires CRM payloads for the existing frontend pages and closes the last backend blockers for real commercial usage:
 - `/dashboard`
 - `/contacts`
 - `/organizations`
+- real OVH MX Plan SMTP dispatch through the Node mail-gateway
+- real IMAP sync through the Node mail-gateway
+- open/click tracking endpoints with persisted events
 
 It also aligns the minimum missing backend entities:
 - `organizations`
@@ -24,14 +27,16 @@ It also aligns the minimum missing backend entities:
 4. Persist and query the CRM entities needed by the frontend
 5. Compute simple score, scoreLevel, excluded, unsubscribed and lastActivityAt
 6. Compute scheduled sends, contactCount and sentCount
-7. Document exact backend/frontend contracts in `docs/ai`
+7. Deliver real SMTP send + IMAP sync through the mail-gateway
+8. Persist open/click tracking and expose it to the existing backend projections
+9. Document exact backend/frontend contracts in `docs/ai`
 
 ## Must not do now
 - build full Gmail-style integrations
 - add Google APIs or Socialite Google
 - add speculative provider abstractions
 - move UI concerns into Laravel
-- implement full SMTP send flow or full IMAP sync in this phase
+- invent provider-specific behavior outside OVH MX Plan needs
 
 ## Frozen rules to keep
 - frozen mail statuses stay unchanged

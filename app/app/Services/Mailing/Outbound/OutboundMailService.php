@@ -12,6 +12,7 @@ use App\Models\MailboxAccount;
 use App\Services\Mailing\Contracts\MailGatewayClient;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailboxSettingsService;
+use App\Services\Mailing\Tracking\MailTrackingService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class OutboundMailService
         private readonly SettingsStore $settingsStore,
         private readonly MailboxSettingsService $mailboxSettingsService,
         private readonly MailEventLogger $eventLogger,
+        private readonly MailTrackingService $trackingService,
     ) {
     }
 
@@ -179,8 +181,11 @@ class OutboundMailService
 
         $messageIdHeader = $this->messageIdHeader($mailbox->email);
         $trackingId = (string) Str::uuid();
-        $htmlBody = $this->htmlBody($draft, $mailSettings);
-        $textBody = $this->textBody($draft, $mailSettings);
+        $trackedBodies = $this->trackingService->prepareOutboundBodies(
+            $this->htmlBody($draft, $mailSettings),
+            $this->textBody($draft, $mailSettings),
+            $trackingId,
+        );
 
         $message = MailMessage::query()->create([
             'thread_id' => $thread->id,
@@ -194,13 +199,14 @@ class OutboundMailService
             'from_email' => $mailSettings['sender_email'] ?: $mailbox->email,
             'to_emails' => [$recipient->email],
             'subject' => $draft->subject,
-            'html_body' => $htmlBody,
-            'text_body' => $textBody,
+            'html_body' => $trackedBodies['html_body'],
+            'text_body' => $trackedBodies['text_body'],
             'headers_json' => [
                 'Message-ID' => $messageIdHeader,
                 'In-Reply-To' => null,
                 'References' => null,
                 'X-Aegis-Tracking-Id' => $trackingId,
+                'tracking' => $trackedBodies['tracking'],
             ],
             'classification' => 'unknown',
         ]);
