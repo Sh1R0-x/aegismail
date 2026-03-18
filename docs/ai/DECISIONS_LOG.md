@@ -1,6 +1,7 @@
 # DECISIONS_LOG.md
 
 ## Current frozen decisions
+
 - One mailbox in V1
 - OVH MX Plan only
 - No Gmail logic
@@ -37,8 +38,7 @@
 - Fake CTAs are not acceptable in V1: any visible action must now be either functional, explicitly unavailable with a reason, or removed from the UI
 - The current repo still has no coherent RBAC layer or admin policy system; backend create access is not blocked by roles in this phase
 
-- JSON-LD Organization structured data for AEGIS Network is injected in `app.blade.php` `<head>` and appears on all Inertia-served pages
-
 ## Documentation alignment
+
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.
 - `AI_COORDINATION_TREE.md` and the detailed frontend/backend annexes live under `docs/ai`.

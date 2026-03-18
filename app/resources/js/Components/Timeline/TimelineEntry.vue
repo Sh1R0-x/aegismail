@@ -16,7 +16,14 @@
     <!-- Content -->
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2">
-        <p class="text-sm font-bold text-slate-900 truncate">{{ title }}</p>
+        <Link
+          v-if="threadId"
+          :href="`/threads/${threadId}`"
+          class="text-sm font-bold text-blue-700 hover:text-blue-900 hover:underline truncate"
+        >
+          {{ title }}
+        </Link>
+        <p v-else class="text-sm font-bold text-slate-900 truncate">{{ title }}</p>
         <StatusBadge v-if="status" :status="status" />
         <span
           v-if="isAutoReply"
@@ -53,6 +60,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 
 const props = defineProps({
@@ -63,6 +71,7 @@ const props = defineProps({
   isAutoReply: { type: Boolean, default: false },
   isBounce: { type: Boolean, default: false },
   date: { type: String, default: '' },
+  threadId: { type: [Number, String], default: null },
 });
 
 const dotColor = computed(() => {

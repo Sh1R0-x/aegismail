@@ -38,12 +38,14 @@
         <SettingsCadence
           v-if="activeSection === 'cadence'"
           :settings="settings.cadence"
+          :general-settings="settings.general"
         />
 
         <!-- SCORING -->
         <SettingsScoring
           v-if="activeSection === 'scoring'"
           :settings="settings.scoring"
+          :general-settings="settings.general"
         />
 
         <!-- SIGNATURE -->

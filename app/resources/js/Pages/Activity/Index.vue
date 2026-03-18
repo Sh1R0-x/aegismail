@@ -36,6 +36,7 @@
             :is-auto-reply="event.isAutoReply"
             :is-bounce="event.isBounce"
             :date="event.date"
+            :thread-id="event.threadId"
           />
         </div>
       </div>

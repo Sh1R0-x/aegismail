@@ -21,6 +21,7 @@ class SettingsPageDataService
 
         return [
             'settings' => [
+                'general' => $general,
                 'mail' => $mail,
                 'deliverability' => array_merge($deliverability, [
                     'maxConsecutiveHardBounces' => (int) ($general['stop_on_hard_bounce_threshold'] ?? 3),

@@ -17,6 +17,7 @@ class MailboxActivityService
             ->get()
             ->map(fn (MailMessage $message): array => [
                 'id' => $message->id,
+                'threadId' => $message->thread?->id,
                 'title' => $message->subject !== '' ? $message->subject : '(Sans objet)',
                 'description' => $this->description($message),
                 'status' => $this->status($message),
