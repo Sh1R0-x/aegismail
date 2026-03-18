@@ -179,9 +179,9 @@ Date format used by the current backend:
 
 ### Actions
 
-- Archive: `POST /api/templates/{id}/archive`
-- Activate: `POST /api/templates/{id}/activate`
 - Delete: `DELETE /api/templates/{id}` — permanently deletes template, detaches linked drafts
+- Edit: `GET /templates/{id}/edit`
+- Duplicate: `POST /api/templates/{id}/duplicate`
 
 ## Campaigns
 

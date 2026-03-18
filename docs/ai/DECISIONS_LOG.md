@@ -42,6 +42,8 @@
 - Test send dispatches a single message via the gateway client without creating `MailRecipient` or `MailMessage` records; subject is prefixed with `[TEST]`
 - Application timezone is `Europe/Paris` (changed from UTC); all serializer dates use `config('app.timezone')` for consistent local display
 - Campaign Show page exposes an "unschedule" button when status is `scheduled`, calling the existing `POST /api/drafts/{draft}/unschedule` endpoint
+- Templates archive/activate UI removed in V1 closure pass; templates can only be created, edited, duplicated, or permanently deleted — no soft-archive toggle
+- Error messages referencing "preflight" in user-visible French text replaced with "vérification" for consistency with button labels
 
 ## Documentation alignment
 

@@ -97,15 +97,18 @@ test('smoke template and draft flow supports save, preflight and schedule', asyn
   await page.goto('/drafts');
   await page.getByRole('button', { name: 'Nouveau brouillon' }).click();
   await expect(page.getByRole('heading', { name: 'Corps du message' })).toBeVisible();
-  await page.getByPlaceholder('adresse@exemple.fr').fill(recipientEmail);
+  await page.getByPlaceholder('adresse@exemple.fr').first().fill(recipientEmail);
   await page.getByPlaceholder('Objet du message').fill('Draft smoke schedule');
   await page.getByPlaceholder('Rédigez votre message ici, en texte simple (sans balises HTML)…').fill('Bonjour smoke');
   await page.getByRole('button', { name: 'Sauvegarder brouillon' }).click();
   await expect(page.getByText(/Sauvegardé/i).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Vérifier (preflight)' }).click();
+  await page.getByRole('button', { name: 'Vérification avant envoi' }).click();
   await expect(page.getByText('Prêt à planifier')).toBeVisible();
   await expect(page.getByText('1/1 destinataire(s) exploitable(s)')).toBeVisible();
+
+  // Verify "send now" and "schedule" buttons appear after successful preflight
+  await expect(page.getByRole('button', { name: 'Envoyer maintenant' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Planifier' }).first().click();
   await page.locator('input[type="datetime-local"]').fill(scheduledAt.toISOString().slice(0, 16));
@@ -126,4 +129,102 @@ test('settings smtp validation exposes a precise user-facing message', async ({ 
   await page.getByRole('button', { name: 'Tester SMTP' }).click();
 
   await expect(page.getByText('Le champ l’adresse d’envoi doit être une adresse e-mail valide.')).toBeVisible();
+});
+test('template deletion removes the template from the list', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+  const templateName = `Delete Me ${Date.now()}`;
+
+  // Create a template first
+  await page.goto('/templates');
+  await page.getByRole('button', { name: 'Nouveau modèle' }).click();
+  await page.getByPlaceholder('Ex : Premier contact').fill(templateName);
+  await page.getByPlaceholder('Objet du message').fill('Objet suppression');
+  await page.getByPlaceholder('Rédigez votre message ici, en texte simple (sans balises HTML)…').fill('Corps temporaire');
+  await page.getByRole('button', { name: 'Créer le modèle' }).click();
+  await expect(page.getByText(templateName)).toBeVisible();
+
+  // Delete it via confirm dialog
+  page.on('dialog', (dialog) => dialog.accept());
+  const row = page.locator('tr', { hasText: templateName });
+  await row.getByRole('button', { name: 'Supprimer' }).click();
+
+  // Template should be gone
+  await expect(page.getByText(templateName)).not.toBeVisible();
+
+  assertNoClientErrors();
+});
+
+test('campaign detail page shows recipients and statuses', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  // Navigate to the sent campaign "Prospection Mars"
+  await page.goto('/campaigns');
+  await page.getByRole('link', { name: 'Détails' }).first().click();
+  await expect(page).toHaveURL(/\/campaigns\/\d+$/);
+
+  // Verify campaign header metadata cards
+  await expect(page.getByRole('paragraph').filter({ hasText: 'Statut' })).toBeVisible();
+  await expect(page.getByText('Destinataires et statuts')).toBeVisible();
+
+  // Verify recipient table exists
+  await expect(page.getByRole('columnheader', { name: 'Destinataire' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Statut' })).toBeVisible();
+
+  assertNoClientErrors();
+});
+
+test('thread detail page shows messages and classification', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  // Navigate to a thread from the mails page
+  await page.goto('/mails');
+  await page.getByRole('link', { name: 'Voir' }).first().click();
+  await expect(page).toHaveURL(/\/threads\/\d+$/);
+
+  // Verify thread structure
+  await expect(page.getByText('Contact', { exact: true })).toBeVisible();
+  await expect(page.getByText('Organisation', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Dernière activité')).toBeVisible();
+
+  assertNoClientErrors();
+});
+
+test('activity page supports filtering by event type', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  await page.goto('/activity');
+  await expect(page.getByRole('heading', { name: 'Activité', exact: true })).toBeVisible();
+
+  // Verify filter dropdown is present
+  const filterSelect = page.locator('select').first();
+  await expect(filterSelect).toBeVisible();
+  await expect(filterSelect).toContainText('Tous les événements');
+
+  // Filter by replies
+  await filterSelect.selectOption({ label: 'Réponses' });
+  // Page should still load without errors
+  await expect(page.getByRole('heading', { name: 'Activité', exact: true })).toBeVisible();
+
+  assertNoClientErrors();
+});
+
+test('mails page shows quota bar and status filters', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  await page.goto('/mails');
+  await expect(page.getByRole('heading', { name: 'Mails', exact: true })).toBeVisible();
+
+  // Verify send buttons
+  await expect(page.getByRole('button', { name: 'Mail simple' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Envoi multiple' })).toBeVisible();
+
+  // Verify quota display
+  await expect(page.getByText(/envoyés aujourd/)).toBeVisible();
+
+  // Verify status filter dropdown
+  const statusFilter = page.locator('select').first();
+  await expect(statusFilter).toBeVisible();
+  await expect(statusFilter).toContainText('Tous les statuts');
+
+  assertNoClientErrors();
 });

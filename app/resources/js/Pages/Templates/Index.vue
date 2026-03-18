@@ -46,7 +46,6 @@
           <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
             <th class="px-6 py-4">Nom</th>
             <th class="px-6 py-4">Sujet</th>
-            <th class="px-6 py-4">Statut</th>
             <th class="px-6 py-4">Utilisé</th>
             <th class="px-6 py-4">Modifié</th>
             <th class="px-6 py-4 text-right">Actions</th>
@@ -60,16 +59,6 @@
           >
             <td class="px-6 py-4 font-bold text-slate-900">{{ tpl.name }}</td>
             <td class="px-6 py-4 text-slate-600 truncate max-w-xs">{{ tpl.subject || '—' }}</td>
-            <td class="px-6 py-4">
-              <span
-                :class="[
-                  'inline-flex items-center rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-wider',
-                  tpl.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500',
-                ]"
-              >
-                {{ tpl.active ? 'Actif' : 'Archivé' }}
-              </span>
-            </td>
             <td class="px-6 py-4 font-bold text-slate-600">{{ tpl.usageCount }} fois</td>
             <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ tpl.updatedAt }}</td>
             <td class="px-6 py-4 text-right space-x-3">
@@ -87,19 +76,6 @@
                 @click="duplicateTemplate(tpl.id)"
               >
                 Dupliquer
-              </button>
-              <span class="text-slate-200">·</span>
-              <button
-                :class="[
-                  'text-xs font-bold disabled:opacity-40',
-                  tpl.active
-                    ? 'text-amber-600 hover:text-amber-800'
-                    : 'text-emerald-600 hover:text-emerald-800',
-                ]"
-                :disabled="actionLoading === tpl.id"
-                @click="toggleArchive(tpl)"
-              >
-                {{ tpl.active ? 'Archiver' : 'Activer' }}
               </button>
               <span class="text-slate-200">·</span>
               <button
@@ -151,17 +127,6 @@ async function duplicateTemplate(id) {
   actionLoading.value = id;
   try {
     await axios.post(`/api/templates/${id}/duplicate`);
-    router.reload({ preserveState: false });
-  } finally {
-    actionLoading.value = null;
-  }
-}
-
-async function toggleArchive(tpl) {
-  actionLoading.value = tpl.id;
-  try {
-    const endpoint = tpl.active ? 'archive' : 'activate';
-    await axios.post(`/api/templates/${tpl.id}/${endpoint}`);
     router.reload({ preserveState: false });
   } finally {
     actionLoading.value = null;

@@ -522,7 +522,7 @@ async function runPreflight() {
     const resp = await axios.post(`/api/drafts/${draftId.value}/preflight`);
     preflight.value = resp.data.preflight;
   } catch (e) {
-    error.value = e.response?.data?.message ?? 'Erreur lors du preflight.';
+    error.value = e.response?.data?.message ?? 'Erreur lors de la vérification.';
   } finally {
     preflightLoading.value = false;
   }
