@@ -33,7 +33,9 @@ class CrmManagementService
                 'last_name' => $this->nullableString($validated['lastName'] ?? null),
                 'full_name' => $this->resolvedFullName($validated),
                 'job_title' => $this->nullableString($validated['title'] ?? null),
-                'phone' => $this->nullableString($validated['phone'] ?? null),
+                'phone' => $this->resolvedLegacyPhone($validated),
+                'phone_landline' => $this->resolvedLandlinePhone($validated),
+                'phone_mobile' => $this->resolvedMobilePhone($validated),
                 'linkedin_url' => $this->nullableString($validated['linkedinUrl'] ?? null),
                 'country' => $this->nullableString($validated['country'] ?? null),
                 'city' => $this->nullableString($validated['city'] ?? null),
@@ -87,7 +89,9 @@ class CrmManagementService
                 'last_name' => $this->nullableString($validated['lastName'] ?? null),
                 'full_name' => $this->resolvedFullName($validated),
                 'job_title' => $this->nullableString($validated['title'] ?? null),
-                'phone' => $this->nullableString($validated['phone'] ?? null),
+                'phone' => $this->resolvedLegacyPhone($validated, $contact),
+                'phone_landline' => $this->resolvedLandlinePhone($validated, $contact),
+                'phone_mobile' => $this->resolvedMobilePhone($validated, $contact),
                 'linkedin_url' => $this->nullableString($validated['linkedinUrl'] ?? null),
                 'country' => $this->nullableString($validated['country'] ?? null),
                 'city' => $this->nullableString($validated['city'] ?? null),
@@ -203,7 +207,10 @@ class CrmManagementService
             'lastName' => $contact->last_name ?? '',
             'fullName' => $contact->full_name,
             'title' => $contact->job_title,
-            'phone' => $contact->phone,
+            'primaryEmail' => $contact->contactEmails->sortByDesc('is_primary')->first()?->email,
+            'phone' => $this->displayPhone($contact),
+            'phoneLandline' => $contact->phone_landline ?: $contact->phone,
+            'phoneMobile' => $contact->phone_mobile,
             'linkedinUrl' => $contact->linkedin_url,
             'country' => $contact->country,
             'city' => $contact->city,
@@ -212,6 +219,10 @@ class CrmManagementService
             'status' => $contact->status,
             'organizationId' => $contact->organization_id,
             'organizationName' => $contact->organization?->name,
+            'organization' => $contact->organization ? [
+                'id' => $contact->organization->id,
+                'name' => $contact->organization->name,
+            ] : null,
             'emails' => $contact->contactEmails
                 ->sortByDesc('is_primary')
                 ->values()
@@ -378,9 +389,16 @@ class CrmManagementService
             'id' => $contact->id,
             'firstName' => $firstName,
             'lastName' => $lastName,
+            'fullName' => $contact->full_name ?: trim($firstName.' '.$lastName),
             'title' => $contact->job_title,
             'organization' => $contact->organization?->name,
+            'organizationId' => $contact->organization_id,
+            'organizationName' => $contact->organization?->name,
             'email' => $contact->contactEmails->first()?->email ?? '',
+            'linkedinUrl' => $contact->linkedin_url,
+            'phone' => $this->displayPhone($contact),
+            'phoneLandline' => $contact->phone_landline ?: $contact->phone,
+            'phoneMobile' => $contact->phone_mobile,
             'score' => 0,
             'scoreLevel' => 'cold',
             'excluded' => false,
@@ -434,6 +452,65 @@ class CrmManagementService
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function resolvedLandlinePhone(array $validated, ?Contact $contact = null): ?string
+    {
+        return $this->normalizedPhone(
+            $validated['phoneLandline']
+            ?? $validated['phone']
+            ?? $contact?->phone_landline
+            ?? $contact?->phone
+        );
+    }
+
+    private function resolvedMobilePhone(array $validated, ?Contact $contact = null): ?string
+    {
+        return $this->normalizedPhone(
+            $validated['phoneMobile']
+            ?? $contact?->phone_mobile
+        );
+    }
+
+    private function resolvedLegacyPhone(array $validated, ?Contact $contact = null): ?string
+    {
+        return $this->firstNonEmptyString([
+            $validated['phoneLandline'] ?? null,
+            $validated['phone'] ?? null,
+            $validated['phoneMobile'] ?? null,
+            $contact?->phone_landline,
+            $contact?->phone,
+            $contact?->phone_mobile,
+        ]);
+    }
+
+    private function displayPhone(Contact $contact): ?string
+    {
+        return $this->firstNonEmptyString([
+            $contact->phone_landline,
+            $contact->phone_mobile,
+            $contact->phone,
+        ]);
+    }
+
+    private function normalizedPhone(mixed $value): ?string
+    {
+        $phone = preg_replace('/\s+/', ' ', trim((string) $value));
+
+        return $phone !== '' ? $phone : null;
+    }
+
+    private function firstNonEmptyString(array $values): ?string
+    {
+        foreach ($values as $value) {
+            $normalized = $this->nullableString($value);
+
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return null;
     }
 
     private function latestDate(array $dates): ?Carbon

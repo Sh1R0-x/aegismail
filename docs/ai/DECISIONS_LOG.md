@@ -33,7 +33,8 @@
 - Contacts and organizations are creatable in V1 through Laravel API endpoints; page payloads expose explicit `capabilities.canCreate` and `capabilities.createEndpoint`
 - Campaign creation stays technically `draft-first` in V1, but the visible operator entry point is now `/campaigns/create`; draft remains an internal technical layer and should no longer be the visible product destination for “create campaign”
 - Campaign editing now exposes a backend autosave contract; the internal draft remains, but business flow must no longer depend on a manual "save draft" action
-- Contact imports are preview-first in V1 when possible: Laravel validates rows before confirmation, requires `organization_name` and `primary_email`, and persists recent import batches for campaign audience reuse
+- Contact imports are preview-first in V1: Laravel accepts CSV/XLSX uploads, auto-maps French/legacy aliases, never writes during dry-run, uses exact email as the only default update key, and protects confirmation with a single-use preview token
+- Contacts now persist split phones (`phone_landline`, `phone_mobile`) while keeping legacy `phone` populated for backward compatibility
 - Organizations are mandatory for manual contact creation and contact imports; deleting an organization with attached contacts is now blocked server-side
 - DNS authentication (SPF / DKIM / DMARC) remains a prerequisite managed outside the application; V1 no longer exposes embedded DNS diagnostics or manual refresh in Settings
 - Fake CTAs are not acceptable in V1: any visible action must now be either functional, explicitly unavailable with a reason, or removed from the UI

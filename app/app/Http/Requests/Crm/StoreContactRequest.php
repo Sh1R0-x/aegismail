@@ -21,6 +21,9 @@ class StoreContactRequest extends ApiFormRequest
             'title' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email:rfc', 'max:255', 'unique:contact_emails,email'],
             'phone' => ['nullable', 'string', 'max:255'],
+            'phoneLandline' => ['nullable', 'string', 'max:255'],
+            'phoneMobile' => ['nullable', 'string', 'max:255'],
+            'linkedinUrl' => ['nullable', 'url:http,https', 'max:2048'],
             'notes' => ['nullable', 'string'],
             'status' => ['nullable', 'string', 'max:50'],
         ];
@@ -36,6 +39,9 @@ class StoreContactRequest extends ApiFormRequest
             'title' => 'le poste',
             'email' => 'l’adresse e-mail',
             'phone' => 'le téléphone',
+            'phoneLandline' => 'le téléphone fixe',
+            'phoneMobile' => 'le téléphone portable',
+            'linkedinUrl' => 'le lien LinkedIn',
             'notes' => 'les notes',
             'status' => 'le statut',
         ];

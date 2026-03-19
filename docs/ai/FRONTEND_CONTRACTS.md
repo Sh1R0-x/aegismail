@@ -89,9 +89,16 @@ Date format used by the current backend:
 - `id`: required integer
 - `firstName`: required string
 - `lastName`: required string
+- `fullName`: nullable string
 - `title`: nullable string
 - `organization`: nullable string
+- `organizationId`: nullable integer
+- `organizationName`: nullable string
 - `email`: required string
+- `linkedinUrl`: nullable string
+- `phone`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
 - `score`: required integer
 - `scoreLevel`: required enum `cold|warm|interested|engaged|excluded`
 - `excluded`: required boolean
@@ -313,8 +320,12 @@ The Mails page uses a 3-tab layout:
 - `firstName`: string
 - `lastName`: string
 - `fullName`: nullable string
+- `primaryEmail`: nullable string
 - `title`: nullable string
 - `phone`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
+- `linkedinUrl`: nullable string
 - `notes`: nullable string
 - `status`: nullable string
 - `organizationId`: nullable integer
@@ -444,6 +455,7 @@ Additional blocking codes now exposed by backend preflight:
 - `bulk_unsubscribe_unavailable` — campaign bulk send requires a public HTTPS base URL for List-Unsubscribe header → guide to Settings › Deliverability
 
 Frontend handling:
+
 - All error codes include a backend-translated `message` string (French) — display as-is
 - URL-related codes (`link_*`, `image_*`, `tracking_base_url_invalid`, `bulk_unsubscribe_unavailable`) additionally show a "→ Corriger dans Réglages › Délivrabilité" guide note in the UI
 - `hasTextVersion` now reflects the truly final text/plain (after backend synthesis from HTML if needed); the frontend shows "Présente — inclus dans MIME" when true
@@ -697,24 +709,40 @@ Frontend handling:
 - `previewToken`: string (UUID, 1-hour TTL)
 - `sourceName`: string
 - `sourceType`: string
+- `detectedColumns[]`: `{ index, sourceHeader, normalizedHeader, field, label, retained }`
+- `mapping`: object keyed by backend contract field (`organizationName`, `firstName`, `lastName`, `primaryEmail`, `linkedinUrl`, `phoneLandline`, `phoneMobile`, ...)
+- `sampleRows[]`: raw row samples echoed with original CSV headers
+- `persistedFields[]`: `{ field, label, persistsTo }`
 - `summary.totalRows`: integer
 - `summary.validRows`: integer
+- `summary.createRows`: integer
+- `summary.updateRows`: integer
+- `summary.skipRows`: integer
+- `summary.errorRows`: integer
 - `summary.invalidRows`: integer
 - `summary.duplicateExistingRows`: integer
 - `summary.duplicateFileRows`: integer
 - `summary.organizationMatches`: integer
 - `summary.organizationCreates`: integer
-- `rows[]`: each with `{ lineNumber, status('valid'|'invalid'|'duplicate_existing'|'duplicate_in_file'), primaryEmail, name, organization.name, organization.action, reason }`
+- `counters`: `{ create, update, skip, error }`
+- `errors[]`: aggregated blocking issue groups `{ code, message, count, lineNumbers[] }`
+- `warnings[]`: aggregated warning groups `{ code, message, count, lineNumbers[] }`
+- `conflicts[]`: aggregated conflict groups `{ code, message, count, lineNumbers[] }`
+- `organizationSummary`: `{ matchedExistingCount, createdCount, keptExistingCount, missingCount }`
+- `rows[]`: each with `{ lineNumber, status('valid'|'invalid'|'duplicate_in_file'), action('create'|'update'|'skip'|'error'), primaryEmail, name, organization.name, organization.action, organizationName, linkedinUrl, phoneLandline, phoneMobile, reason, reasonCode, normalized{}, persistedFields[], errors[], warnings[], conflicts[], existingContact? }`
 
 **Import response** (`POST /api/contacts/imports`):
 
 - `message`: string
 - `batch`: batch summary object
 - `summary.importedRows`: integer
+- `summary.createdRows`: integer
+- `summary.updatedRows`: integer
 - `summary.skippedRows`: integer
+- `summary.errorRows`: integer
 - `summary.duplicateExistingRows`: integer
 - `summary.invalidRows`: integer
-- `rows[]`: each with `resultStatus('imported'|'skipped'|'duplicate_existing')`, `resultMessage`, `lineNumber`, `primaryEmail`
+- `rows[]`: each with `resultStatus('imported'|'skipped'|'error')`, `resultAction('create'|'update'|'skip'|'error')`, `resultMessage`, `lineNumber`, `primaryEmail`
 
 ---
 

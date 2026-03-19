@@ -32,6 +32,9 @@ class UpdateContactRequest extends ApiFormRequest
                 Rule::unique('contact_emails', 'email')->ignore($primaryEmailId),
             ],
             'phone' => ['nullable', 'string', 'max:255'],
+            'phoneLandline' => ['nullable', 'string', 'max:255'],
+            'phoneMobile' => ['nullable', 'string', 'max:255'],
+            'linkedinUrl' => ['nullable', 'url:http,https', 'max:2048'],
             'notes' => ['nullable', 'string'],
             'status' => ['nullable', 'string', 'max:50'],
         ];
@@ -47,6 +50,9 @@ class UpdateContactRequest extends ApiFormRequest
             'title' => 'le poste',
             'email' => 'l’adresse e-mail principale',
             'phone' => 'le téléphone',
+            'phoneLandline' => 'le téléphone fixe',
+            'phoneMobile' => 'le téléphone portable',
+            'linkedinUrl' => 'le lien LinkedIn',
             'notes' => 'les notes',
             'status' => 'le statut',
         ];

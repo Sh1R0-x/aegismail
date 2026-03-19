@@ -18,6 +18,8 @@ class Contact extends Model
         'full_name',
         'job_title',
         'phone',
+        'phone_landline',
+        'phone_mobile',
         'linkedin_url',
         'country',
         'city',

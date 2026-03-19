@@ -129,7 +129,11 @@ class CrmPagePayloadTest extends TestCase
                     ->where('lastName', 'Martin')
                     ->where('title', 'Head of Sales')
                     ->where('organization', 'Acme')
+                    ->where('organizationName', 'Acme')
                     ->where('email', 'alice@acme.test')
+                    ->where('linkedinUrl', 'https://linkedin.test/alice')
+                    ->where('phoneLandline', '+33102030405')
+                    ->where('phoneMobile', '+33601020304')
                     ->where('score', 10)
                     ->where('scoreLevel', 'engaged')
                     ->where('excluded', false)
@@ -219,6 +223,10 @@ class CrmPagePayloadTest extends TestCase
                 ->where('contact.id', $alice->id)
                 ->where('contact.firstName', 'Alice')
                 ->where('contact.organizationName', 'Acme')
+                ->where('contact.primaryEmail', 'alice@acme.test')
+                ->where('contact.linkedinUrl', 'https://linkedin.test/alice')
+                ->where('contact.phoneLandline', '+33102030405')
+                ->where('contact.phoneMobile', '+33601020304')
                 ->has('contact.emails', 1)
                 ->where('contact.emails.0.email', 'alice@acme.test')
                 ->has('contact.recentThreads', 1)
@@ -290,6 +298,10 @@ class CrmPagePayloadTest extends TestCase
             'first_name' => 'Alice',
             'last_name' => 'Martin',
             'job_title' => 'Head of Sales',
+            'linkedin_url' => 'https://linkedin.test/alice',
+            'phone' => '+33102030405',
+            'phone_landline' => '+33102030405',
+            'phone_mobile' => '+33601020304',
         ]);
 
         $bob = Contact::query()->create([

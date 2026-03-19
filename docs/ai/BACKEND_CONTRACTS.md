@@ -495,12 +495,14 @@ Rules:
 ### contacts
 
 - `id`: required integer
-- `organization_id`: required integer in all manual create/update and import flows
+- `organization_id`: required integer for manual create/update; import can preserve the existing linked organization on exact-email updates
 - `first_name`: nullable string
 - `last_name`: nullable string
 - `full_name`: nullable string
 - `job_title`: nullable string
 - `phone`: nullable string
+- `phone_landline`: nullable string
+- `phone_mobile`: nullable string
 - `linkedin_url`: nullable string
 - `country`: nullable string
 - `city`: nullable string
@@ -517,6 +519,9 @@ Rules:
 - `title`: nullable string
 - `email`: required string, unique on `contact_emails.email`
 - `phone`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
+- `linkedinUrl`: nullable `http|https` URL
 - `notes`: nullable string
 - `status`: nullable string
 
@@ -530,9 +535,16 @@ Rules:
 - `id`: required integer
 - `firstName`: required string
 - `lastName`: required string
+- `fullName`: nullable string
 - `title`: nullable string
 - `organization`: nullable string
+- `organizationId`: nullable integer
+- `organizationName`: nullable string
 - `email`: required string
+- `linkedinUrl`: nullable string
+- `phone`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
 - `score`: required integer
 - `scoreLevel`: required enum `cold|warm|interested|engaged|excluded`
 - `excluded`: required boolean
@@ -546,8 +558,11 @@ Rules:
 - `contact.firstName`: required string
 - `contact.lastName`: required string
 - `contact.fullName`: nullable string
+- `contact.primaryEmail`: nullable string
 - `contact.title`: nullable string
 - `contact.phone`: nullable string
+- `contact.phoneLandline`: nullable string
+- `contact.phoneMobile`: nullable string
 - `contact.linkedinUrl`: nullable string
 - `contact.country`: nullable string
 - `contact.city`: nullable string
@@ -569,6 +584,9 @@ Rules:
 - `title`: nullable string
 - `email`: required string, unique on `contact_emails.email` excluding the current primary email
 - `phone`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
+- `linkedinUrl`: nullable `http|https` URL
 - `notes`: nullable string
 - `status`: nullable string
 
@@ -589,37 +607,71 @@ Response shape:
 - `preview.previewToken`: required string
 - `preview.sourceName`: required string
 - `preview.sourceType`: required enum `csv|txt|xlsx`
+- `preview.detectedColumns`: required array
+- `preview.mapping`: required object
+- `preview.sampleRows`: required array
+- `preview.persistedFields`: required array
 - `preview.summary`: required object
+- `preview.counters`: required object
+- `preview.errors`: required array
+- `preview.warnings`: required array
+- `preview.conflicts`: required array
+- `preview.organizationSummary`: required object
 - `preview.rows`: required array
 
 `preview.summary`:
 
 - `totalRows`: required integer
 - `validRows`: required integer
+- `createRows`: required integer
+- `updateRows`: required integer
+- `skipRows`: required integer
+- `errorRows`: required integer
 - `invalidRows`: required integer
 - `duplicateExistingRows`: required integer
 - `duplicateFileRows`: required integer
 - `organizationMatches`: required integer
 - `organizationCreates`: required integer
 
+`preview.counters`:
+
+- `create`: required integer
+- `update`: required integer
+- `skip`: required integer
+- `error`: required integer
+
 `preview.rows[]`:
 
 - `lineNumber`: required integer
-- `status`: required enum `valid|invalid|duplicate_existing|duplicate_in_file`
+- `status`: required enum `valid|invalid|duplicate_in_file`
+- `action`: required enum `create|update|skip|error`
 - `reasonCode`: nullable string
 - `reason`: nullable string
+- `primaryEmail`: nullable string
+- `name`: nullable string
+- `organizationName`: nullable string
+- `linkedinUrl`: nullable string
+- `phoneLandline`: nullable string
+- `phoneMobile`: nullable string
 - `organization`: required object
+- `normalized`: required object
+- `persistedFields`: required array
+- `errors`: required array
+- `warnings`: required array
+- `conflicts`: required array
 - `contact`: required object
+- `existingContact`: nullable object
 
 Business rules now enforced during preview/import:
 
-- `organization_name` is required
-- `primary_email` is required
-- one row maps to one contact
-- `primary_email` is deduped against existing contacts and inside the file
-- a contact import always resolves to an organization
-- organizations match first on exact domain, then on normalized exact name, otherwise Laravel creates the organization
-- invalid or skipped rows keep an explicit reason
+- the dry-run never writes contacts or organizations
+- `primary_email` is the minimum reliable dedupe key
+- exact email match previews as `action = update`
+- duplicate emails inside the same file preview as `action = skip`
+- new contacts require a company; existing contacts may keep their linked organization when the CSV omits or conflicts on company
+- organizations match first on exact domain, then on normalized exact name, otherwise Laravel creates the organization at confirmation time
+- invalid or skipped rows keep an explicit reason, warnings, or conflict code
+- confirmation is single-use per `previewToken`
 
 ### Contact import confirm contract
 
@@ -646,25 +698,36 @@ Response shape:
 - `summary`: required object
 - `processedAt`: nullable ISO-8601 string
 
+`summary`:
+
+- `totalRows`: required integer
+- `importedRows`: required integer
+- `createdRows`: required integer
+- `updatedRows`: required integer
+- `skippedRows`: required integer
+- `errorRows`: required integer
+- `invalidRows`: required integer
+- `duplicateExistingRows`: required integer
+- `counters.create|update|skip|error`: required integers
+
+`rows[]`:
+
+- `resultStatus`: required enum `imported|skipped|error`
+- `resultAction`: required enum `create|update|skip|error`
+- `resultMessage`: required string
+- preview row fields are echoed back for frontend display
+
 ### Contact import template download
 
 `GET /api/contacts/imports/template` returns a CSV download whose headers are:
 
-- `organization_name`
-- `organization_domain`
-- `organization_website`
-- `contact_first_name`
-- `contact_last_name`
-- `contact_full_name`
-- `job_title`
-- `primary_email`
-- `secondary_email`
-- `phone`
-- `linkedin_url`
-- `country`
-- `city`
-- `tags`
-- `notes`
+- `societe`
+- `prenom`
+- `nom`
+- `email`
+- `linkedin`
+- `telephone_fixe`
+- `telephone_portable`
 
 ### POST /api/contacts/{contact}/emails request
 

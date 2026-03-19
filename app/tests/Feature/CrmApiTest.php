@@ -55,7 +55,9 @@ class CrmApiTest extends TestCase
             'lastName' => 'Martin',
             'title' => 'Head of Sales',
             'email' => 'ALICE@ACME.TEST',
-            'phone' => '+33102030405',
+            'linkedinUrl' => 'https://linkedin.test/alice',
+            'phoneLandline' => '+33102030405',
+            'phoneMobile' => '+33601020304',
             'notes' => 'Premier contact',
             'status' => 'active',
         ]);
@@ -66,6 +68,9 @@ class CrmApiTest extends TestCase
             ->assertJsonPath('contact.lastName', 'Martin')
             ->assertJsonPath('contact.organization', 'Acme Industries')
             ->assertJsonPath('contact.email', 'alice@acme.test')
+            ->assertJsonPath('contact.linkedinUrl', 'https://linkedin.test/alice')
+            ->assertJsonPath('contact.phoneLandline', '+33102030405')
+            ->assertJsonPath('contact.phoneMobile', '+33601020304')
             ->assertJsonPath('contact.score', 0)
             ->assertJsonPath('contact.scoreLevel', 'cold')
             ->assertJsonPath('contact.excluded', false)
@@ -78,6 +83,9 @@ class CrmApiTest extends TestCase
             'last_name' => 'Martin',
             'job_title' => 'Head of Sales',
             'phone' => '+33102030405',
+            'phone_landline' => '+33102030405',
+            'phone_mobile' => '+33601020304',
+            'linkedin_url' => 'https://linkedin.test/alice',
             'notes' => 'Premier contact',
             'status' => 'active',
         ]);
@@ -258,6 +266,7 @@ class CrmApiTest extends TestCase
         $this->getJson('/api/contacts/'.$contact->id)
             ->assertOk()
             ->assertJsonPath('contact.organizationName', 'Acme Industries')
+            ->assertJsonPath('contact.primaryEmail', 'alice@acme.test')
             ->assertJsonPath('contact.emails.0.email', 'alice@acme.test')
             ->assertJsonPath('contact.recentThreads.0.id', $thread->id);
 
@@ -267,13 +276,18 @@ class CrmApiTest extends TestCase
             'lastName' => 'Martin',
             'title' => 'VP Sales',
             'email' => 'alicia@globex.test',
-            'phone' => '+33102030405',
+            'linkedinUrl' => 'https://linkedin.test/alicia',
+            'phoneLandline' => '+33102030405',
+            'phoneMobile' => '+33601020304',
             'notes' => 'Contact réassigné',
             'status' => 'active',
         ])->assertOk()
             ->assertJsonPath('message', 'Contact mis à jour.')
             ->assertJsonPath('contact.firstName', 'Alicia')
             ->assertJsonPath('contact.organizationName', 'Globex')
+            ->assertJsonPath('contact.linkedinUrl', 'https://linkedin.test/alicia')
+            ->assertJsonPath('contact.phoneLandline', '+33102030405')
+            ->assertJsonPath('contact.phoneMobile', '+33601020304')
             ->assertJsonPath('contact.emails.0.email', 'alicia@globex.test');
 
         $this->deleteJson('/api/contacts/'.$contact->id)
