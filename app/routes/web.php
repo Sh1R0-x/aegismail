@@ -24,9 +24,10 @@ Route::get('/', function () {
     return redirect('/dashboard');
 });
 
-Route::get('/t/o/{token}.gif', [MailingTrackingController::class, 'open'])->name('mailings.track.open');
-Route::get('/t/c/{token}', [MailingTrackingController::class, 'click'])->name('mailings.track.click');
+Route::get('/t/o/{token}.gif', [MailingTrackingController::class, 'open'])->middleware('throttle:120,1')->name('mailings.track.open');
+Route::get('/t/c/{token}', [MailingTrackingController::class, 'click'])->middleware('throttle:60,1')->name('mailings.track.click');
 Route::match(['GET', 'POST'], '/u/{token}', [MailingUnsubscribeController::class, 'handle'])
+    ->middleware('throttle:10,1')
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->name('mailings.unsubscribe');
 

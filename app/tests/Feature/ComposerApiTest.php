@@ -60,14 +60,6 @@ class ComposerApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('template.name', 'Prospection V1 bis (copie)');
 
-        $this->postJson('/api/templates/'.$templateId.'/archive')
-            ->assertOk()
-            ->assertJsonPath('template.active', false);
-
-        $this->postJson('/api/templates/'.$templateId.'/activate')
-            ->assertOk()
-            ->assertJsonPath('template.active', true);
-
         $this->postJson('/api/templates', [
             'name' => 'Template texte seul',
             'subject' => 'Bonjour texte',
@@ -211,7 +203,7 @@ class ComposerApiTest extends TestCase
             'status' => 'draft',
         ]);
 
-        $this->deleteJson('/api/drafts', [
+        $this->postJson('/api/drafts/bulk-delete', [
             'ids' => [$draftA->id, $draftB->id],
         ])->assertOk()
             ->assertJsonPath('deletedCount', 2)

@@ -20,8 +20,8 @@ class DeliverabilitySettingsRequest extends ApiFormRequest
             'max_remote_images_warning_threshold' => ['required', 'integer', 'min:0', 'max:1000'],
             'html_size_warning_kb' => ['required', 'integer', 'min:1', 'max:10240'],
             'attachment_size_warning_mb' => ['required', 'integer', 'min:1', 'max:10240'],
-            'public_base_url' => ['nullable', 'string', 'max:2048'],
-            'tracking_base_url' => ['nullable', 'string', 'max:2048'],
+            'public_base_url' => ['nullable', 'url:https', 'max:2048'],
+            'tracking_base_url' => ['nullable', 'url:https', 'max:2048'],
         ];
     }
 

@@ -182,11 +182,12 @@ class DraftController extends Controller
     public function uploadAttachment(Request $request, MailDraft $draft): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'max:10240'],
+            'file' => ['required', 'file', 'max:10240', 'mimes:pdf,doc,docx,xls,xlsx,csv,txt,rtf,odt,ods,jpg,jpeg,png,gif,webp,svg,zip'],
         ], [
             'file.required' => 'Un fichier est requis.',
             'file.file' => 'Le fichier est invalide.',
             'file.max' => 'Le fichier ne peut pas dépasser 10 Mo.',
+            'file.mimes' => 'Type de fichier non autorisé. Formats acceptés : PDF, documents, tableurs, images, archives ZIP.',
         ]);
 
         $file = $request->file('file');

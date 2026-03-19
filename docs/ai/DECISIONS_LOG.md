@@ -107,6 +107,30 @@
 - All French translation audit complete: no remaining English UI labels in Vue components
 - E2E smoke navigation test updated to include the Import / Export route
 
+## Security hardening pass
+
+- API routes now have global rate limiting (`throttle:60,1` via `throttleApi`)
+- `POST /api/drafts/{draft}/test-send` rate-limited to 5 requests per minute to prevent mail flood abuse
+- `POST /api/settings/mail/test-imap` and `test-smtp` rate-limited to 5 requests per minute
+- Public tracking endpoints (`/t/o/{token}.gif`, `/t/c/{token}`) rate-limited to 120 and 60 requests per minute respectively
+- Public unsubscribe endpoint (`/u/{token}`) rate-limited to 10 requests per minute
+- Inbound email HTML is sanitized via DOMPurify before rendering with `v-html` in Threads/Show.vue — prevents stored XSS from malicious email content
+- Draft attachment uploads now validate MIME types (whitelist: pdf, doc, docx, xls, xlsx, csv, txt, rtf, odt, ods, jpg, jpeg, png, gif, webp, svg, zip)
+- HTML body and text body fields now have explicit max size limits (1 MB HTML, 500 KB text) in UpsertDraftRequest and AutosaveCampaignRequest
+- Signature fields capped at 50 KB in MailSettingsRequest
+- Deliverability settings URL fields now validate as HTTPS URLs (`url:https`) instead of plain strings
+- Draft recipient email fields now validate as RFC-compliant email addresses instead of plain strings
+- Authorization remains `return true` on all form requests — intentional for V1 single-operator model (no RBAC layer)
+
+## Dead code cleanup pass
+
+- Template archive/activate API routes removed (`POST /api/templates/{template}/archive`, `/activate`) — these were dead since the V1 closure pass removed the UI toggle
+- Legacy `DELETE /api/drafts` bulk delete route removed — superseded by `POST /api/drafts/bulk-delete`
+- Drafts/Index.vue bulk delete updated to use POST route for consistency
+- `completed` status entry removed from StatusBadge.vue — not part of the frozen status vocabulary
+- Missing error handling added to Templates/Index.vue for duplicate and delete operations
+- Missing query indexes added via migration: `mail_recipients.contact_id`, `mail_recipients.contact_email_id`, `mail_threads.contact_id`, `mail_threads.organization_id`
+
 ## Documentation alignment
 
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.

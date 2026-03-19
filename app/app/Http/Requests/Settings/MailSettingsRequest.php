@@ -16,8 +16,8 @@ class MailSettingsRequest extends ApiFormRequest
         return [
             'sender_email' => ['required', 'email:rfc', 'max:255'],
             'sender_name' => ['required', 'string', 'max:255'],
-            'global_signature_html' => ['nullable', 'string'],
-            'global_signature_text' => ['nullable', 'string'],
+            'global_signature_html' => ['nullable', 'string', 'max:50000'],
+            'global_signature_text' => ['nullable', 'string', 'max:50000'],
             'clear_signature' => ['sometimes', 'boolean'],
             'mailbox_username' => ['required', 'string', 'max:255'],
             'mailbox_password' => ['nullable', 'string', 'max:1000'],

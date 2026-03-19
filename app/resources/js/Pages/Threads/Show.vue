@@ -69,7 +69,7 @@
                 {{ expandedMessages[message.id] ? 'Masquer le contenu' : 'Afficher le contenu' }}
               </button>
               <div v-if="expandedMessages[message.id]" class="mt-3 rounded-xl border border-slate-200 bg-white p-4">
-                <div v-if="message.htmlBody" class="prose prose-sm max-w-none text-slate-700" v-html="message.htmlBody" />
+                <div v-if="message.htmlBody" class="prose prose-sm max-w-none text-slate-700" v-html="sanitizeHtml(message.htmlBody)" />
                 <pre v-else-if="message.textBody" class="whitespace-pre-wrap text-sm text-slate-700 font-sans">{{ message.textBody }}</pre>
               </div>
             </div>
@@ -85,6 +85,7 @@ import { reactive } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { formatDateFR } from '@/Utils/formatDate.js';
+import { sanitizeHtml } from '@/Utils/sanitizeHtml.js';
 
 const props = defineProps({
   thread: { type: Object, required: true },

@@ -51,8 +51,6 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `POST /api/templates`
 - `PUT /api/templates/{template}`
 - `POST /api/templates/{template}/duplicate`
-- `POST /api/templates/{template}/archive`
-- `POST /api/templates/{template}/activate`
 - `DELETE /api/templates/{template}` — permanently deletes the template; detaches linked drafts first
 
 ### Drafts
@@ -60,7 +58,6 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `GET /api/drafts`
 - `GET /api/drafts/{draft}`
 - `POST /api/drafts`
-- `DELETE /api/drafts`
 - `PUT /api/drafts/{draft}`
 - `DELETE /api/drafts/{draft}`
 - `POST /api/drafts/{draft}/duplicate`

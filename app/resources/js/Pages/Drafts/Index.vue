@@ -200,9 +200,7 @@ async function deleteSelected() {
   if (selectedIds.value.length === 0) return;
   if (!window.confirm(`Supprimer ${selectedIds.value.length} brouillon(s) ?`)) return;
 
-  await axios.delete('/api/drafts', {
-    data: { ids: selectedIds.value },
-  });
+  await axios.post('/api/drafts/bulk-delete', { ids: selectedIds.value });
   clearSelection();
   router.reload({ preserveState: false });
 }

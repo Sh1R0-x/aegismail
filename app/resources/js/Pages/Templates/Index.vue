@@ -31,6 +31,9 @@
     />
 
     <div v-else class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div v-if="errorMessage" class="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+        {{ errorMessage }}
+      </div>
       <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
         <h2 class="text-sm font-bold text-slate-900">Modèles d'e-mail</h2>
         <span class="text-xs font-bold text-slate-400">{{ templates.length }} modèle(s)</span>
@@ -108,6 +111,7 @@ defineProps({
 const editorOpen     = ref(false);
 const editingTemplate = ref(null);
 const actionLoading  = ref(null);
+const errorMessage   = ref('');
 
 function openEditor(template) {
   editingTemplate.value = template;
@@ -126,9 +130,12 @@ function onSaved() {
 
 async function duplicateTemplate(id) {
   actionLoading.value = id;
+  errorMessage.value = '';
   try {
     await axios.post(`/api/templates/${id}/duplicate`);
     router.reload({ preserveState: false });
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Erreur lors de la duplication du modèle.';
   } finally {
     actionLoading.value = null;
   }
@@ -137,9 +144,12 @@ async function duplicateTemplate(id) {
 async function deleteTemplate(tpl) {
   if (!confirm(`Supprimer le modèle « ${tpl.name} » ? Cette action est irréversible.`)) return;
   actionLoading.value = tpl.id;
+  errorMessage.value = '';
   try {
     await axios.delete(`/api/templates/${tpl.id}`);
     router.reload({ preserveState: false });
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Erreur lors de la suppression du modèle.';
   } finally {
     actionLoading.value = null;
   }
