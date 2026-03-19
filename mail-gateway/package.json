@@ -6,7 +6,8 @@
   "description": "Dedicated mail gateway for AEGIS MAILING.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test tests/**/*.test.mjs"
   },
   "dependencies": {
     "imapflow": "^1.0.195",

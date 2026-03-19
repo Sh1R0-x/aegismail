@@ -430,6 +430,18 @@ Text-first behavior used by the backend:
 - `htmlBody` is optional
 - preflight blocks scheduling only when both bodies are empty
 - if `htmlBody` is empty but `textBody` exists, backend generates a minimal HTML body at dispatch time
+- if `textBody` is empty but `htmlBody` exists, backend generates a plain-text body at dispatch time
+
+Additional blocking codes now exposed by backend preflight:
+
+- `link_requires_public_base`
+- `link_not_https`
+- `link_not_public`
+- `image_requires_public_base`
+- `image_not_https`
+- `image_not_public`
+- `tracking_base_url_invalid`
+- `bulk_unsubscribe_unavailable`
 
 ### TemplateEditor
 
@@ -679,6 +691,12 @@ Text-first behavior used by the backend:
 - `maxImages`: integer
 - `maxHtmlSizeKb`: integer
 - `maxAttachmentSizeMb`: integer
+- `publicBaseUrl`: nullable string
+- `trackingBaseUrl`: nullable string
+- `publicBaseUrlStatus`: `'valid' | 'missing' | 'invalid'`
+- `trackingBaseUrlStatus`: `'valid' | 'missing' | 'invalid'`
+- `publicBaseUrlIssue`: nullable string
+- `trackingBaseUrlIssue`: nullable string
 - `checks.spf`: DeliverabilityCheck
 - `checks.dkim`: DeliverabilityCheck
 - `checks.dmarc`: DeliverabilityCheck
@@ -695,6 +713,21 @@ Text-first behavior used by the backend:
 
 - `POST /api/settings/deliverability/checks/refresh` with `{ mechanisms: ['spf','dkim','dmarc'] }`
 - Response: `{ message, deliverability }` — `deliverability` has same shape as above
+
+**Save API:**
+
+- `PUT /api/settings/deliverability`
+- request body includes:
+    - `tracking_opens_enabled`
+    - `tracking_clicks_enabled`
+    - `max_links_warning_threshold`
+    - `max_remote_images_warning_threshold`
+    - `html_size_warning_kb`
+    - `attachment_size_warning_mb`
+    - `domain_override`
+    - `public_base_url`
+    - `tracking_base_url`
+    - `dkim_selectors`
 
 **UI states covered:**
 

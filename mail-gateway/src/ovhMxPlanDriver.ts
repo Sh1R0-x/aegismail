@@ -13,6 +13,7 @@ import type {
 
 const DRIVER = 'ovh_mx_plan';
 const PROTECTED_HEADERS = new Set(['message-id', 'in-reply-to', 'references']);
+const INTERNAL_HEADERS = new Set(['tracking', 'gateway', 'gateway_error']);
 
 export class OvhMxPlanDriver {
   async testImap(payload: MailboxProbePayload): Promise<GatewayResult> {
@@ -230,12 +231,28 @@ export class OvhMxPlanDriver {
     const headers: Record<string, string | string[]> = {};
 
     for (const [key, value] of Object.entries(input)) {
-      if (PROTECTED_HEADERS.has(key.toLowerCase()) || value === null || value === undefined) {
+      if (
+        PROTECTED_HEADERS.has(key.toLowerCase())
+        || INTERNAL_HEADERS.has(key.toLowerCase())
+        || value === null
+        || value === undefined
+      ) {
         continue;
       }
 
       if (Array.isArray(value)) {
-        headers[key] = value.map((entry) => this.stringifyHeaderValue(entry));
+        const flattened = value
+          .filter((entry) => ['string', 'number', 'boolean'].includes(typeof entry))
+          .map((entry) => this.stringifyHeaderValue(entry));
+
+        if (flattened.length > 0) {
+          headers[key] = flattened;
+        }
+
+        continue;
+      }
+
+      if (typeof value === 'object') {
         continue;
       }
 

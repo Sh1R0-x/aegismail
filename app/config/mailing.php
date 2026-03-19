@@ -62,6 +62,8 @@ return [
             'html_size_warning_kb' => 100,
             'attachment_size_warning_mb' => 10,
             'domain_override' => null,
+            'public_base_url' => env('MAIL_PUBLIC_BASE_URL'),
+            'tracking_base_url' => env('MAIL_TRACKING_BASE_URL'),
             'dkim_selectors' => ['selector1', 'selector2', 'default', 'mail'],
             'checks' => [],
         ],

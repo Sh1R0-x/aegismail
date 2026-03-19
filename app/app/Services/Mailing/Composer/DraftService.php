@@ -7,9 +7,12 @@ use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailEvent;
 use App\Models\MailMessage;
+use App\Services\Mailing\Contracts\MailGatewayClient;
+use App\Services\Mailing\EmailContentService;
 use App\Services\Mailing\MailboxSettingsService;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\Outbound\OutboundMailService;
+use App\Services\Mailing\PublicEmailUrlService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,8 @@ class DraftService
         private readonly CampaignService $campaignService,
         private readonly DraftPreflightService $preflightService,
         private readonly OutboundMailService $outboundMailService,
+        private readonly EmailContentService $emailContentService,
+        private readonly PublicEmailUrlService $publicEmailUrlService,
     ) {}
 
     public function list(): array
@@ -311,23 +316,27 @@ class DraftService
 
         $mailSettings = $this->mailboxSettingsService->getSettings();
         $connection = $this->mailboxSettingsService->getConnectionConfiguration();
-        $gatewayClient = app(\App\Services\Mailing\Contracts\MailGatewayClient::class);
+        $gatewayClient = app(MailGatewayClient::class);
+        $preparedBodies = $this->emailContentService->prepareBodies(
+            $draft->html_body,
+            $draft->text_body,
+            $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? null),
+            $mailSettings['global_signature_text'] ?? null,
+        );
 
-        $textBody = trim((string) $draft->text_body);
-        $htmlBody = trim((string) $draft->html_body);
+        if ($preparedBodies['analysis']['issues'] !== []) {
+            $group = collect($preparedBodies['analysis']['issues'])->groupBy('code')->first();
+            $firstCode = $group?->first()['code'] ?? 'link_not_public';
+            [$kind, $issue] = explode('_', $firstCode, 2);
 
-        $signatureText = $mailSettings['global_signature_text'] ?? '';
-        $signatureHtml = $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? '');
-
-        if ($textBody !== '' && $signatureText !== '') {
-            $textBody .= "\n\n".$signatureText;
-        }
-        if ($htmlBody !== '' && $signatureHtml !== '') {
-            $htmlBody .= $signatureHtml;
-        }
-
-        if ($htmlBody === '' && $textBody !== '') {
-            $htmlBody = '<pre style="font-family:sans-serif;white-space:pre-wrap">'.e($textBody).'</pre>';
+            throw ValidationException::withMessages([
+                'body' => [$this->publicEmailUrlService->issueMessage(
+                    $kind,
+                    $issue,
+                    $group?->count() ?? 1,
+                    $group?->pluck('url')->filter()->unique()->take(2)->values()->all() ?? [],
+                )],
+            ]);
         }
 
         $payload = [
@@ -347,8 +356,8 @@ class DraftService
             'from_name' => $mailbox->display_name,
             'to_emails' => [$testEmail],
             'subject' => '[TEST] '.($draft->subject ?: '(Sans objet)'),
-            'html_body' => $htmlBody,
-            'text_body' => $textBody,
+            'html_body' => $preparedBodies['html_body'],
+            'text_body' => $preparedBodies['text_body'],
             'message_id_header' => '<test-'.now()->timestamp.'-'.uniqid().'@'.($mailbox->email ? explode('@', $mailbox->email)[1] : 'aegis.local').'>',
             'in_reply_to_header' => null,
             'references_header' => null,

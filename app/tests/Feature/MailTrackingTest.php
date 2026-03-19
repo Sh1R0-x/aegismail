@@ -4,14 +4,15 @@ namespace Tests\Feature;
 
 use App\Models\Contact;
 use App\Models\ContactEmail;
+use App\Models\MailboxAccount;
 use App\Models\MailDraft;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
-use App\Models\MailboxAccount;
 use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class MailTrackingTest extends TestCase
@@ -27,7 +28,7 @@ class MailTrackingTest extends TestCase
 
     public function test_outbound_queue_injects_open_pixel_and_rewrites_links_before_dispatch(): void
     {
-        config(['app.url' => 'https://mail.aegis.test']);
+        config(['app.url' => 'https://mail.example.com']);
 
         [$contact, $primaryEmail] = $this->seedContacts();
 
@@ -35,8 +36,8 @@ class MailTrackingTest extends TestCase
             'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
             'mode' => 'single',
             'subject' => 'Tracking injection',
-            'html_body' => '<p>Bonjour <a href="https://example.test/html-offer">offre HTML</a></p>',
-            'text_body' => 'Version texte https://example.test/text-offer',
+            'html_body' => '<p>Bonjour <a href="https://www.example.com/html-offer">offre HTML</a></p>',
+            'text_body' => 'Version texte https://www.example.com/text-offer',
             'payload_json' => [
                 'recipients' => [[
                     'contactId' => $contact->id,
@@ -57,17 +58,21 @@ class MailTrackingTest extends TestCase
         $this->assertStringContainsString('/t/o/'.$message->aegis_tracking_id.'.gif', (string) $message->html_body);
         $this->assertStringContainsString('/t/c/'.$message->aegis_tracking_id.'.1.', (string) $message->html_body);
         $this->assertStringContainsString('/t/c/'.$message->aegis_tracking_id.'.2.', (string) $message->text_body);
-        $this->assertSame('https://example.test/html-offer', data_get($message->headers_json, 'tracking.clicks.0.url'));
-        $this->assertSame('https://example.test/text-offer', data_get($message->headers_json, 'tracking.clicks.1.url'));
-        $this->assertStringEndsWith(
-            '/t/o/'.$message->aegis_tracking_id.'.gif',
+        $this->assertSame('https://www.example.com/html-offer', data_get($message->headers_json, 'tracking.clicks.0.url'));
+        $this->assertSame('https://www.example.com/text-offer', data_get($message->headers_json, 'tracking.clicks.1.url'));
+        $this->assertSame(
+            'https://track.example.com/t/o/'.$message->aegis_tracking_id.'.gif',
             (string) data_get($message->headers_json, 'tracking.open.url')
         );
+        $this->assertStringNotContainsString('localhost', (string) $message->html_body);
+        $this->assertStringNotContainsString('127.0.0.1', (string) $message->html_body);
+        $this->assertStringNotContainsString('localhost', (string) $message->text_body);
+        $this->assertStringNotContainsString('127.0.0.1', (string) $message->text_body);
     }
 
     public function test_open_and_click_tracking_routes_update_message_and_recipient_state(): void
     {
-        config(['app.url' => 'https://mail.aegis.test']);
+        config(['app.url' => 'https://mail.example.com']);
         Carbon::setTestNow('2026-03-20 10:00:00');
 
         [$contact, $primaryEmail] = $this->seedContacts();
@@ -76,7 +81,7 @@ class MailTrackingTest extends TestCase
             'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
             'mode' => 'single',
             'subject' => 'Tracking state',
-            'html_body' => '<p><a href="https://example.test/proposal">Voir la proposition</a></p>',
+            'html_body' => '<p><a href="https://www.example.com/proposal">Voir la proposition</a></p>',
             'text_body' => 'Voir la proposition',
             'payload_json' => [
                 'recipients' => [[
@@ -104,7 +109,7 @@ class MailTrackingTest extends TestCase
         Carbon::setTestNow('2026-03-20 10:05:00');
 
         $this->get(route('mailings.track.click', ['token' => $clickToken]))
-            ->assertRedirect('https://example.test/proposal');
+            ->assertRedirect('https://www.example.com/proposal');
 
         $message->refresh();
         $recipient->refresh();
@@ -119,10 +124,10 @@ class MailTrackingTest extends TestCase
 
         $this->get('/activity')
             ->assertOk()
-            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Activity/Index')
                 ->has('events', 3)
-                ->has('events.0', fn (\Inertia\Testing\AssertableInertia $event) => $event
+                ->has('events.0', fn (AssertableInertia $event) => $event
                     ->where('status', 'clicked')
                     ->where('direction', 'outbound')
                     ->etc()
@@ -135,7 +140,7 @@ class MailTrackingTest extends TestCase
 
     public function test_tracking_routes_do_not_persist_events_when_tracking_is_disabled(): void
     {
-        config(['app.url' => 'https://mail.aegis.test']);
+        config(['app.url' => 'https://mail.example.com']);
         [$contact, $primaryEmail] = $this->seedContacts();
 
         Setting::query()->updateOrCreate(
@@ -143,6 +148,8 @@ class MailTrackingTest extends TestCase
             ['value_json' => array_replace(config('mailing.defaults.deliverability', []), [
                 'tracking_opens_enabled' => false,
                 'tracking_clicks_enabled' => false,
+                'public_base_url' => 'https://mail.example.com',
+                'tracking_base_url' => 'https://track.example.com',
             ])],
         );
 
@@ -150,8 +157,8 @@ class MailTrackingTest extends TestCase
             'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
             'mode' => 'single',
             'subject' => 'Tracking disabled',
-            'html_body' => '<p><a href="https://example.test/proposal">Voir</a></p>',
-            'text_body' => 'Voir https://example.test/proposal',
+            'html_body' => '<p><a href="https://www.example.com/proposal">Voir</a></p>',
+            'text_body' => 'Voir https://www.example.com/proposal',
             'payload_json' => [
                 'recipients' => [[
                     'contactId' => $contact->id,
@@ -188,14 +195,14 @@ class MailTrackingTest extends TestCase
 
     public function test_invalid_click_token_returns_not_found_without_side_effects(): void
     {
-        config(['app.url' => 'https://mail.aegis.test']);
+        config(['app.url' => 'https://mail.example.com']);
         [$contact, $primaryEmail] = $this->seedContacts();
 
         $draft = MailDraft::query()->create([
             'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
             'mode' => 'single',
             'subject' => 'Invalid token',
-            'html_body' => '<p><a href="https://example.test/proposal">Voir</a></p>',
+            'html_body' => '<p><a href="https://www.example.com/proposal">Voir</a></p>',
             'text_body' => 'Voir',
             'payload_json' => [
                 'recipients' => [[
@@ -260,6 +267,8 @@ class MailTrackingTest extends TestCase
             ['value_json' => array_replace(config('mailing.defaults.deliverability', []), [
                 'tracking_opens_enabled' => true,
                 'tracking_clicks_enabled' => true,
+                'public_base_url' => 'https://mail.example.com',
+                'tracking_base_url' => 'https://track.example.com',
             ])],
         );
     }

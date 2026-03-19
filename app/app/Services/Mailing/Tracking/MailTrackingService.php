@@ -5,7 +5,9 @@ namespace App\Services\Mailing\Tracking;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\PublicEmailUrlService;
 use App\Services\SettingsStore;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -14,8 +16,8 @@ class MailTrackingService
     public function __construct(
         private readonly SettingsStore $settingsStore,
         private readonly MailEventLogger $eventLogger,
-    ) {
-    }
+        private readonly PublicEmailUrlService $publicEmailUrlService,
+    ) {}
 
     public function prepareOutboundBodies(?string $htmlBody, ?string $textBody, string $trackingId): array
     {
@@ -314,7 +316,7 @@ class MailTrackingService
 
     private function applyRecipientTrackingOutcome(
         ?MailRecipient $recipient,
-        \Illuminate\Support\Carbon $occurredAt,
+        Carbon $occurredAt,
         callable $statusResolver,
         string $scoreBucket,
     ): void {
@@ -339,12 +341,24 @@ class MailTrackingService
 
     private function openTrackingUrl(string $token): string
     {
-        return route('mailings.track.open', ['token' => $token]);
+        $url = $this->publicEmailUrlService->trackingUrl('/t/o/'.$token.'.gif');
+
+        if ($url === null) {
+            throw new \RuntimeException('A public HTTPS tracking base URL is required before injecting tracking pixels.');
+        }
+
+        return $url;
     }
 
     private function clickTrackingUrl(string $token): string
     {
-        return route('mailings.track.click', ['token' => $token]);
+        $url = $this->publicEmailUrlService->trackingUrl('/t/c/'.$token);
+
+        if ($url === null) {
+            throw new \RuntimeException('A public HTTPS tracking base URL is required before rewriting tracked links.');
+        }
+
+        return $url;
     }
 
     private function messageRelations(MailMessage $message): array

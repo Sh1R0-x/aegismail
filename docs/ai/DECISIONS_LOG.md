@@ -61,6 +61,11 @@
 - Default local environment is now `MAIL_GATEWAY_DRIVER=http` (real sends); `stub` is reserved for automated tests only (`e2e-serve.ps1` forces stub)
 - `scripts/dev.ps1` now auto-starts mail-gateway (Node, port 3001) and queue worker (`mail-outbound,mail-sync`) alongside Laravel and Vite; all four services managed as a single dev stack
 - Send window defaults remain `09:00–18:00`; `sendNow` at night schedules for the next morning — this is intentional for deliverability. Operators who need to send outside the window must adjust settings
+- Public outbound URLs now resolve from `settings.deliverability.public_base_url` first, then `MAIL_PUBLIC_BASE_URL`, then `APP_URL`; tracking/unsubscribe URLs resolve from `settings.deliverability.tracking_base_url` first, then `MAIL_TRACKING_BASE_URL`, then the resolved public base
+- Localhost, loopback, private/reserved IPs and reserved local hostnames/TLDs are now rejected for outbound email links, tracking pixels, remote images and unsubscribe URLs
+- Outbound messages now always leave Laravel with both `text/plain` and `text/html`; the missing sibling version is synthesized from the authored body when needed
+- Bulk sends now require a public HTTPS base and emit one-click unsubscribe headers backed by `/u/{token}`
+- The Node gateway must strip internal Laravel metadata headers (`tracking`, `gateway`, `gateway_error`) before SMTP submission so only transport-safe headers are emitted on the wire
 
 ## Documentation alignment
 

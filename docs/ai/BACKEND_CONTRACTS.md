@@ -25,6 +25,8 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `GET /dashboard` -> `Dashboard`
 - `GET /t/o/{token}.gif` -> transparent 1x1 open-tracking pixel
 - `GET /t/c/{token}` -> click-tracking redirect
+- `GET /u/{token}` -> public one-click unsubscribe endpoint
+- `POST /u/{token}` -> public one-click unsubscribe endpoint, CSRF-exempt for mailbox client compatibility
 - `GET /drafts` -> **302 redirect to `/mails?tab=drafts`** — drafts are now integrated into the unified Mails hub
 - `GET /mails` -> `Mails/Index` — unified hub. Payload from `ComposerPageDataService::mails()` includes `recipients[]`, `drafts[]`, `stats{}`, `templates[]`, `filters{}`
 - `GET /contacts` -> `Contacts/Index`
@@ -98,6 +100,15 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `PUT /api/organizations/{organization}`
 - `DELETE /api/organizations/{organization}`
 
+### Settings
+
+- `GET /api/settings`
+- `PUT /api/settings/general`
+- `PUT /api/settings/mail`
+- `PUT /api/settings/deliverability`
+- `POST /api/settings/mail/test-smtp`
+- `POST /api/settings/mail/test-imap`
+
 ### Deliverability
 
 - `POST /api/settings/deliverability/checks/refresh`
@@ -153,13 +164,24 @@ HTTP 201 on success. HTTP 404 if campaign not found.
 - deliverable `mail_recipients` creation
 - per-recipient `mail_threads` creation
 - per-recipient `mail_messages` creation before SMTP dispatch
+- final outbound body preparation from authored content + global signature snapshot
+- guaranteed multipart-compatible output with both `text/plain` and `text/html`:
+    - text body is synthesized from HTML when missing
+    - HTML body is synthesized from text when missing
+- relative links and remote images are normalized against the configured public HTTPS email base before dispatch
+- dispatch is blocked when a public URL cannot be resolved safely
 - click-tracking link rewrite in HTML + text bodies when enabled
 - 1x1 open-tracking pixel injection in HTML bodies when enabled
+- bulk sends add `List-Unsubscribe`, `List-Unsubscribe-Post`, `Precedence: bulk` and `X-Auto-Response-Suppress`
 - queue placement on the unique queue `mail-outbound`
 - delayed dispatch according to cadence settings
 - persistence of `sent` or `failed` outcomes in `mail_messages`, `mail_recipients`, `mail_events`
 
 `DispatchMailMessageJob` is the Laravel → mail-gateway boundary for outbound sends.
+
+Additional boundary rule:
+
+- internal metadata under `headers_json.tracking`, `headers_json.gateway` and `headers_json.gateway_error` is persisted in Laravel but must not be forwarded as raw SMTP headers by the Node gateway
 
 Important runtime rule:
 
@@ -167,6 +189,20 @@ Important runtime rule:
 - campaign creation stays technically `draft-first` in V1
 - operator entry is now `/campaigns/create`, not `/drafts`
 - there is still no standalone `POST /api/campaigns` create endpoint for immediate dispatch; Laravel keeps an internal draft layer and now also exposes `POST /api/campaigns/autosave` to upsert that internal draft+campaign pair without a mandatory manual "save draft" action
+
+## Public email URL source of truth in V1
+
+- public email base resolution order:
+    - persisted `settings.deliverability.public_base_url`
+    - config default `MAIL_PUBLIC_BASE_URL`
+    - `APP_URL`
+- tracking/unsubscribe base resolution order:
+    - persisted `settings.deliverability.tracking_base_url`
+    - config default `MAIL_TRACKING_BASE_URL`
+    - resolved public email base
+- every resolved outbound base URL must be absolute, HTTPS and publicly reachable from the outside
+- localhost, loopback, private IPs, reserved IPs and reserved local hostnames/TLDs are rejected
+- the same rule applies to open pixels, click URLs, unsubscribe URLs, normalized HTML links and normalized remote image URLs
 
 ## Tracking flow used in V1
 
@@ -188,6 +224,26 @@ Important runtime rule:
 - when tracking is disabled in `settings.deliverability`, no new tracking events are persisted:
     - open endpoint stays a transparent GIF no-op
     - click endpoint returns `404` when no tracked link metadata is available
+
+Tracking URL generation rule:
+
+- open and click URLs are built from the resolved public tracking base URL, never from the current request host and never from a local dev URL
+
+## One-click unsubscribe flow used in V1
+
+- bulk outbound messages expose:
+    - `List-Unsubscribe: <https://.../u/{token}>`
+    - `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+- unsubscribe token = `{mail_recipient_id}.{signature}`
+- endpoint accepts both `GET` and `POST` on `/u/{token}`
+- the endpoint is deliberately CSRF-exempt to remain compatible with mailbox clients and one-click unsubscribe flows
+- on first valid unsubscribe:
+    - `mail_recipients.unsubscribe_at` is set
+    - `mail_recipients.last_event_at` is updated
+    - `mail_recipients.status` becomes `unsubscribed` unless the recipient is already in `hard_bounced`, `replied` or `auto_replied`
+    - `contact_emails.opt_out_at` is set when a linked contact email exists
+    - `contact_emails.opt_out_reason` defaults to `one_click_unsubscribe`
+    - Laravel logs `mail_recipient.unsubscribed`
 
 ## IMAP sync flow used in V1
 
@@ -324,9 +380,24 @@ Text-first rule now used by the backend:
 - `html_body` stays optional
 - preflight blocks scheduling when both `text_body` and `html_body` are empty
 - when `html_body` is empty but `text_body` is present, outbound dispatch synthesizes a minimal HTML version from the text body
+- when `text_body` is empty but `html_body` is present, outbound dispatch synthesizes a plain-text version from the HTML
 - global signature stays split:
     - `global_signature_text` is appended to the outbound text body
     - `global_signature_html` is appended to the outbound HTML body
+
+Preflight URL and MIME guards now enforced:
+
+- preflight analyzes the final outbound body after signature append and text/HTML synthesis
+- blocking error codes can include:
+    - `link_requires_public_base`
+    - `link_not_https`
+    - `link_not_public`
+    - `image_requires_public_base`
+    - `image_not_https`
+    - `image_not_public`
+    - `tracking_base_url_invalid`
+    - `bulk_unsubscribe_unavailable`
+- `hasTextVersion` reflects the final outbound `text/plain` availability, including synthesized text when HTML-only content is authored
 
 ## Validation response shape used by JSON endpoints
 
@@ -803,6 +874,12 @@ Notes:
     - `diagnostic_message`: nullable string
     - `logs`: required array
 - `settings.deliverability.refreshEndpoint` is the manual refresh endpoint
+- `settings.deliverability.publicBaseUrl`: nullable resolved public HTTPS base used for email content normalization
+- `settings.deliverability.trackingBaseUrl`: nullable resolved public HTTPS base used for open/click/unsubscribe links
+- `settings.deliverability.publicBaseUrlStatus`: required enum `valid|missing|invalid`
+- `settings.deliverability.trackingBaseUrlStatus`: required enum `valid|missing|invalid`
+- `settings.deliverability.publicBaseUrlIssue`: nullable machine-readable issue code
+- `settings.deliverability.trackingBaseUrlIssue`: nullable machine-readable issue code
 
 ## Business rules frozen for page projections
 
@@ -1122,6 +1199,17 @@ Mail settings update rule:
 - `max_remote_images_warning_threshold`
 - `html_size_warning_kb`
 - `attachment_size_warning_mb`
+- `public_base_url`
+- `tracking_base_url`
+
+Effective base URL behavior:
+
+- `public_base_url` is the explicit public HTTPS base for links, images and relative URL normalization
+- `tracking_base_url` is the explicit public HTTPS base for open/click/unsubscribe URLs
+- if `tracking_base_url` is empty, Laravel falls back to the resolved `public_base_url`
+- if `public_base_url` is empty, Laravel falls back to `APP_URL`
+- config defaults can be seeded from `MAIL_PUBLIC_BASE_URL` and `MAIL_TRACKING_BASE_URL`
+- preflight blocks tracking-dependent or bulk sends when the resolved base is missing, local, private or non-HTTPS
 
 ## Inbound business rules frozen in this phase
 

@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Services\Mailing\DeliverabilityDomainCheckService;
 use App\Services\Mailing\MailboxSettingsService;
 use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\PublicEmailUrlService;
 use App\Services\SettingsStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
@@ -24,6 +25,7 @@ class DeliverabilityChecksTest extends TestCase
             app(SettingsStore::class),
             app(MailboxSettingsService::class),
             app(MailEventLogger::class),
+            app(PublicEmailUrlService::class),
         ])->makePartial()->shouldAllowMockingProtectedMethods();
 
         $service->shouldReceive('lookupTxtRecords')

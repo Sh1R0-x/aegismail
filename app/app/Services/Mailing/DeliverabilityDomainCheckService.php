@@ -13,6 +13,7 @@ class DeliverabilityDomainCheckService
         private readonly SettingsStore $settingsStore,
         private readonly MailboxSettingsService $mailboxSettingsService,
         private readonly MailEventLogger $eventLogger,
+        private readonly PublicEmailUrlService $publicEmailUrlService,
     ) {}
 
     public function payload(): array
@@ -60,6 +61,8 @@ class DeliverabilityDomainCheckService
     {
         $checks = $this->normalizeChecks($settings['checks'] ?? []);
         $domain = $this->resolveDomain($settings, $mailSettings);
+        $publicBase = $this->publicEmailUrlService->publicBaseReport();
+        $trackingBase = $this->publicEmailUrlService->trackingBaseReport();
 
         return array_merge($settings, [
             'domain' => $domain,
@@ -75,6 +78,12 @@ class DeliverabilityDomainCheckService
             'maxImages' => (int) ($settings['max_remote_images_warning_threshold'] ?? 3),
             'maxHtmlSizeKb' => (int) ($settings['html_size_warning_kb'] ?? 100),
             'maxAttachmentSizeMb' => (int) ($settings['attachment_size_warning_mb'] ?? 10),
+            'publicBaseUrl' => $publicBase['resolved'],
+            'trackingBaseUrl' => $trackingBase['resolved'],
+            'publicBaseUrlStatus' => $publicBase['status'],
+            'trackingBaseUrlStatus' => $trackingBase['status'],
+            'publicBaseUrlIssue' => $publicBase['issue'],
+            'trackingBaseUrlIssue' => $trackingBase['issue'],
         ]);
     }
 

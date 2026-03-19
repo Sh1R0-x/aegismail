@@ -12,6 +12,8 @@ class SettingsApiTest extends TestCase
 
     public function test_it_returns_the_default_settings_snapshot(): void
     {
+        config(['app.url' => 'https://mail.example.com']);
+
         $response = $this->getJson('/api/settings');
 
         $response->assertOk()
@@ -19,6 +21,8 @@ class SettingsApiTest extends TestCase
             ->assertJsonPath('mail.mailbox_password_configured', false)
             ->assertJsonPath('general.daily_limit_default', 100)
             ->assertJsonPath('deliverability.tracking_opens_enabled', true)
+            ->assertJsonPath('deliverability.publicBaseUrl', 'https://mail.example.com')
+            ->assertJsonPath('deliverability.publicBaseUrlStatus', 'valid')
             ->assertJsonPath('deliverability.checks.spf.status', 'not_detected')
             ->assertJsonPath('deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh');
     }
@@ -158,7 +162,12 @@ class SettingsApiTest extends TestCase
             'max_remote_images_warning_threshold' => 2,
             'html_size_warning_kb' => 120,
             'attachment_size_warning_mb' => 8,
-        ])->assertOk()->assertJsonPath('deliverability.tracking_clicks_enabled', false);
+            'public_base_url' => 'https://mail.example.com',
+            'tracking_base_url' => 'https://track.example.com',
+        ])->assertOk()
+            ->assertJsonPath('deliverability.tracking_clicks_enabled', false)
+            ->assertJsonPath('deliverability.publicBaseUrl', 'https://mail.example.com')
+            ->assertJsonPath('deliverability.trackingBaseUrl', 'https://track.example.com');
 
         $this->assertDatabaseHas('settings', ['key' => 'general']);
         $this->assertDatabaseHas('settings', ['key' => 'deliverability']);

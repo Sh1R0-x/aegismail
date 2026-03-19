@@ -3,8 +3,10 @@
 namespace App\Services\Mailing\Composer;
 
 use App\Models\ContactEmail;
-use App\Models\MailDraft;
 use App\Models\MailboxAccount;
+use App\Models\MailDraft;
+use App\Services\Mailing\EmailContentService;
+use App\Services\Mailing\PublicEmailUrlService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -13,8 +15,9 @@ class DraftPreflightService
 {
     public function __construct(
         private readonly SettingsStore $settingsStore,
-    ) {
-    }
+        private readonly EmailContentService $emailContentService,
+        private readonly PublicEmailUrlService $publicEmailUrlService,
+    ) {}
 
     public function run(MailDraft $draft, ?MailboxAccount $mailbox): array
     {
@@ -28,15 +31,22 @@ class DraftPreflightService
         $excludedCount = $excludedRecipients->count();
         $invalidCount = $invalidRecipients->count();
         $attachments = $draft->attachments;
-
-        $htmlBody = (string) ($draft->html_body ?? '');
-        $textBody = (string) ($draft->text_body ?? '');
-        $linkCount = preg_match_all('/https?:\\/\\//i', $htmlBody.$textBody);
-        $remoteImageCount = preg_match_all('/<img[^>]+src=["\\\']https?:\\/\\//i', $htmlBody);
+        $mailSettings = $this->settingsStore->get('mail', config('mailing.defaults.mail', []));
+        $preparedBodies = $this->emailContentService->prepareBodies(
+            $draft->html_body,
+            $draft->text_body,
+            $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? null),
+            $mailSettings['global_signature_text'] ?? null,
+        );
+        $analysis = $preparedBodies['analysis'];
+        $htmlBody = (string) ($preparedBodies['html_body'] ?? '');
+        $textBody = (string) ($preparedBodies['text_body'] ?? '');
+        $linkCount = (int) $analysis['linkCount'];
+        $remoteImageCount = (int) $analysis['remoteImageCount'];
         $attachmentBytes = (int) $attachments->sum('size_bytes');
         $estimatedWeightBytes = strlen((string) $draft->subject) + strlen($htmlBody) + strlen($textBody) + $attachmentBytes;
         $mailboxValid = $this->mailboxValid($mailbox);
-        $hasTextVersion = filled(trim($textBody));
+        $hasTextVersion = (bool) $analysis['hasTextVersion'];
 
         $errors = [];
         $warnings = [];
@@ -55,17 +65,29 @@ class DraftPreflightService
             ];
         }
 
-        if (! filled(trim($htmlBody)) && ! filled(trim($textBody))) {
+        if (! filled(trim((string) $draft->html_body)) && ! filled(trim((string) $draft->text_body))) {
             $errors[] = [
                 'code' => 'missing_message_body',
                 'message' => 'Le message est vide. Ajoutez au moins une version texte ou HTML avant la planification.',
             ];
         }
 
-        if (! $hasTextVersion) {
-            $warnings[] = [
-                'code' => 'missing_text_version',
-                'message' => 'La version texte est absente. Elle reste recommandée même si le HTML est fourni.',
+        $this->appendContentIssueErrors($errors, $analysis['issues']);
+
+        $trackingRequired = ((bool) ($deliverabilitySettings['tracking_opens_enabled'] ?? true) && filled(trim($htmlBody)))
+            || ((bool) ($deliverabilitySettings['tracking_clicks_enabled'] ?? true) && $linkCount > 0);
+
+        if ($trackingRequired && $this->publicEmailUrlService->trackingBaseUrl() === null) {
+            $errors[] = [
+                'code' => 'tracking_base_url_invalid',
+                'message' => 'Le tracking sortant exige une URL publique HTTPS. Configurez `settings.deliverability.tracking_base_url`, `public_base_url` ou un `APP_URL` public.',
+            ];
+        }
+
+        if ($draft->mode === 'bulk' && $this->publicEmailUrlService->trackingBaseUrl() === null) {
+            $errors[] = [
+                'code' => 'bulk_unsubscribe_unavailable',
+                'message' => 'Les campagnes bulk exigent une URL publique HTTPS pour l’en-tête de désinscription.',
             ];
         }
 
@@ -139,6 +161,21 @@ class DraftPreflightService
                 ->map(fn (array $recipient) => $this->serializeRecipient($recipient, ['reason' => 'invalid_email']))
                 ->all(),
         ];
+    }
+
+    private function appendContentIssueErrors(array &$errors, array $issues): void
+    {
+        collect($issues)
+            ->groupBy('code')
+            ->each(function (Collection $group, string $code) use (&$errors): void {
+                [$kind, $issue] = explode('_', $code, 2);
+                $samples = $group->pluck('url')->filter()->unique()->take(2)->values()->all();
+
+                $errors[] = [
+                    'code' => $code,
+                    'message' => $this->publicEmailUrlService->issueMessage($kind, $issue, $group->count(), $samples),
+                ];
+            });
     }
 
     private function serializeRecipient(array $recipient, array $extra = []): array

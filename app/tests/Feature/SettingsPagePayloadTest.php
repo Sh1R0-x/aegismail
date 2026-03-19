@@ -14,6 +14,8 @@ class SettingsPagePayloadTest extends TestCase
 
     public function test_settings_page_exposes_default_payload_shape(): void
     {
+        config(['app.url' => 'https://mail.example.com']);
+
         $this->get('/settings')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
@@ -23,6 +25,7 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.cadence.dailyLimit', 100)
                 ->where('settings.scoring.replyPoints', 8)
                 ->where('settings.signature.global_signature_html', null)
+                ->where('settings.deliverability.publicBaseUrl', 'https://mail.example.com')
                 ->where('settings.deliverability.checks.spf.status', 'not_detected')
                 ->where('settings.deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh')
                 ->etc()
@@ -59,6 +62,8 @@ class SettingsPagePayloadTest extends TestCase
                 'max_remote_images_warning_threshold' => 2,
                 'html_size_warning_kb' => 80,
                 'attachment_size_warning_mb' => 5,
+                'public_base_url' => 'https://mail.example.com',
+                'tracking_base_url' => 'https://track.example.com',
                 'checks' => [
                     'spf' => [
                         'status' => 'pass',
@@ -105,6 +110,8 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.mail.sender_email', 'ops@aegis.test')
                 ->where('settings.mail.send_window_start', '08:00')
                 ->where('settings.deliverability.trackOpens', false)
+                ->where('settings.deliverability.publicBaseUrl', 'https://mail.example.com')
+                ->where('settings.deliverability.trackingBaseUrl', 'https://track.example.com')
                 ->where('settings.deliverability.maxLinks', 6)
                 ->where('settings.deliverability.checks.spf.status', 'pass')
                 ->where('settings.deliverability.checks.spf.detected_value', 'v=spf1 include:mx.ovh.com ~all')

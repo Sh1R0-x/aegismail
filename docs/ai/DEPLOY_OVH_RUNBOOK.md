@@ -98,6 +98,8 @@ Variables obligatoires à ajuster :
 - `APP_ENV=production`
 - `APP_DEBUG=false`
 - `APP_URL`
+- `MAIL_PUBLIC_BASE_URL`
+- `MAIL_TRACKING_BASE_URL` si tracking sur un sous-domaine dédié
 - `APP_KEY`
 - `DB_*`
 - `QUEUE_CONNECTION`
@@ -110,6 +112,13 @@ Variables obligatoires à ajuster :
 - `MAIL_OUTBOUND_QUEUE`
 - `MAIL_SYNC_QUEUE`
 
+Règles impératives pour les URLs publiques email :
+
+- `APP_URL`, `MAIL_PUBLIC_BASE_URL` et `MAIL_TRACKING_BASE_URL` doivent être des URLs absolues en `https://`
+- aucune de ces URLs ne doit pointer vers `localhost`, `127.0.0.1`, une IP privée ou un hostname interne
+- `MAIL_TRACKING_BASE_URL` peut être omise seulement si `MAIL_PUBLIC_BASE_URL` ou `APP_URL` fournit déjà une base publique HTTPS valide
+- `MAIL_GATEWAY_BASE_URL` est différent : c’est une URL interne entre Laravel et le service Node. Elle peut rester en `http://127.0.0.1:3001` sur le serveur et n’est jamais injectée dans les emails sortants
+
 ### Valeurs recommandées pour une vraie prod simple
 
 - `DB_CONNECTION=pgsql`
@@ -117,6 +126,9 @@ Variables obligatoires à ajuster :
 - `CACHE_STORE=redis`
 - `SESSION_DRIVER=redis`
 - `MAIL_GATEWAY_DRIVER=http` quand le gateway Node est déployé
+- `APP_URL=https://mailing.example.com`
+- `MAIL_PUBLIC_BASE_URL=https://mailing.example.com`
+- `MAIL_TRACKING_BASE_URL=https://track.example.com` si vous isolez le tracking, sinon laisser vide pour réutiliser `MAIL_PUBLIC_BASE_URL`
 
 ## Procédure de déploiement
 
@@ -162,6 +174,7 @@ php artisan key:generate --force
 Puis renseigner :
 
 - URL publique
+- URL publique email/tracking
 - base PostgreSQL
 - Redis
 - mode gateway
@@ -208,6 +221,8 @@ Vérifier :
 
 - HTTPS actif
 - `APP_URL` aligné avec le domaine réel
+- `MAIL_PUBLIC_BASE_URL` aligné avec le domaine public réellement joignable depuis une boîte externe
+- `MAIL_TRACKING_BASE_URL` aligné avec le domaine public réellement joignable depuis une boîte externe, ou vide pour fallback
 - redirection HTTP -> HTTPS
 
 ## Exemple systemd
@@ -295,6 +310,8 @@ Vérifier :
 - `sync_enabled = true`
 - fenêtre d’envoi cohérente
 - daily/hourly limits cohérents
+- `APP_URL` / `MAIL_PUBLIC_BASE_URL` / `MAIL_TRACKING_BASE_URL` cohérents et publics
+- qu’aucune signature HTML n’embarque d’image en `http://`, `localhost` ou chemin relatif non résoluble publiquement
 
 ## Logs et surveillance
 
@@ -409,6 +426,12 @@ curl -I https://aegisnetwork.fr/robots.txt
 10. Faire un preflight
 11. Planifier un draft futur
 12. Vérifier la création des jobs et recipients
+13. Vérifier la source brute d’un email réel :
+    - aucun `localhost`, `127.0.0.1` ou IP privée
+    - pixel open en `https://`
+    - lien tracké en `https://`
+    - présence de `text/plain`
+    - présence de `List-Unsubscribe` sur une campagne bulk
 
 Checklist détaillée :
 
@@ -462,3 +485,4 @@ Checklist détaillée :
 - le repo embarque maintenant un gateway Node minimal, mais il faut toujours le superviser proprement en production
 - un mutualisé OVH n’est pas une cible réaliste pour la V1 complète si on veut queue worker + scheduler + gateway
 - Redis reste recommandé pour une vraie cadence de production, même si `database` peut dépanner
+- Microsoft/Hotmail peut toujours classer un message en indésirable malgré SPF/DKIM passants si la réputation domaine/IP, le contenu ou le volume sont faibles ; ce patch corrige les défauts techniques évitables, pas la réputation intrinsèque

@@ -2,18 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\Mailing\DispatchMailMessageJob;
 use App\Models\Contact;
 use App\Models\ContactEmail;
 use App\Models\MailAttachment;
-use App\Models\MailMessage;
-use App\Models\MailDraft;
-use App\Models\MailRecipient;
 use App\Models\MailboxAccount;
+use App\Models\MailDraft;
+use App\Models\MailMessage;
+use App\Models\MailRecipient;
 use App\Models\Organization;
 use App\Models\Setting;
 use App\Services\Mailing\Contracts\MailGatewayClient;
 use App\Services\Mailing\Outbound\OutboundMailService;
-use App\Jobs\Mailing\DispatchMailMessageJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -591,7 +591,7 @@ class ComposerApiTest extends TestCase
             'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
             'mode' => 'bulk',
             'subject' => 'Preflight test',
-            'html_body' => '<p><img src="https://cdn.test/image.png"></p><a href="https://a.test">1</a><a href="https://b.test">2</a><a href="https://c.test">3</a>',
+            'html_body' => '<p><img src="https://cdn.example.com/image.png"></p><a href="https://www.example.com/a">1</a><a href="https://www.example.com/b">2</a><a href="https://www.example.com/c">3</a>',
             'text_body' => null,
             'payload_json' => [
                 'recipients' => [
@@ -623,6 +623,8 @@ class ComposerApiTest extends TestCase
                     'max_remote_images_warning_threshold' => 0,
                     'html_size_warning_kb' => 1,
                     'attachment_size_warning_mb' => 5,
+                    'public_base_url' => 'https://mail.example.com',
+                    'tracking_base_url' => 'https://track.example.com',
                 ],
             ],
         );
@@ -631,7 +633,7 @@ class ComposerApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('preflight.ok', true)
             ->assertJsonPath('preflight.mailboxValid', true)
-            ->assertJsonPath('preflight.hasTextVersion', false)
+            ->assertJsonPath('preflight.hasTextVersion', true)
             ->assertJsonPath('preflight.hasRemoteImages', true)
             ->assertJsonPath('preflight.recipientSummary.total', 4)
             ->assertJsonPath('preflight.recipientSummary.deliverable', 1)
@@ -645,7 +647,7 @@ class ComposerApiTest extends TestCase
             ->assertJsonPath('preflight.excludedRecipients.0.reason', 'hard_bounced')
             ->assertJsonPath('preflight.optOutRecipients.0.reason', 'opt_out')
             ->assertJsonPath('preflight.invalidRecipients.0.reason', 'invalid_email')
-            ->assertJsonCount(6, 'preflight.warnings');
+            ->assertJsonCount(5, 'preflight.warnings');
     }
 
     public function test_preflight_blocks_empty_message_body_but_accepts_text_first_drafts(): void
@@ -848,6 +850,18 @@ class ComposerApiTest extends TestCase
             ['key' => 'general'],
             [
                 'value_json' => config('mailing.defaults.general', []),
+            ],
+        );
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'deliverability'],
+            [
+                'value_json' => array_replace(config('mailing.defaults.deliverability', []), [
+                    'tracking_opens_enabled' => true,
+                    'tracking_clicks_enabled' => true,
+                    'public_base_url' => 'https://mail.example.com',
+                    'tracking_base_url' => 'https://track.example.com',
+                ]),
             ],
         );
     }

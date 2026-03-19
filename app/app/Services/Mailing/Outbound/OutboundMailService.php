@@ -3,20 +3,23 @@
 namespace App\Services\Mailing\Outbound;
 
 use App\Jobs\Mailing\DispatchMailMessageJob;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\MailThread;
-use App\Models\MailboxAccount;
 use App\Services\Mailing\Contracts\MailGatewayClient;
-use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\EmailContentService;
 use App\Services\Mailing\MailboxSettingsService;
+use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\MailUnsubscribeService;
 use App\Services\Mailing\Tracking\MailTrackingService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class OutboundMailService
 {
@@ -25,8 +28,9 @@ class OutboundMailService
         private readonly MailboxSettingsService $mailboxSettingsService,
         private readonly MailEventLogger $eventLogger,
         private readonly MailTrackingService $trackingService,
-    ) {
-    }
+        private readonly EmailContentService $emailContentService,
+        private readonly MailUnsubscribeService $mailUnsubscribeService,
+    ) {}
 
     public function queueCampaign(MailDraft $draft, MailCampaign $campaign, Carbon $requestedStart): MailCampaign
     {
@@ -181,11 +185,28 @@ class OutboundMailService
 
         $messageIdHeader = $this->messageIdHeader($mailbox->email);
         $trackingId = (string) Str::uuid();
+        $preparedBodies = $this->emailContentService->prepareBodies(
+            $draft->html_body,
+            $draft->text_body,
+            $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? null),
+            $mailSettings['global_signature_text'] ?? null,
+        );
         $trackedBodies = $this->trackingService->prepareOutboundBodies(
-            $this->htmlBody($draft, $mailSettings),
-            $this->textBody($draft, $mailSettings),
+            $preparedBodies['html_body'],
+            $preparedBodies['text_body'],
             $trackingId,
         );
+        $headers = [
+            'Message-ID' => $messageIdHeader,
+            'In-Reply-To' => null,
+            'References' => null,
+            'X-Aegis-Tracking-Id' => $trackingId,
+            'tracking' => $trackedBodies['tracking'],
+        ];
+
+        if ($draft->mode === 'bulk') {
+            $headers = array_replace($headers, $this->bulkHeaders($recipient));
+        }
 
         $message = MailMessage::query()->create([
             'thread_id' => $thread->id,
@@ -201,13 +222,7 @@ class OutboundMailService
             'subject' => $draft->subject,
             'html_body' => $trackedBodies['html_body'],
             'text_body' => $trackedBodies['text_body'],
-            'headers_json' => [
-                'Message-ID' => $messageIdHeader,
-                'In-Reply-To' => null,
-                'References' => null,
-                'X-Aegis-Tracking-Id' => $trackingId,
-                'tracking' => $trackedBodies['tracking'],
-            ],
+            'headers_json' => $headers,
             'classification' => 'unknown',
         ]);
 
@@ -270,6 +285,7 @@ class OutboundMailService
 
             if ($dailyCount >= $dailyLimit) {
                 $candidate = $this->applySendWindow($candidate->copy()->addDay()->startOfDay(), $mail);
+
                 continue;
             }
 
@@ -287,6 +303,7 @@ class OutboundMailService
 
             if ($hourlyCount >= $hourlyLimit) {
                 $candidate = $this->applySendWindow($candidate->copy()->addHour()->startOfHour(), $mail);
+
                 continue;
             }
 
@@ -372,7 +389,7 @@ class OutboundMailService
         $messageIdHeader = $result['message_id_header'] ?? $message->message_id_header;
         $headersJson = $this->mergeGatewayHeaders($message->headers_json ?? [], $result);
 
-        DB::transaction(function () use ($message, $recipient, $campaign, $result, $sentAt, $messageIdHeader, $headersJson): void {
+        DB::transaction(function () use ($message, $recipient, $campaign, $sentAt, $messageIdHeader, $headersJson): void {
             $message->forceFill([
                 'message_id_header' => $messageIdHeader,
                 'sent_at' => $sentAt,
@@ -527,10 +544,10 @@ class OutboundMailService
             return;
         }
 
-            $campaign->forceFill([
-                'status' => $failed > 0 ? 'failed' : 'sent',
-                'completed_at' => now(),
-            ])->save();
+        $campaign->forceFill([
+            'status' => $failed > 0 ? 'failed' : 'sent',
+            'completed_at' => now(),
+        ])->save();
     }
 
     private function mergeGatewayHeaders(array $existingHeaders, array $result, bool $successful = true): array
@@ -558,57 +575,21 @@ class OutboundMailService
         return '<'.Str::uuid().'@'.$domain.'>';
     }
 
-    private function htmlBody(MailDraft $draft, array $mailSettings): ?string
+    private function bulkHeaders(MailRecipient $recipient): array
     {
-        $htmlBody = $draft->html_body;
+        $unsubscribeUrl = $this->mailUnsubscribeService->unsubscribeUrl($recipient);
 
-        if (! filled(trim((string) $htmlBody)) && filled(trim((string) $draft->text_body))) {
-            $htmlBody = $this->textToHtml($draft->text_body);
+        if ($unsubscribeUrl === null) {
+            throw ValidationException::withMessages([
+                'preflight' => ['Les campagnes bulk exigent une URL publique HTTPS pour l’en-tête de désinscription.'],
+            ]);
         }
 
-        $signature = $draft->signature_snapshot ?: ($mailSettings['global_signature_html'] ?? null);
-
-        $parts = collect([$htmlBody, $signature])
-            ->map(fn ($part) => is_string($part) ? trim($part) : null)
-            ->filter(fn ($part) => filled($part))
-            ->values();
-
-        if ($parts->isEmpty()) {
-            return null;
-        }
-
-        return $parts->implode("\n\n");
-    }
-
-    private function textBody(MailDraft $draft, array $mailSettings): ?string
-    {
-        $signatureText = $mailSettings['global_signature_text'] ?? null;
-
-        if ($draft->text_body === null && $signatureText === null) {
-            return null;
-        }
-
-        return trim((string) $draft->text_body."\n\n".(string) $signatureText);
-    }
-
-    private function textToHtml(?string $textBody): ?string
-    {
-        $normalized = trim(str_replace(["\r\n", "\r"], "\n", (string) $textBody));
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        $paragraphs = preg_split("/\n{2,}/", $normalized) ?: [];
-
-        return collect($paragraphs)
-            ->map(function (string $paragraph): string {
-                $escaped = htmlspecialchars(trim($paragraph), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $withBreaks = str_replace("<br>\n", '<br>', nl2br($escaped, false));
-
-                return '<p>'.$withBreaks.'</p>';
-            })
-            ->filter()
-            ->implode("\n");
+        return [
+            'List-Unsubscribe' => '<'.$unsubscribeUrl.'>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+            'Precedence' => 'bulk',
+            'X-Auto-Response-Suppress' => 'OOF, DR, RN, NRN, AutoReply',
+        ];
     }
 }
