@@ -74,6 +74,19 @@
 - `PreflightResult.vue` now shows a "→ Corriger dans Réglages › Délivrabilité" guide note for all URL-related blocking codes (`link_*`, `image_*`, `tracking_base_url_invalid`, `bulk_unsubscribe_unavailable`)
 - `hasTextVersion` in the preflight result now shows an "inclus dans MIME" sub-label when true to reflect that the backend guarantees a real text/plain in the outbound message
 
+## Import / Export module — frontend
+
+- Import / Export is now a dedicated entry in the main navigation sidebar, between Activity and Settings
+- Route: `GET /import-export` renders `ImportExport/Index.vue`
+- The existing `/contacts/imports` route remains for backwards compatibility but the primary UX entry point is the new module
+- The Contacts page header link now points to `/import-export` with label "Import / Export"
+- The Import / Export page exposes: template export, data export, CSV upload, preview/diff with per-row action badges (create/update/unchanged/skip/error), organization/contact breakdown, column mapping display, error/warning banners, diff filtering, confirmation with previewToken, and result summary
+- Contacts list now displays LinkedIn (clickable), phone_landline, and phone_mobile columns
+- Backend API endpoints consumed: `GET /api/import-export/template`, `GET /api/import-export/export`, `POST /api/import-export/preview`, `POST /api/import-export/confirm`
+- All labels are in French
+- The previewToken expiry / already-consumed case is handled with a dedicated error message
+- E2E smoke navigation test updated to include the Import / Export route
+
 ## Documentation alignment
 
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.

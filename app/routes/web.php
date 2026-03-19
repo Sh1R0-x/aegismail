@@ -51,6 +51,8 @@ Route::get('/campaigns/{campaign}', CampaignShowController::class);
 
 Route::get('/activity', ActivityController::class);
 
+Route::get('/import-export', fn () => Inertia::render('ImportExport/Index'));
+
 Route::get('/threads/{thread}', ThreadShowController::class);
 
 Route::get('/settings', SettingsController::class);

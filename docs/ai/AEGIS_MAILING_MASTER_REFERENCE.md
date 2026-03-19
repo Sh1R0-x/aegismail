@@ -246,13 +246,13 @@ Heat labels:
 ## Main navigation
 
 - Dashboard
-- Mails
 - Contacts
 - Organizations
-- Drafts
+- Mails
 - Templates
 - Campaigns
 - Activity
+- Import / Export
 - Settings
 - Users
 

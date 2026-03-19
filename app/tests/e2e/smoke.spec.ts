@@ -34,6 +34,7 @@ test('smoke navigation covers supported pages and disabled placeholders', async 
     { label: 'Modèles', url: '/templates', heading: 'Modèles' },
     { label: 'Campagnes', url: '/campaigns', heading: 'Campagnes' },
     { label: 'Activité', url: '/activity', heading: 'Activité' },
+    { label: 'Import / Export', url: '/import-export', heading: 'Import / Export' },
     { label: 'Réglages', url: '/settings', heading: 'Réglages' },
     { label: 'Utilisateurs', url: '/users', heading: 'Utilisateurs' },
   ];
@@ -46,7 +47,7 @@ test('smoke navigation covers supported pages and disabled placeholders', async 
 
   await page.goto('/settings');
   await expect(page.getByRole('button', { name: 'Paramètres mail', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Délivrabilité', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Délivrabilité', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cadence d\'envoi' }).click();
   await expect(page.getByText('Plafonds d\'envoi')).toBeVisible();
   await page.getByRole('button', { name: 'Scoring' }).click();

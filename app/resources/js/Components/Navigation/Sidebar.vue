@@ -75,6 +75,7 @@ const navItems = [
   { id: 'templates', label: 'Modèles', href: '/templates', icon: 'template' },
   { id: 'campaigns', label: 'Campagnes', href: '/campaigns', icon: 'campaign' },
   { id: 'activity', label: 'Activité', href: '/activity', icon: 'activity' },
+  { id: 'import-export', label: 'Import / Export', href: '/import-export', icon: 'import_export' },
 ];
 
 const bottomItems = [

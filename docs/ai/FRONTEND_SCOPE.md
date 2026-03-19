@@ -21,6 +21,7 @@ The rest of the main navigation must remain visible and consistent even when som
 5. Make auto replies and hard bounces visually distinct
 6. Keep Settings readable as the operational control center
 7. Document frontend/backend contract gaps under `docs/ai`
+8. Import / Export is a dedicated module in the main navigation, not a sub-page of Contacts
 
 ## Must not do now
 - invent a different product IA

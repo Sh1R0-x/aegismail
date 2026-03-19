@@ -2,10 +2,10 @@
   <CrmLayout title="Contacts" subtitle="Gérez vos contacts et leur engagement" current-page="contacts">
     <template #header-actions>
       <Link
-        href="/contacts/imports"
+        href="/import-export"
         class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
       >
-        ↑ Importer des contacts
+        Import / Export
       </Link>
       <button
         v-if="capabilities.canCreate"
@@ -56,6 +56,8 @@
               <th class="px-6 py-4">Contact</th>
               <th class="px-6 py-4">Organisation</th>
               <th class="px-6 py-4">E-mail</th>
+              <th class="px-6 py-4">LinkedIn</th>
+              <th class="px-6 py-4">Téléphone</th>
               <th class="px-6 py-4">Score</th>
               <th class="px-6 py-4">Dernier échange</th>
               <th class="px-6 py-4">Statut</th>
@@ -64,7 +66,7 @@
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-if="contacts.length === 0">
-              <td colspan="7" class="px-6 py-16 text-center">
+              <td colspan="9" class="px-6 py-16 text-center">
                 <p class="text-sm font-medium text-slate-500">Aucun contact dans la base.</p>
                 <p class="mt-1 text-xs text-slate-400">Ajoutez votre premier contact pour commencer à suivre vos échanges.</p>
                 <button
@@ -90,6 +92,27 @@
               </td>
               <td class="px-6 py-4 text-slate-600">{{ contact.organization || '—' }}</td>
               <td class="px-6 py-4 text-slate-600">{{ contact.email }}</td>
+              <td class="px-6 py-4">
+                <a
+                  v-if="contact.linkedinUrl"
+                  :href="contact.linkedinUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                  title="Voir le profil LinkedIn"
+                >
+                  LinkedIn
+                </a>
+                <span v-else class="text-xs text-slate-300">—</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex flex-col gap-0.5 text-xs text-slate-600">
+                  <span v-if="contact.phoneLandline">{{ contact.phoneLandline }}</span>
+                  <span v-if="contact.phoneMobile">{{ contact.phoneMobile }}</span>
+                  <span v-if="!contact.phoneLandline && !contact.phoneMobile && contact.phone">{{ contact.phone }}</span>
+                  <span v-if="!contact.phoneLandline && !contact.phoneMobile && !contact.phone" class="text-slate-300">—</span>
+                </div>
+              </td>
               <td class="px-6 py-4">
                 <ScoreBadge :level="contact.scoreLevel" :score="contact.score" />
               </td>

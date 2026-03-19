@@ -812,6 +812,65 @@ Frontend handling:
 
 ---
 
+### ImportExport/Index
+
+**File:** `resources/js/Pages/ImportExport/Index.vue`
+
+**Route:** `GET /import-export`
+
+**Props:** none — fully client-side
+
+**Navigation:** dedicated entry "Import / Export" in the main sidebar, between Activity and Settings
+
+**Steps:**
+
+1. Upload (idle): show export section (template + data) + file drop zone (CSV/XLSX)
+2. Preview: show column mapping + global counters + org/contact breakdown + diff table with per-row action filter + errors/warnings
+3. Result: show import summary with counters + non-imported rows table + navigation links
+
+**API calls:**
+
+- Template download: `GET /api/import-export/template`
+- Export current data: `GET /api/import-export/export`
+- Preview: `POST /api/import-export/preview` (multipart, field `file`)
+- Confirm: `POST /api/import-export/confirm` with `{ previewToken }`
+
+**Preview response consumed by the page:**
+
+Same shape as documented in the Contacts/Import section above. Key fields displayed:
+
+- `sourceName`, `rows.length` in file info header
+- `detectedColumns[]` with retained/non-retained visual distinction
+- `errors[]`, `warnings[]` as blocking/warning banners
+- `counters.create`, `counters.update`, `counters.unchanged`, `counters.skip`, `counters.error` as counter cards
+- `organizationSummary` and `contactSummary` as breakdown cards
+- `rows[]` with per-row: `lineNumber`, `action`, `organizationName`, `organization.action`, `organization.changes[]`, `name`, `contact.action`, `contact.changes[]`, `primaryEmail`, `linkedinUrl`, `phoneLandline`, `phoneMobile`, `plannedActions`, `errors[]`, `warnings[]`, `reason`
+
+**Diff filter:** rows can be filtered by action type (`all|create|update|unchanged|skip|error`)
+
+**Confirm response consumed:** same shape as Contacts/Import confirm response
+
+**UI states covered:**
+
+- No file selected (upload step with export section)
+- Wrong file format (client-side validation error)
+- CSV analysis in progress (loading spinner)
+- Preview empty (0 writable rows)
+- Preview with warnings only
+- Preview with blocking errors
+- Preview with create only
+- Preview with update only
+- Preview with unchanged only
+- Preview mixed (create/update/unchanged/skip/error)
+- Import in progress (confirming state)
+- Import successful
+- Import partial (some rows not imported)
+- Import impossible — previewToken invalid or already consumed
+- Export buttons always visible in upload step
+- Back to upload / new file reset
+
+---
+
 ### Threads/Show
 
 **File:** `resources/js/Pages/Threads/Show.vue`

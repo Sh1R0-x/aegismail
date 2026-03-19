@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: {
     command: `powershell -ExecutionPolicy Bypass -File ../scripts/e2e-serve.ps1 -E2ePort ${smokePort}`,
     url: `${smokeBaseUrl}/dashboard`,
-    reuseExistingServer: false,
+    reuseExistingServer: !!(process.env.AEGIS_E2E_REUSE_SERVER),
     timeout: 180_000,
   },
 });
