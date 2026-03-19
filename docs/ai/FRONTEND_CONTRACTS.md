@@ -434,14 +434,61 @@ Text-first behavior used by the backend:
 
 Additional blocking codes now exposed by backend preflight:
 
-- `link_requires_public_base`
-- `link_not_https`
-- `link_not_public`
-- `image_requires_public_base`
-- `image_not_https`
-- `image_not_public`
-- `tracking_base_url_invalid`
-- `bulk_unsubscribe_unavailable`
+- `link_requires_public_base` — link has a relative URL but no public base URL is configured → guide to Settings › Deliverability
+- `link_not_https` — link URL is not HTTPS → guide to Settings › Deliverability
+- `link_not_public` — link URL is a local/private/non-routable host → guide to Settings › Deliverability
+- `image_requires_public_base` — same as above but for remote images
+- `image_not_https` — same as above but for remote images
+- `image_not_public` — same as above but for remote images
+- `tracking_base_url_invalid` — tracking enabled but no valid public HTTPS base URL exists → guide to Settings › Deliverability
+- `bulk_unsubscribe_unavailable` — campaign bulk send requires a public HTTPS base URL for List-Unsubscribe header → guide to Settings › Deliverability
+
+Frontend handling:
+- All error codes include a backend-translated `message` string (French) — display as-is
+- URL-related codes (`link_*`, `image_*`, `tracking_base_url_invalid`, `bulk_unsubscribe_unavailable`) additionally show a "→ Corriger dans Réglages › Délivrabilité" guide note in the UI
+- `hasTextVersion` now reflects the truly final text/plain (after backend synthesis from HTML if needed); the frontend shows "Présente — inclus dans MIME" when true
+
+### SettingsDeliverability
+
+**File:** `resources/js/Pages/Settings/Sections/SettingsDeliverability.vue`
+
+**No Inertia props** — fetches its own data on mount via `GET /api/settings` (`deliverability` key).
+
+**Backend deliverability payload** (from `GET /api/settings` or `PUT /api/settings/deliverability` response):
+
+- `public_base_url`: nullable string — the configured raw value
+- `tracking_base_url`: nullable string — the configured raw value
+- `publicBaseUrl`: nullable string — the resolved (validated) public base URL (null if invalid)
+- `trackingBaseUrl`: nullable string — the resolved tracking base URL (null if invalid)
+- `publicBaseUrlStatus`: enum `valid|invalid|missing` — resolved status
+- `trackingBaseUrlStatus`: enum `valid|invalid|missing` — resolved status
+- `publicBaseUrlIssue`: nullable string — issue key (`public_base_url_not_https | public_base_url_not_public | public_base_url_missing`)
+- `trackingBaseUrlIssue`: nullable string — issue key (same enum)
+- `trackOpens`: boolean
+- `trackClicks`: boolean
+- `maxLinks`: integer — warning threshold for link count
+- `maxImages`: integer — warning threshold for remote image count
+- `maxHtmlSizeKb`: integer — warning threshold for HTML size
+- `maxAttachmentSizeMb`: integer — warning threshold for attachment size
+
+**Save payload** (`PUT /api/settings/deliverability`) — all required:
+
+- `tracking_opens_enabled`: boolean
+- `tracking_clicks_enabled`: boolean
+- `max_links_warning_threshold`: integer
+- `max_remote_images_warning_threshold`: integer
+- `html_size_warning_kb`: integer
+- `attachment_size_warning_mb`: integer
+- `public_base_url`: nullable string
+- `tracking_base_url`: nullable string
+
+**UI states covered:**
+
+- Loading skeleton while fetching
+- Status badge per URL: `Valide` (green) / `Non configurée` (grey) / `Invalide` (red)
+- Resolved URL shown as clickable link when status is valid
+- Issue alert shown below each URL field when issue is non-null
+- Save success/error banner (auto-dismiss 5s on success)
 
 ### TemplateEditor
 

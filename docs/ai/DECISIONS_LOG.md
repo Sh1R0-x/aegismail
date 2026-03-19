@@ -66,6 +66,10 @@
 - Outbound messages now always leave Laravel with both `text/plain` and `text/html`; the missing sibling version is synthesized from the authored body when needed
 - Bulk sends now require a public HTTPS base and emit one-click unsubscribe headers backed by `/u/{token}`
 - The Node gateway must strip internal Laravel metadata headers (`tracking`, `gateway`, `gateway_error`) before SMTP submission so only transport-safe headers are emitted on the wire
+- Settings page now has a "Délivrabilité" section (5th nav item) implemented in `SettingsDeliverability.vue`; it fetches its own data from `GET /api/settings` on mount and saves via `PUT /api/settings/deliverability`; no Inertia prop needed from Laravel
+- `settings.deliverability.publicBaseUrl`, `trackingBaseUrl`, and their `*Status` / `*Issue` counterparts are now visible and actionable in the Deliverability settings section with status badges and issue alerts
+- `PreflightResult.vue` now shows a "→ Corriger dans Réglages › Délivrabilité" guide note for all URL-related blocking codes (`link_*`, `image_*`, `tracking_base_url_invalid`, `bulk_unsubscribe_unavailable`)
+- `hasTextVersion` in the preflight result now shows an "inclus dans MIME" sub-label when true to reflect that the backend guarantees a real text/plain in the outbound message
 
 ## Documentation alignment
 

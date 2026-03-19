@@ -42,14 +42,19 @@
     <!-- Errors (blocking) -->
     <div v-if="result.errors.length > 0" class="border-t border-red-100 bg-red-50/60 px-6 py-4">
       <p class="mb-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-red-700">Erreurs bloquantes</p>
-      <ul class="space-y-1.5">
+      <ul class="space-y-2">
         <li
           v-for="err in result.errors"
           :key="err.code"
-          class="flex items-start gap-2 text-sm font-medium text-red-700"
+          class="flex items-start gap-2"
         >
-          <span class="mt-0.5 shrink-0 font-black">✕</span>
-          {{ err.message }}
+          <span class="mt-0.5 shrink-0 text-sm font-black text-red-700">✕</span>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-red-700">{{ err.message }}</p>
+            <p v-if="isUrlRelatedCode(err.code)" class="mt-0.5 text-xs font-medium text-red-500">
+              → Corriger dans <strong>Réglages › Délivrabilité</strong>
+            </p>
+          </div>
         </li>
       </ul>
     </div>
@@ -114,6 +119,10 @@
               {{ result.hasTextVersion ? 'Présente' : 'Absente' }}
             </dd>
           </div>
+          <div v-if="result.hasTextVersion" class="flex justify-between">
+            <dt class="font-medium text-slate-500 text-[11px]">⤷ text/plain final</dt>
+            <dd class="font-medium text-slate-500 text-[11px]">inclus dans MIME</dd>
+          </div>
           <div class="flex justify-between">
             <dt class="font-medium text-slate-600">Liens</dt>
             <dd class="font-bold text-slate-900">{{ result.deliverability.linkCount }}</dd>
@@ -148,6 +157,22 @@
 defineProps({
   result: { type: Object, required: true },
 });
+
+/** Codes that indicate a URL/base configuration problem the operator can fix in Settings › Deliverability. */
+const URL_RELATED_CODES = new Set([
+  'link_requires_public_base',
+  'link_not_https',
+  'link_not_public',
+  'image_requires_public_base',
+  'image_not_https',
+  'image_not_public',
+  'tracking_base_url_invalid',
+  'bulk_unsubscribe_unavailable',
+]);
+
+function isUrlRelatedCode(code) {
+  return URL_RELATED_CODES.has(code);
+}
 
 function formatBytes(bytes) {
   if (!bytes) return '0 o';

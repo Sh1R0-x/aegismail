@@ -47,6 +47,11 @@
           v-if="activeSection === 'signature'"
           :settings="settings.signature"
         />
+
+        <!-- DELIVERABILITY -->
+        <SettingsDeliverability
+          v-if="activeSection === 'deliverability'"
+        />
       </div>
     </div>
   </CrmLayout>
@@ -59,6 +64,7 @@ import SettingsMail from './Sections/SettingsMail.vue';
 import SettingsCadence from './Sections/SettingsCadence.vue';
 import SettingsScoring from './Sections/SettingsScoring.vue';
 import SettingsSignature from './Sections/SettingsSignature.vue';
+import SettingsDeliverability from './Sections/SettingsDeliverability.vue';
 
 defineProps({
   settings: {
@@ -77,6 +83,7 @@ const sections = [
   { id: 'cadence', label: 'Cadence d\'envoi' },
   { id: 'scoring', label: 'Scoring' },
   { id: 'signature', label: 'Signature' },
+  { id: 'deliverability', label: 'Délivrabilité' },
 ];
 
 const activeSection = ref('mail');
