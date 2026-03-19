@@ -4,6 +4,10 @@
       {{ cloneError }}
     </div>
 
+    <div v-if="deleteBanner" class="mb-4 rounded-xl border px-4 py-3 text-sm font-medium" :class="deleteBanner.type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'">
+      {{ deleteBanner.message }}
+    </div>
+
     <template #header-actions>
       <Link
         :href="creationFlow.entryHref"
@@ -15,8 +19,17 @@
     </template>
 
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
+      <div class="border-b border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between gap-4">
         <h2 class="text-sm font-bold text-slate-900">Campagnes d'envoi</h2>
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-500 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            class="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600"
+            :checked="filters.includeDeleted"
+            @change="toggleIncludeDeleted"
+          />
+          Inclure les supprimées
+        </label>
       </div>
 
       <div v-if="campaigns.length === 0" class="px-6 py-16 text-center">
@@ -44,8 +57,13 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="campaign in campaigns" :key="campaign.id" class="hover:bg-slate-50 transition-colors">
-            <td class="px-6 py-4 font-bold text-slate-900">{{ campaign.name }}</td>
+          <tr v-for="campaign in campaigns" :key="campaign.id" :class="['hover:bg-slate-50 transition-colors', campaign.deletedAt ? 'opacity-60' : '']">
+            <td class="px-6 py-4">
+              <span class="font-bold text-slate-900">{{ campaign.name }}</span>
+              <span v-if="campaign.deletedAt" class="ml-2 inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-600">
+                Supprimée
+              </span>
+            </td>
             <td class="px-6 py-4">
               <StatusBadge :status="campaign.status" />
             </td>
@@ -70,6 +88,7 @@
             <td class="px-6 py-4 text-right">
               <div class="flex items-center justify-end gap-3">
                 <button
+                  v-if="!campaign.deletedAt"
                   :disabled="cloningId === campaign.id"
                   class="text-xs font-bold text-violet-600 hover:text-violet-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   :title="'Cloner cette campagne — crée une copie en brouillon sans historique d\'envoi'"
@@ -81,7 +100,7 @@
                   :href="`/campaigns/${campaign.id}`"
                   class="text-xs font-bold text-blue-600 hover:text-blue-800"
                 >
-                  Détails
+                  {{ campaign.deletedAt ? 'Consulter' : 'Détails' }}
                 </Link>
               </div>
             </td>
@@ -93,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -101,6 +120,10 @@ import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 
 const props = defineProps({
   campaigns: { type: Array, default: () => [] },
+  filters: {
+    type: Object,
+    default: () => ({ includeDeleted: false }),
+  },
   creationFlow: {
     type: Object,
     default: () => ({
@@ -114,6 +137,25 @@ const props = defineProps({
 
 const cloningId = ref(null);
 const cloneError = ref(null);
+const deleteBanner = ref(null);
+
+onMounted(() => {
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('deleted');
+  const msg = params.get('message');
+  if (mode && msg) {
+    deleteBanner.value = { type: 'success', message: msg };
+    window.history.replaceState({}, '', window.location.pathname + (props.filters.includeDeleted ? '?includeDeleted=1' : ''));
+  }
+});
+
+function toggleIncludeDeleted() {
+  const next = !props.filters.includeDeleted;
+  router.get('/campaigns', next ? { includeDeleted: 1 } : {}, {
+    preserveState: true,
+    preserveScroll: true,
+  });
+}
 
 async function cloneCampaign(campaign) {
   if (cloningId.value !== null) return;

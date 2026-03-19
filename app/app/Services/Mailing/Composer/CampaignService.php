@@ -209,7 +209,7 @@ class CampaignService
 
     public function serializeDetail(MailCampaign $campaign, array $draftPayload): array
     {
-        $campaign->loadMissing(['recipients.contact.organization', 'recipients.contactEmail', 'draft']);
+        $campaign->loadMissing(['recipients.contact.organization', 'recipients.contactEmail', 'recipients.messages', 'draft']);
 
         return array_merge($this->serialize($campaign), [
             'draft' => $draftPayload,
@@ -222,9 +222,11 @@ class CampaignService
                         'email' => $recipient->email,
                         'status' => $recipient->status,
                         'contactName' => trim((string) ($recipient->contact?->first_name.' '.$recipient->contact?->last_name)) ?: null,
-                        'organization' => $recipient->organization?->name,
+                        'organization' => $recipient->organization?->name ?? $recipient->contact?->organization?->name,
                         'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->toIso8601String(),
                         'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->toIso8601String(),
+                        'lastSentAt' => $recipient->messages->sortByDesc('sent_at')->first()?->sent_at?->timezone(config('app.timezone'))->toIso8601String(),
+                        'lastSentSubject' => $recipient->messages->sortByDesc('sent_at')->first()?->subject,
                     ])->all()
                 : collect($draftPayload['recipients'] ?? [])
                     ->map(fn (array $recipient, int $index): array => [
@@ -235,6 +237,8 @@ class CampaignService
                         'organization' => $recipient['organizationName'] ?? null,
                         'scheduledFor' => null,
                         'lastEventAt' => null,
+                        'lastSentAt' => null,
+                        'lastSentSubject' => null,
                         'position' => $index,
                     ])->all(),
         ]);

@@ -447,12 +447,12 @@ class ComposerApiTest extends TestCase
 
         $this->app->bind(MailGatewayClient::class, fn () => new class implements MailGatewayClient
         {
-            public function test_imap(array $configuration): array
+            public function testImap(array $configuration): array
             {
                 return ['success' => true, 'driver' => 'test', 'message' => 'ok'];
             }
 
-            public function test_smtp(array $configuration): array
+            public function testSmtp(array $configuration): array
             {
                 return ['success' => true, 'driver' => 'test', 'message' => 'ok'];
             }

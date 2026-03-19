@@ -1194,9 +1194,11 @@ Autosave behavior:
 - `email`: required string
 - `status`: required string
 - `contactName`: nullable string
-- `organization`: nullable string
+- `organization`: nullable string (from `contact.organization.name`)
 - `scheduledFor`: nullable `YYYY-MM-DD HH:mm`
 - `lastEventAt`: nullable `YYYY-MM-DD HH:mm`
+- `lastSentAt`: nullable ISO 8601 string — date of the most recent sent message for this recipient
+- `lastSentSubject`: nullable string — subject of the most recent sent message for this recipient
 
 ### Campaign deletion behavior
 

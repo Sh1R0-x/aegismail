@@ -580,7 +580,16 @@ Frontend handling:
 
 - same base shape as `Campaigns/Index > campaigns[]`
 - `draft`: nullable full draft object
-- `recipients`: array of `{ id, email, status, contactName, organization, scheduledFor, lastEventAt }`
+- `recipients`: array of `{ id, email, status, contactName, organization, scheduledFor, lastEventAt, lastSentAt, lastSentSubject }`
+
+**Recipient search & filters (client-side):**
+
+- `recipientSearch`: text input filtering by email, contactName, organization (case-insensitive)
+- `filterStatus`: select populated from unique statuses present in recipients
+- `filterOrganization`: select populated from unique organization names
+- `filterDomain`: select populated from unique email domains (after `@`)
+- All filters are composable (AND logic) and can be cleared with "Effacer les filtres" button
+- Counter `"N / total"` shows filtered vs. total count in the section header
 
 **API calls used by the page:**
 

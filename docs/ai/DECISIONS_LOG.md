@@ -161,11 +161,21 @@
 - AEGIS_MAILING_CLAUDE_FRONTEND.md: navigation updated (Brouillons removed as separate entry, Import/Export added, "Tableau de bord" label), Modèles section corrected (suppression permanente instead of activation/archivage)
 - AEGIS_MAILING_CODEX_BACKEND.md: contacts schema updated to include phone_landline, phone_mobile, linkedin_url, country, city, tags_json
 - All 8 priority bugs from Phase 3 audit verified:
-  1. Sent tab safe from draft status — `whereNotIn` filter confirmed
-  2. Dashboard data populated from real DB queries — recentReplies, recentAlerts, scheduledSends all functional
-  3. French translations complete — zero English user-visible text
-  4. Draft deletion has proper guard against sent history + DB transaction cascade
-  5. Single/multiple/campaign has real business logic differentiation (mode stored on draft+campaign)
-  6. Phone dedup now consistent across list and detail views
-  7. Import/export round-trip verified working — tests cover unchanged, update, and create scenarios
-  8. Documentation overhaul complete — all docs/ai files aligned with current codebase
+    1. Sent tab safe from draft status — `whereNotIn` filter confirmed
+    2. Dashboard data populated from real DB queries — recentReplies, recentAlerts, scheduledSends all functional
+    3. French translations complete — zero English user-visible text
+    4. Draft deletion has proper guard against sent history + DB transaction cascade
+    5. Single/multiple/campaign has real business logic differentiation (mode stored on draft+campaign)
+    6. Phone dedup now consistent across list and detail views
+    7. Import/export round-trip verified working — tests cover unchanged, update, and create scenarios
+    8. Documentation overhaul complete — all docs/ai files aligned with current codebase
+
+## Phase 4 — Campaign recipients & list management
+
+- Campaign list page (`Campaigns/Index.vue`) now exposes an "inclure supprimées" checkbox when `filters.includeDeleted` is available; toggling fires `router.get('/campaigns', { includeDeleted: 1 })` to reload the page with soft-deleted campaigns visible (dimmed with opacity-60 and "Supprimée" badge)
+- Campaign deletion toast: `removeCampaign()` reads `response.data.deletionMode` (`hard` or `soft`) and passes a mode-specific message to the redirect; `Index.vue` reads `?deleted=` and `?message=` URL params on mount to show the appropriate banner
+- Campaign detail page (`Campaigns/Show.vue`) header actions hidden for deleted campaigns; a "Campagne supprimée — historique conservé" badge is shown instead; editing is disabled for deleted campaigns
+- Campaign detail recipients section now includes: search bar (name, email, organisation), three filter selects (status, organisation, domain), counter ("N / total"), scrollable table with sticky header, "Dernier mail" column showing `lastSentAt` date and `lastSentSubject` tooltip, empty states for no recipients and no filter results
+- Backend `CampaignService::serializeDetail()` now includes `lastSentAt`, `lastSentSubject`, and `organization` (via `contact.organization.name`) in each recipient object; `loadMissing` includes `recipients.messages`
+- `CampaignAudiencePicker.vue` simplified: "Imports récents" tab removed; only Contacts and Organisations tabs remain; related `isImportFullySelected()`, `toggleImport()` functions removed; `recentImports` removed from `audiences` ref and `buildRecipients()` lookup
+- Status labels displayed in French via `STATUS_LABELS` map in Show.vue (e.g. `sent` → "Envoyé", `hard_bounced` → "Hard bounce", etc.)

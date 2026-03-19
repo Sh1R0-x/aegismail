@@ -188,45 +188,7 @@
       </div>
     </template>
 
-    <!-- ── Recent Imports tab ─────────────────────────────── -->
-    <template v-else-if="activeTab === 'imports'">
-      <div class="max-h-72 overflow-y-auto divide-y divide-slate-100">
-        <div v-if="audiences.recentImports.length === 0" class="px-6 py-10 text-center space-y-2">
-          <p class="text-sm font-medium text-slate-500">Aucun import récent disponible.</p>
-          <a
-            href="/contacts/imports"
-            class="inline-block mt-2 text-xs font-bold text-blue-600 hover:text-blue-800"
-          >
-            Importer des contacts
-          </a>
-        </div>
 
-        <div
-          v-for="imp in audiences.recentImports"
-          :key="imp.id"
-          class="px-4 py-3"
-        >
-          <div class="flex items-center gap-3">
-            <input
-              type="checkbox"
-              class="h-4 w-4 rounded border-slate-300 accent-blue-600 shrink-0"
-              :checked="isImportFullySelected(imp)"
-              :disabled="imp.contacts.filter((c) => c.email).length === 0"
-              @change="toggleImport(imp)"
-            />
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-bold text-slate-900 truncate">{{ imp.sourceName }}</p>
-              <p class="text-[11px] text-slate-400">
-                {{ imp.contacts.filter((c) => c.email).length }} contact(s) avec email
-                <span v-if="imp.importedAt">
-                  · {{ formatDateFR(imp.importedAt, { dateOnly: true }) }}
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
   </div>
 </template>
 
@@ -251,7 +213,6 @@ const loadError = ref(null);
 const audiences = ref({
   contacts: [],
   organizations: [],
-  recentImports: [],
 });
 
 // Track selected contacts by contactId
@@ -268,11 +229,6 @@ const tabs = computed(() => [
     id: 'organizations',
     label: 'Organisations',
     badge: audiences.value.organizations.length || null,
-  },
-  {
-    id: 'imports',
-    label: 'Imports récents',
-    badge: audiences.value.recentImports.length || null,
   },
 ]);
 
@@ -308,12 +264,6 @@ function isOrganizationPartiallySelected(org) {
   return selected.length > 0 && selected.length < emailContacts.length;
 }
 
-function isImportFullySelected(imp) {
-  const emailContacts = imp.contacts.filter((c) => c.email);
-  if (emailContacts.length === 0) return false;
-  return emailContacts.every((c) => selectedContactIds.value.has(c.contactId));
-}
-
 // ── Toggle actions ─────────────────────────────────────────
 function toggleContact(contact) {
   if (!contact.email) return;
@@ -329,20 +279,6 @@ function toggleContact(contact) {
 function toggleOrganization(org) {
   const emailContacts = org.contacts.filter((c) => c.email);
   const allSelected = isOrganizationFullySelected(org);
-  const next = new Set(selectedContactIds.value);
-  emailContacts.forEach((c) => {
-    if (allSelected) {
-      next.delete(c.contactId);
-    } else {
-      next.add(c.contactId);
-    }
-  });
-  selectedContactIds.value = next;
-}
-
-function toggleImport(imp) {
-  const emailContacts = imp.contacts.filter((c) => c.email);
-  const allSelected = isImportFullySelected(imp);
   const next = new Set(selectedContactIds.value);
   emailContacts.forEach((c) => {
     if (allSelected) {
@@ -379,12 +315,6 @@ function buildRecipients() {
       if (!allContacts.has(c.contactId)) allContacts.set(c.contactId, c);
     });
   });
-  audiences.value.recentImports.forEach((imp) => {
-    imp.contacts.forEach((c) => {
-      if (!allContacts.has(c.contactId)) allContacts.set(c.contactId, c);
-    });
-  });
-
   const recipients = [];
   selectedContactIds.value.forEach((id) => {
     const contact = allContacts.get(id);
@@ -426,7 +356,6 @@ async function loadAudiences() {
     audiences.value = {
       contacts: data.contacts ?? [],
       organizations: data.organizations ?? [],
-      recentImports: data.recentImports ?? [],
     };
   } catch {
     loadError.value = 'Impossible de charger l\'audience. Vérifiez votre connexion.';
