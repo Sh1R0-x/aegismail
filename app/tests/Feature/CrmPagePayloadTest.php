@@ -30,7 +30,7 @@ class CrmPagePayloadTest extends TestCase
                 ->component('Dashboard')
                 ->where('stats.sentToday', 0)
                 ->where('stats.dailyLimit', 100)
-                ->where('stats.healthStatus', 'critical')
+                ->where('stats.healthStatus', 'unknown')
                 ->where('stats.bounceRate', 0)
                 ->where('stats.activeCampaigns', 0)
                 ->where('stats.scheduledCount', 0)

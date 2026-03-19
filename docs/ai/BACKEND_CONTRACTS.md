@@ -883,6 +883,7 @@ Current inbound fallback rule:
 - `good`
 - `degraded`
 - `critical`
+- `unknown` (when mailbox health is null or not yet evaluated)
 
 ### Draft type exposed to frontend
 

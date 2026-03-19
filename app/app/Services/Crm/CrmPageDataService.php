@@ -368,7 +368,8 @@ class CrmPageDataService
         return match ($healthStatus) {
             'healthy' => 'good',
             'warning' => 'degraded',
-            default => 'critical',
+            'critical' => 'critical',
+            default => 'unknown',
         };
     }
 

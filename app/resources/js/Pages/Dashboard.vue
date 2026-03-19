@@ -46,8 +46,8 @@
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-colors hover:border-blue-200">
           <div class="flex items-center justify-between">
             <p class="text-sm font-bold text-slate-500">Santé d'envoi</p>
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl" :class="stats.healthStatus === 'good' ? 'bg-emerald-50' : stats.healthStatus === 'degraded' ? 'bg-amber-50' : 'bg-red-50'">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5" :class="stats.healthStatus === 'good' ? 'text-emerald-600' : stats.healthStatus === 'degraded' ? 'text-amber-600' : 'text-red-600'">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl" :class="stats.healthStatus === 'good' ? 'bg-emerald-50' : stats.healthStatus === 'degraded' ? 'bg-amber-50' : stats.healthStatus === 'critical' ? 'bg-red-50' : 'bg-slate-50'">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5" :class="stats.healthStatus === 'good' ? 'text-emerald-600' : stats.healthStatus === 'degraded' ? 'text-amber-600' : stats.healthStatus === 'critical' ? 'text-red-600' : 'text-slate-400'">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
               </svg>
             </div>
@@ -58,11 +58,12 @@
                 :class="[
                   'h-3 w-3 rounded-full',
                   stats.healthStatus === 'good' ? 'bg-emerald-500' :
-                  stats.healthStatus === 'degraded' ? 'bg-amber-500' : 'bg-red-500',
+                  stats.healthStatus === 'degraded' ? 'bg-amber-500' :
+                  stats.healthStatus === 'critical' ? 'bg-red-500' : 'bg-slate-400',
                 ]"
               />
               <p class="text-lg font-bold text-slate-900">
-                {{ stats.healthStatus === 'good' ? 'Bonne' : stats.healthStatus === 'degraded' ? 'Dégradée' : 'Critique' }}
+                {{ stats.healthStatus === 'good' ? 'Bonne' : stats.healthStatus === 'degraded' ? 'Dégradée' : stats.healthStatus === 'critical' ? 'Critique' : 'Non évaluée' }}
               </p>
             </div>
             <p class="mt-1 text-xs font-medium text-slate-400">{{ stats.bounceRate }}% taux de rebond</p>

@@ -57,8 +57,16 @@
             <input v-model="form.title" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/30" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-bold text-slate-600">Téléphone</label>
-            <input v-model="form.phone" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/30" />
+            <label class="mb-1 block text-xs font-bold text-slate-600">Téléphone fixe</label>
+            <input v-model="form.phoneLandline" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/30" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">Téléphone mobile</label>
+            <input v-model="form.phoneMobile" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/30" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold text-slate-600">LinkedIn</label>
+            <input v-model="form.linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/30" />
           </div>
         </div>
 
@@ -172,7 +180,9 @@ function snapshot() {
     email: props.contact.emails?.find((email) => email.isPrimary)?.email ?? '',
     organizationId: props.contact.organizationId ?? null,
     title: props.contact.title ?? '',
-    phone: props.contact.phone ?? '',
+    phoneLandline: props.contact.phoneLandline ?? '',
+    phoneMobile: props.contact.phoneMobile ?? '',
+    linkedinUrl: props.contact.linkedinUrl ?? '',
     notes: props.contact.notes ?? '',
   };
 }

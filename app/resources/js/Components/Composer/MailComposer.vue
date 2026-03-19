@@ -486,7 +486,7 @@ function onRecipientSearch() {
   searchTimeout = setTimeout(async () => {
     try {
       const { data } = await axios.get('/api/contacts/search', { params: { q } });
-      contactSuggestions.value = data.results ?? [];
+      contactSuggestions.value = data.contacts ?? [];
       showSuggestions.value = contactSuggestions.value.length > 0;
     } catch {
       contactSuggestions.value = [];

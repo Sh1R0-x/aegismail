@@ -210,7 +210,9 @@ class CrmManagementService
             'primaryEmail' => $contact->contactEmails->sortByDesc('is_primary')->first()?->email,
             'phone' => $this->displayPhone($contact),
             'phoneLandline' => $contact->phone_landline ?: $contact->phone,
-            'phoneMobile' => $contact->phone_mobile,
+            'phoneMobile' => $contact->phone_mobile && $contact->phone_mobile !== ($contact->phone_landline ?: $contact->phone)
+                ? $contact->phone_mobile
+                : null,
             'linkedinUrl' => $contact->linkedin_url,
             'country' => $contact->country,
             'city' => $contact->city,

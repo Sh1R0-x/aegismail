@@ -115,7 +115,6 @@
           <option value="hard_bounced">Rebond permanent</option>
           <option value="unsubscribed">Désinscrits</option>
           <option value="failed">Échec</option>
-          <option value="scheduled">Planifiés</option>
         </select>
         <input
           v-model="search"

@@ -135,3 +135,15 @@
 
 - `docs/ai/FRONTEND_SCOPE.md` is the canonical frontend scope file used by `CLAUDE.md`.
 - `AI_COORDINATION_TREE.md` and the detailed frontend/backend annexes live under `docs/ai`.
+
+## Phase 2 — Product/UX/data consistency pass
+
+- Contact search autocomplete in MailComposer.vue now reads `data.contacts` (was `data.results`); matches backend `ContactController::search()` response key
+- Contact detail form (`Contacts/Show.vue`) now exposes split phone fields: "Téléphone fixe" (`phoneLandline`) and "Téléphone mobile" (`phoneMobile`) replacing the single "Téléphone" field, plus a "LinkedIn" URL field — all three fields already accepted by backend `UpdateContactRequest`
+- `serializeContactDetail()` now deduplicates `phoneMobile`: returns `null` when mobile equals landline, consistent with `mapContact()` list serialization
+- Sidebar navigation label changed from "Dashboard" to "Tableau de bord" for French consistency
+- TimelineEntry badges translated: "Auto" → "Réponse auto", "Bounce" → "Rebond"
+- Dashboard health status mapping: `mapHealthStatus()` now maps `null`/unknown to `'unknown'` instead of `'critical'`; frontend `Dashboard.vue` renders "Non évaluée" with neutral slate styling for unknown state, reserving "Critique" for explicitly critical health
+- Sent tab status filter dropdown: removed orphan "Planifiés" option that could never match items (scheduled recipients are excluded from the sent query by the backend)
+- Cancel button on Contact Show, draft deletion, attachment flow, scheduling UX, simple/multiple/campaign distinction, CampaignAudiencePicker org default, import/export round-trip: all verified working correctly — no fixes needed
+- Test updated: `CrmPagePayloadTest::test_dashboard_page_exposes_the_empty_payload_shape` now expects `healthStatus: 'unknown'` instead of `'critical'` for unconfigured mailbox

@@ -68,7 +68,7 @@ const initials = computed(() => {
 });
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
+  { id: 'dashboard', label: 'Tableau de bord', href: '/dashboard', icon: 'dashboard' },
   { id: 'contacts', label: 'Contacts', href: '/contacts', icon: 'contacts' },
   { id: 'organizations', label: 'Organisations', href: '/organizations', icon: 'organizations' },
   { id: 'mails', label: 'Mails', href: '/mails', icon: 'mail' },
