@@ -671,72 +671,6 @@ Additional blocking codes now exposed by backend preflight:
 
 ---
 
-## SettingsDeliverability (updated)
-
-**File:** `resources/js/Pages/Settings/Sections/SettingsDeliverability.vue`
-
-**Props:** `settings` — the full deliverability payload from `SettingsPageDataService::page()`
-
-**Full deliverability payload shape:**
-
-- `domain`: nullable string
-- `dkimSelectors`: array of strings
-- `refreshEndpoint`: string (always `/api/settings/deliverability/checks/refresh`)
-- `spfValid`: boolean (shortcut)
-- `dkimValid`: boolean (shortcut)
-- `dmarcValid`: boolean (shortcut)
-- `trackOpens`: boolean
-- `trackClicks`: boolean
-- `maxLinks`: integer
-- `maxImages`: integer
-- `maxHtmlSizeKb`: integer
-- `maxAttachmentSizeMb`: integer
-- `publicBaseUrl`: nullable string
-- `trackingBaseUrl`: nullable string
-- `publicBaseUrlStatus`: `'valid' | 'missing' | 'invalid'`
-- `trackingBaseUrlStatus`: `'valid' | 'missing' | 'invalid'`
-- `publicBaseUrlIssue`: nullable string
-- `trackingBaseUrlIssue`: nullable string
-- `checks.spf`: DeliverabilityCheck
-- `checks.dkim`: DeliverabilityCheck
-- `checks.dmarc`: DeliverabilityCheck
-
-**DeliverabilityCheck:**
-
-- `status`: enum `pass|warning|fail|not_detected`
-- `detected_value`: nullable string
-- `checked_at`: nullable ISO-8601 string
-- `diagnostic_message`: string
-- `logs[]`: each `{ level('info'|'warning'|'error'), message, context, ts(ISO-8601) }`
-
-**Retest API:**
-
-- `POST /api/settings/deliverability/checks/refresh` with `{ mechanisms: ['spf','dkim','dmarc'] }`
-- Response: `{ message, deliverability }` — `deliverability` has same shape as above
-
-**Save API:**
-
-- `PUT /api/settings/deliverability`
-- request body includes:
-    - `tracking_opens_enabled`
-    - `tracking_clicks_enabled`
-    - `max_links_warning_threshold`
-    - `max_remote_images_warning_threshold`
-    - `html_size_warning_kb`
-    - `attachment_size_warning_mb`
-    - `domain_override`
-    - `public_base_url`
-    - `tracking_base_url`
-    - `dkim_selectors`
-
-**UI states covered:**
-
-- `pass` / `warning` / `fail` / `not_detected` for each mechanism
-- retesting loading state
-- retest error message
-- logs panel (collapsible, per mechanism)
-- empty logs state (logs button hidden)
-
 ### Threads/Show
 
 **File:** `resources/js/Pages/Threads/Show.vue`
@@ -818,11 +752,16 @@ The thread detail page now displays the actual content of each message:
 Expected shape:
 
 - `settings.mail`: full mail settings object (snake_case keys)
-- `settings.deliverability`: required object
 - `settings.cadence`: required object
 - `settings.scoring`: required object
 - `settings.signature.global_signature_html`: nullable string
 - `settings.signature.global_signature_text`: nullable string
+
+V1 note:
+
+- the Settings page no longer exposes a `Délivrabilité` section
+- SPF / DKIM / DMARC diagnostics are not rendered in the UI
+- DNS configuration remains an external prerequisite
 
 ### mail settings prop shape (passed to `SettingsMail.vue`)
 
@@ -862,9 +801,9 @@ Backend safeguard:
 
 - `general`: required object
 - `mail`: required object
-- `deliverability`: required object
 
 Used by `SettingsSignature.vue` to merge the current mail configuration before calling `PUT /api/settings/mail`.
+`GET /api/settings` may still include additional internal keys such as `deliverability`, but the Settings UI does not render a dedicated deliverability section in V1.
 
 ## Users
 

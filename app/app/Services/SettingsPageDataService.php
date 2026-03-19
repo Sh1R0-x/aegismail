@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Services\Mailing\DeliverabilityDomainCheckService;
 use App\Services\Mailing\MailboxSettingsService;
 
 class SettingsPageDataService
@@ -10,24 +9,17 @@ class SettingsPageDataService
     public function __construct(
         private readonly SettingsStore $settingsStore,
         private readonly MailboxSettingsService $mailboxSettingsService,
-        private readonly DeliverabilityDomainCheckService $deliverabilityDomainCheckService,
     ) {}
 
     public function page(): array
     {
         $general = $this->settingsStore->get('general', config('mailing.defaults.general', []));
         $mail = $this->mailboxSettingsService->getSettings();
-        $deliverability = $this->deliverabilityDomainCheckService->payload();
 
         return [
             'settings' => [
                 'general' => $general,
                 'mail' => $mail,
-                'deliverability' => array_merge($deliverability, [
-                    'maxConsecutiveHardBounces' => (int) ($general['stop_on_hard_bounce_threshold'] ?? 3),
-                    'bounceWarningThreshold' => null,
-                    'bounceCriticalThreshold' => null,
-                ]),
                 'cadence' => [
                     'dailyLimit' => (int) ($general['daily_limit_default'] ?? 100),
                     'hourlyLimit' => (int) ($general['hourly_limit_default'] ?? 12),

@@ -27,6 +27,7 @@ The rest of the main navigation must remain visible and consistent even when som
 - rename frozen statuses
 - invent backend payloads outside documented contracts
 - introduce Gmail-specific UI or wording
+- expose SPF / DKIM / DMARC diagnostics or DNS retest controls in V1
 - optimize for speculative mobile patterns over desktop clarity
 
 ## Frozen rules to keep

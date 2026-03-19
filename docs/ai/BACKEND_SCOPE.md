@@ -36,6 +36,7 @@ It also aligns the minimum missing backend entities:
 - add Google APIs or Socialite Google
 - add speculative provider abstractions
 - move UI concerns into Laravel
+- expose or maintain embedded SPF / DKIM / DMARC diagnostic flows in V1
 - invent provider-specific behavior outside OVH MX Plan needs
 
 ## Frozen rules to keep

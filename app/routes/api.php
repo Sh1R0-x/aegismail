@@ -17,7 +17,6 @@ Route::prefix('settings')->group(function () {
     Route::put('/general', [SettingsController::class, 'updateGeneral']);
     Route::put('/mail', [SettingsController::class, 'updateMail']);
     Route::put('/deliverability', [SettingsController::class, 'updateDeliverability']);
-    Route::post('/deliverability/checks/refresh', [SettingsController::class, 'refreshDeliverabilityChecks']);
     Route::post('/mail/test-imap', [SettingsController::class, 'testImap']);
     Route::post('/mail/test-smtp', [SettingsController::class, 'testSmtp']);
 });

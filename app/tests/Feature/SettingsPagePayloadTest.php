@@ -25,14 +25,12 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.cadence.dailyLimit', 100)
                 ->where('settings.scoring.replyPoints', 8)
                 ->where('settings.signature.global_signature_html', null)
-                ->where('settings.deliverability.publicBaseUrl', 'https://mail.example.com')
-                ->where('settings.deliverability.checks.spf.status', 'not_detected')
-                ->where('settings.deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh')
+                ->missing('settings.deliverability')
                 ->etc()
             );
     }
 
-    public function test_settings_page_exposes_mail_deliverability_cadence_scoring_and_signature_payloads(): void
+    public function test_settings_page_exposes_mail_cadence_scoring_and_signature_payloads_without_deliverability_section(): void
     {
         Setting::query()->updateOrCreate(
             ['key' => 'general'],
@@ -109,12 +107,7 @@ class SettingsPagePayloadTest extends TestCase
                 ->component('Settings/Index')
                 ->where('settings.mail.sender_email', 'ops@aegis.test')
                 ->where('settings.mail.send_window_start', '08:00')
-                ->where('settings.deliverability.trackOpens', false)
-                ->where('settings.deliverability.publicBaseUrl', 'https://mail.example.com')
-                ->where('settings.deliverability.trackingBaseUrl', 'https://track.example.com')
-                ->where('settings.deliverability.maxLinks', 6)
-                ->where('settings.deliverability.checks.spf.status', 'pass')
-                ->where('settings.deliverability.checks.spf.detected_value', 'v=spf1 include:mx.ovh.com ~all')
+                ->missing('settings.deliverability')
                 ->where('settings.cadence.dailyLimit', 150)
                 ->where('settings.cadence.maxConsecutiveErrors', 4)
                 ->where('settings.scoring.replyPoints', 9)

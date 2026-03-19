@@ -22,9 +22,7 @@ class SettingsApiTest extends TestCase
             ->assertJsonPath('general.daily_limit_default', 100)
             ->assertJsonPath('deliverability.tracking_opens_enabled', true)
             ->assertJsonPath('deliverability.publicBaseUrl', 'https://mail.example.com')
-            ->assertJsonPath('deliverability.publicBaseUrlStatus', 'valid')
-            ->assertJsonPath('deliverability.checks.spf.status', 'not_detected')
-            ->assertJsonPath('deliverability.refreshEndpoint', '/api/settings/deliverability/checks/refresh');
+            ->assertJsonPath('deliverability.publicBaseUrlStatus', 'valid');
     }
 
     public function test_it_updates_mail_settings_and_keeps_a_single_mailbox_account(): void

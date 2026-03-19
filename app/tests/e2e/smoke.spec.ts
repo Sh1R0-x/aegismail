@@ -31,7 +31,6 @@ test('smoke navigation covers supported pages and disabled placeholders', async 
     { label: 'Contacts', url: '/contacts', heading: 'Contacts' },
     { label: 'Organisations', url: '/organizations', heading: 'Organisations' },
     { label: 'Mails', url: '/mails', heading: 'Mails' },
-    { label: 'Brouillons', url: '/drafts', heading: 'Brouillons' },
     { label: 'Modèles', url: '/templates', heading: 'Modèles' },
     { label: 'Campagnes', url: '/campaigns', heading: 'Campagnes' },
     { label: 'Activité', url: '/activity', heading: 'Activité' },
@@ -47,6 +46,11 @@ test('smoke navigation covers supported pages and disabled placeholders', async 
 
   await page.goto('/settings');
   await expect(page.getByRole('button', { name: 'Paramètres mail', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Délivrabilité', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cadence d\'envoi' }).click();
+  await expect(page.getByText('Plafonds d\'envoi')).toBeVisible();
+  await page.getByRole('button', { name: 'Scoring' }).click();
+  await expect(page.getByText('Points de scoring')).toBeVisible();
   await page.getByRole('button', { name: 'Signature' }).click();
   await expect(page.getByText('Signature globale')).toBeVisible();
 

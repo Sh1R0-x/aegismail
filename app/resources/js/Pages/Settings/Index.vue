@@ -28,12 +28,6 @@
           :settings="settings.mail"
         />
 
-        <!-- DÉLIVRABILITÉ -->
-        <SettingsDeliverability
-          v-if="activeSection === 'deliverability'"
-          :settings="settings.deliverability"
-        />
-
         <!-- CADENCE -->
         <SettingsCadence
           v-if="activeSection === 'cadence'"
@@ -62,7 +56,6 @@
 import { ref } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import SettingsMail from './Sections/SettingsMail.vue';
-import SettingsDeliverability from './Sections/SettingsDeliverability.vue';
 import SettingsCadence from './Sections/SettingsCadence.vue';
 import SettingsScoring from './Sections/SettingsScoring.vue';
 import SettingsSignature from './Sections/SettingsSignature.vue';
@@ -72,7 +65,6 @@ defineProps({
     type: Object,
     default: () => ({
       mail: {},
-      deliverability: {},
       cadence: {},
       scoring: {},
       signature: {},
@@ -82,7 +74,6 @@ defineProps({
 
 const sections = [
   { id: 'mail', label: 'Paramètres mail' },
-  { id: 'deliverability', label: 'Délivrabilité' },
   { id: 'cadence', label: 'Cadence d\'envoi' },
   { id: 'scoring', label: 'Scoring' },
   { id: 'signature', label: 'Signature' },

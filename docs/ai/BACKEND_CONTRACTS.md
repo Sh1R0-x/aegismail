@@ -109,10 +109,6 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `POST /api/settings/mail/test-smtp`
 - `POST /api/settings/mail/test-imap`
 
-### Deliverability
-
-- `POST /api/settings/deliverability/checks/refresh`
-
 ## Campaign clone flow
 
 `POST /api/campaigns/{campaign}/clone` creates a new independent campaign from any existing campaign (including completed/sent ones).
@@ -855,7 +851,6 @@ Current inbound fallback rule:
 
 - `settings`: required object
 - `settings.mail`: required object
-- `settings.deliverability`: required object
 - `settings.cadence`: required object
 - `settings.scoring`: required object
 - `settings.signature`: required object
@@ -866,20 +861,9 @@ Notes:
 - `settings.cadence` is derived from `settings.general`
 - `settings.scoring` is derived from `settings.general`
 - `settings.signature` mirrors the global signature stored in mail settings
-- `settings.deliverability.checks` exposes per-mechanism payloads for `spf`, `dkim`, `dmarc`
-- each `settings.deliverability.checks.{mechanism}` object contains:
-    - `status`: required enum `pass|warning|fail|not_detected`
-    - `detected_value`: nullable string
-    - `checked_at`: nullable ISO-8601 string
-    - `diagnostic_message`: nullable string
-    - `logs`: required array
-- `settings.deliverability.refreshEndpoint` is the manual refresh endpoint
-- `settings.deliverability.publicBaseUrl`: nullable resolved public HTTPS base used for email content normalization
-- `settings.deliverability.trackingBaseUrl`: nullable resolved public HTTPS base used for open/click/unsubscribe links
-- `settings.deliverability.publicBaseUrlStatus`: required enum `valid|missing|invalid`
-- `settings.deliverability.trackingBaseUrlStatus`: required enum `valid|missing|invalid`
-- `settings.deliverability.publicBaseUrlIssue`: nullable machine-readable issue code
-- `settings.deliverability.trackingBaseUrlIssue`: nullable machine-readable issue code
+- V1 no longer exposes a dedicated deliverability section in Settings
+- SPF / DKIM / DMARC diagnostics are not exposed through the Settings page
+- DNS authentication stays an external prerequisite managed outside the application
 
 ## Business rules frozen for page projections
 
@@ -1201,6 +1185,11 @@ Mail settings update rule:
 - `attachment_size_warning_mb`
 - `public_base_url`
 - `tracking_base_url`
+
+V1 note:
+
+- these values remain internal runtime settings used by tracking, unsubscribe, and preflight logic
+- SPF / DKIM / DMARC checks are not persisted or exposed as an operator-facing contract anymore
 
 Effective base URL behavior:
 

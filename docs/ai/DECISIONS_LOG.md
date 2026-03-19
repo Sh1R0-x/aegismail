@@ -35,7 +35,7 @@
 - Campaign editing now exposes a backend autosave contract; the internal draft remains, but business flow must no longer depend on a manual "save draft" action
 - Contact imports are preview-first in V1 when possible: Laravel validates rows before confirmation, requires `organization_name` and `primary_email`, and persists recent import batches for campaign audience reuse
 - Organizations are mandatory for manual contact creation and contact imports; deleting an organization with attached contacts is now blocked server-side
-- Deliverability checks are now persisted as structured per-mechanism payloads (`spf`, `dkim`, `dmarc`) with manual refresh and technical logs
+- DNS authentication (SPF / DKIM / DMARC) remains a prerequisite managed outside the application; V1 no longer exposes embedded DNS diagnostics or manual refresh in Settings
 - Fake CTAs are not acceptable in V1: any visible action must now be either functional, explicitly unavailable with a reason, or removed from the UI
 - The current repo still has no coherent RBAC layer or admin policy system; backend create access is not blocked by roles in this phase
 - Templates can now be permanently deleted (not just archived); linked drafts have their `template_id` set to null before deletion

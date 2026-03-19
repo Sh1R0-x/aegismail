@@ -142,6 +142,9 @@ Auto-replies must never be treated as human replies.
 - coherent From identity
 - bounce/error monitoring
 
+DNS authentication remains a prerequisite managed outside the application.
+V1 does not expose embedded SPF / DKIM / DMARC diagnostics or manual DNS retesting in Settings.
+
 ### Message construction
 
 Every outbound email must include:
@@ -260,12 +263,6 @@ Heat labels:
 - global signature
 - IMAP/SMTP config
 - sync state
-
-### Deliverability
-
-- SPF / DKIM / DMARC checks
-- alert thresholds
-- tracking toggles
 
 ### Cadence
 
