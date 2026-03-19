@@ -27,7 +27,7 @@ Date format used by the current backend:
 
 - `sentToday`: required integer
 - `dailyLimit`: required integer
-- `healthStatus`: required enum `good|degraded|critical`
+- `healthStatus`: required enum `good|degraded|critical|unknown`
 - `bounceRate`: required integer
 - `activeCampaigns`: required integer
 - `scheduledCount`: required integer

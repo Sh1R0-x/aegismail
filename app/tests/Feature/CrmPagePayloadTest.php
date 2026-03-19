@@ -266,6 +266,33 @@ class CrmPagePayloadTest extends TestCase
             );
     }
 
+    public function test_contacts_list_deduplicates_phone_mobile_when_phone_landline_is_empty(): void
+    {
+        $organization = Organization::query()->create(['name' => 'Test Corp']);
+
+        Contact::query()->create([
+            'organization_id' => $organization->id,
+            'first_name' => 'Eve',
+            'last_name' => 'Dupont',
+            'phone' => '+33612345678',
+            'phone_landline' => null,
+            'phone_mobile' => '+33612345678',
+        ]);
+
+        $this->get('/contacts')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Contacts/Index')
+                ->has('contacts', 1)
+                ->has('contacts.0', fn (Assert $contact) => $contact
+                    ->where('firstName', 'Eve')
+                    ->where('phoneLandline', null)
+                    ->where('phoneMobile', null)
+                    ->etc()
+                )
+            );
+    }
+
     private function seedCrmDataset(): array
     {
         Setting::query()->create([

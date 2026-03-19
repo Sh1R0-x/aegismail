@@ -147,3 +147,24 @@
 - Sent tab status filter dropdown: removed orphan "Planifiés" option that could never match items (scheduled recipients are excluded from the sent query by the backend)
 - Cancel button on Contact Show, draft deletion, attachment flow, scheduling UX, simple/multiple/campaign distinction, CampaignAudiencePicker org default, import/export round-trip: all verified working correctly — no fixes needed
 - Test updated: `CrmPagePayloadTest::test_dashboard_page_exposes_the_empty_payload_shape` now expects `healthStatus: 'unknown'` instead of `'critical'` for unconfigured mailbox
+
+## Phase 3 — Documentation overhaul and final product audit
+
+- `CrmPageDataService::mapContact()` phoneMobile dedup aligned with `serializeContactDetail()`: now compares against `phone_landline ?: phone` instead of `phone_landline` alone, preventing false positive phoneMobile display when phone_landline is empty but phone equals phone_mobile
+- New test: `test_contacts_list_deduplicates_phone_mobile_when_phone_landline_is_empty` covers the edge case where phone_landline is null and phone_mobile equals legacy phone
+- CLAUDE.md overhauled: navigation list updated (Drafts removed as separate item, Import/Export added, "Tableau de bord" label), UX rules updated (French-first, template delete-only, Mails hub)
+- FRONTEND_SCOPE.md rewritten: "Current phase" replaced with exhaustive list of all 16 implemented pages, "Must implement now" replaced with "Must maintain now"
+- BACKEND_SCOPE.md rewritten: "Current phase" replaced with exhaustive list of all implemented backend features, test count updated
+- FRONTEND_CONTRACTS.md: healthStatus enum updated to include `unknown` value
+- BACKEND_CONTRACTS.md: removed duplicate `/drafts` redirect entry
+- AEGIS_MAILING_CLAUDE_FRONTEND.md: navigation updated (Brouillons removed as separate entry, Import/Export added, "Tableau de bord" label), Modèles section corrected (suppression permanente instead of activation/archivage)
+- AEGIS_MAILING_CODEX_BACKEND.md: contacts schema updated to include phone_landline, phone_mobile, linkedin_url, country, city, tags_json
+- All 8 priority bugs from Phase 3 audit verified:
+  1. Sent tab safe from draft status — `whereNotIn` filter confirmed
+  2. Dashboard data populated from real DB queries — recentReplies, recentAlerts, scheduledSends all functional
+  3. French translations complete — zero English user-visible text
+  4. Draft deletion has proper guard against sent history + DB transaction cascade
+  5. Single/multiple/campaign has real business logic differentiation (mode stored on draft+campaign)
+  6. Phone dedup now consistent across list and detail views
+  7. Import/export round-trip verified working — tests cover unchanged, update, and create scenarios
+  8. Documentation overhaul complete — all docs/ai files aligned with current codebase

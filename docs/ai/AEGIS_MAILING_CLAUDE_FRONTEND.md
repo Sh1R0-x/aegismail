@@ -43,16 +43,18 @@ L’UI doit servir l’action, pas la décoration.
 
 ### Sidebar gauche
 
-- Dashboard
+- Tableau de bord
+- Mails (hub unifié : Envoyés, Brouillons, Programmés)
 - Contacts
 - Organisations
-- Mails
-- Brouillons
 - Modèles
 - Campagnes
 - Activité
+- Import / Export
 - Réglages
 - Utilisateurs
+
+Brouillons n'est plus une entrée séparée — ils vivent sous `/mails?tab=drafts`.
 
 ### Zone haute droite
 
@@ -116,7 +118,7 @@ Le même module doit rester cohérent visuellement.
 - aperçu
 - duplication
 - édition
-- activation / archivage
+- suppression permanente (pas d'archivage en V1)
 
 ### Campagnes
 

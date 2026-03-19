@@ -263,7 +263,7 @@ class CrmPageDataService
             'linkedinUrl' => $contact->linkedin_url,
             'phone' => $contact->phone_landline ?: $contact->phone_mobile ?: $contact->phone,
             'phoneLandline' => $contact->phone_landline,
-            'phoneMobile' => $contact->phone_mobile && $contact->phone_mobile !== $contact->phone_landline ? $contact->phone_mobile : null,
+            'phoneMobile' => $contact->phone_mobile && $contact->phone_mobile !== ($contact->phone_landline ?: $contact->phone) ? $contact->phone_mobile : null,
             'score' => $score,
             'scoreLevel' => $this->resolveScoreLevel($score, $excluded, $unsubscribed),
             'excluded' => $excluded,

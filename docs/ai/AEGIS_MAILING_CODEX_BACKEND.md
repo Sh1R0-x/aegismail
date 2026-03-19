@@ -120,6 +120,12 @@ Construire un backend fiable qui permet :
 - full_name nullable
 - job_title nullable
 - phone nullable
+- phone_landline nullable
+- phone_mobile nullable
+- linkedin_url nullable
+- country nullable
+- city nullable
+- tags_json nullable
 - notes nullable
 - status nullable
 - created_at

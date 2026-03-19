@@ -245,16 +245,18 @@ Heat labels:
 
 ## Main navigation
 
-- Dashboard
+- Tableau de bord (Dashboard)
+- Mails (unified hub: Envoyés, Brouillons, Programmés)
 - Contacts
 - Organizations
-- Mails
 - Templates
 - Campaigns
 - Activity
 - Import / Export
 - Settings
 - Users
+
+Drafts are no longer a separate navigation item — they live under `/mails?tab=drafts`.
 
 ## Admin settings sections
 

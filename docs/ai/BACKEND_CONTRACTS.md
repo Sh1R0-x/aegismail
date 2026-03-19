@@ -33,7 +33,6 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `GET /contacts/{contact}` -> `Contacts/Show`
 - `GET /organizations` -> `Organizations/Index`
 - `GET /organizations/{organization}` -> `Organizations/Show`
-- `GET /drafts` -> **302 redirect** to `/mails?tab=drafts`
 - `GET /templates` -> `Templates/Index`
 - `GET /campaigns` -> `Campaigns/Index`
 - `GET /campaigns/create` -> `Campaigns/Create`

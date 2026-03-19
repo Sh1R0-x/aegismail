@@ -2,19 +2,28 @@
 
 ## Current frontend targets
 
-The immediate goal is to support the current CRM frontend foundation with stable pages, shared components, and predictable backend contracts while staying inside the frozen V1 scope.
+All V1 frontend pages are implemented and wired to real backend data. The goal is now stability, consistency, and polish — no new pages or speculative features.
 
-## Current phase
+## Implemented pages
 
-This phase focuses on the currently wired frontend pages:
+- `/dashboard` — KPI cards, recent replies, recent alerts, scheduled sends
+- `/mails` — unified Mails hub with tabs: Envoyés (sent recipients), Brouillons (drafts), Programmés (scheduled). MailComposer for single/multiple modes.
+- `/contacts` — listing with filters (search, status, score), CRM detail with split phones, LinkedIn, emails, threads
+- `/contacts/{id}` — contact detail with editable form
+- `/organizations` — listing with search, detail with contacts and threads
+- `/organizations/{id}` — organization detail
+- `/templates` — listing, create, edit, duplicate, permanent delete
+- `/campaigns` — listing, create (draft-first), show, clone, unschedule
+- `/campaigns/create` — campaign creation entry point
+- `/campaigns/{id}` — campaign detail with audience, preflight, scheduling
+- `/threads/{id}` — thread detail with message timeline and HTML content
+- `/activity` — global activity timeline with event filters
+- `/import-export` — dedicated import/export module for contacts + organizations (CSV/XLSX)
+- `/settings` — general, mail, deliverability, signature sections
+- `/users` — user listing (placeholder in V1, no dedicated backend payload yet)
+- `/drafts` — redirects to `/mails?tab=drafts`
 
-- `/dashboard`
-- `/contacts`
-- `/organizations`
-
-The rest of the main navigation must remain visible and consistent even when some sections are still placeholders.
-
-## Must implement now
+## Must maintain now
 
 1. Keep the CRM layout and navigation stable
 2. Bind pages to the documented payloads in `docs/ai/FRONTEND_CONTRACTS.md`
@@ -23,7 +32,8 @@ The rest of the main navigation must remain visible and consistent even when som
 5. Make auto replies and hard bounces visually distinct
 6. Keep Settings readable as the operational control center
 7. Document frontend/backend contract gaps under `docs/ai`
-8. Import / Export is a dedicated module in the main navigation, not a sub-page of Contacts
+8. All user-visible text in French — no English labels
+9. Templates: create, edit, duplicate, permanently delete only — no archive/activate toggle
 
 ## Must not do now
 

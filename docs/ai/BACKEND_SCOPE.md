@@ -2,43 +2,37 @@
 
 ## Current backend targets
 
-The immediate goal is to support the existing frontend foundation with stable business data contracts while staying inside the frozen V1 scope.
+All V1 backend features are implemented and tested. The goal is now stability, correctness, and documentation alignment — no new feature development.
 
-## Current phase
+## Implemented backend features
 
-This phase wires CRM payloads for the existing frontend pages and closes the last backend blockers for real commercial usage:
-- `/dashboard`
-- `/contacts`
-- `/organizations`
-- real OVH MX Plan SMTP dispatch through the Node mail-gateway
-- real IMAP sync through the Node mail-gateway
-- open/click tracking endpoints with persisted events
+- **CRM core**: contacts, organizations, contact_emails with CRUD, search, filters, split phones (phone_landline, phone_mobile), LinkedIn
+- **Mail composition**: drafts (create, update, duplicate, delete, bulk-delete), templates (CRUD, duplicate, permanent delete), MailComposer single/multiple modes
+- **Campaigns**: draft-first creation, autosave, preflight, scheduling, unscheduling, immediate send, clone, audience picker
+- **Outbound mail**: real OVH MX Plan SMTP dispatch through Node mail-gateway, multipart body synthesis, public URL validation, send window, cadence, one queue (`mail-outbound`)
+- **IMAP sync**: inbox + sent folder sync through Node mail-gateway, UID cursor resume, mailbox+folder lock, thread resolution, message classification (human_reply, auto_reply, out_of_office, auto_ack, soft_bounce, hard_bounce, system)
+- **Tracking**: open pixel, click redirect, one-click unsubscribe (List-Unsubscribe headers), event persistence
+- **Import/Export**: preview-first CSV/XLSX import, confirm with single-use preview token, template download, full export, round-trip support, French aliases, organization resolution
+- **Settings**: general, mail (SMTP/IMAP test), deliverability (public URLs, tracking URLs), signature
+- **Dashboard data**: sentToday, dailyLimit, healthStatus, bounceRate, activeCampaigns, scheduledCount, recentReplies, recentAlerts, scheduledSends — all from real DB queries
+- **Activity**: global event timeline from persisted mail_messages
+- **Attachments**: draft file attachments with MIME validation, max 10 MB
 
-It also aligns the minimum missing backend entities:
-- `organizations`
-- `contacts`
-- `contact_emails`
-- `mail_attachments`
+## Must maintain now
 
-It now also includes a dedicated Import / Export backend module for contacts + organizations:
-- preview-first CSV import
-- explicit confirm step
-- mirrored CSV export for round-trip edits
-- conservative matching and diff exposure for the frontend
-
-## Must implement now
 1. Keep one OVH MX Plan mailbox only
 2. Keep one sending queue for all outgoing messages
-3. Expose stable Inertia payloads for Dashboard, Contacts, Organizations
-4. Persist and query the CRM entities needed by the frontend
-5. Compute simple score, scoreLevel, excluded, unsubscribed and lastActivityAt
-6. Compute scheduled sends, contactCount and sentCount
-7. Deliver real SMTP send + IMAP sync through the mail-gateway
-8. Persist open/click tracking and expose it to the existing backend projections
-9. Deliver a stable Import / Export module contract for contacts and organizations
-10. Document exact backend/frontend contracts in `docs/ai`
+3. Expose stable Inertia payloads for all pages
+4. Persist and query all CRM entities
+5. Compute score, scoreLevel, excluded, unsubscribed, lastActivityAt correctly
+6. Deliver real SMTP send + IMAP sync through the mail-gateway
+7. Persist tracking events and expose them to existing backend projections
+8. Maintain stable Import / Export module contracts
+9. Document exact backend/frontend contracts in `docs/ai`
+10. Keep all tests passing (100 tests, 1370+ assertions)
 
 ## Must not do now
+
 - build full Gmail-style integrations
 - add Google APIs or Socialite Google
 - add speculative provider abstractions
@@ -47,6 +41,7 @@ It now also includes a dedicated Import / Export backend module for contacts + o
 - invent provider-specific behavior outside OVH MX Plan needs
 
 ## Frozen rules to keep
+
 - frozen mail statuses stay unchanged
 - frontend navigation stays unchanged
 - Laravel owns business truth

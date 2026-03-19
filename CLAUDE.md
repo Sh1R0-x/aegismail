@@ -50,29 +50,32 @@ The app must feel like a clean CRM:
 
 ## UX rules
 
-- Keep the product unified. Avoid making Mails, Drafts, Templates, and Campaigns feel like separate products.
+- Keep the product unified. Mails, Templates, and Campaigns must feel like one product, not separate apps.
+- Drafts are integrated in the Mails page (tab), not a separate section.
 - Prefer reuse over duplication.
 - Do not introduce speculative UI not covered by the current scope.
 - Use existing shared components first.
 - Treat auto replies and hard bounces as first-class visual states.
 - Settings must feel like the operational control center of the product.
 - Desktop-first is acceptable in V1, but basic responsive behavior must remain clean.
+- All user-visible text must be in French.
+- Templates can only be created, edited, duplicated, or permanently deleted — no archive/activate toggle in V1.
 
 ## Required navigation
 
 Main navigation must support:
-- Dashboard
-- Mails
+- Tableau de bord (Dashboard)
+- Mails (unified hub: Envoyés, Brouillons, Programmés tabs)
 - Contacts
 - Organizations
-- Drafts
 - Templates
 - Campaigns
 - Activity
+- Import / Export
 - Settings
 - Users
 
-If some sections are not implemented yet, reserve their place cleanly rather than inventing a different IA.
+Drafts are no longer a separate navigation item — they live under `/mails?tab=drafts`.
 
 ## Required status vocabulary
 
