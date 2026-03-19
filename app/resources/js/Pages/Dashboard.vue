@@ -65,7 +65,7 @@
                 {{ stats.healthStatus === 'good' ? 'Bonne' : stats.healthStatus === 'degraded' ? 'Dégradée' : 'Critique' }}
               </p>
             </div>
-            <p class="mt-1 text-xs font-medium text-slate-400">{{ stats.bounceRate }}% bounce rate</p>
+            <p class="mt-1 text-xs font-medium text-slate-400">{{ stats.bounceRate }}% taux de rebond</p>
           </div>
         </div>
 

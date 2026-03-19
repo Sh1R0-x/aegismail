@@ -39,7 +39,7 @@
             <th class="px-6 py-4">Destinataires</th>
             <th class="px-6 py-4">Ouvertures</th>
             <th class="px-6 py-4">Réponses</th>
-            <th class="px-6 py-4">Bounces</th>
+            <th class="px-6 py-4">Rebonds</th>
             <th class="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>

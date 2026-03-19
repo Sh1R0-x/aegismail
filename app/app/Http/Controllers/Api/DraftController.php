@@ -7,12 +7,14 @@ use App\Http\Requests\Mailing\BulkDeleteDraftsRequest;
 use App\Http\Requests\Mailing\CreateCampaignFromDraftRequest;
 use App\Http\Requests\Mailing\ScheduleDraftRequest;
 use App\Http\Requests\Mailing\UpsertDraftRequest;
+use App\Models\MailAttachment;
 use App\Models\MailDraft;
 use App\Services\Mailing\Composer\CampaignService;
 use App\Services\Mailing\Composer\DraftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class DraftController extends Controller
 {
@@ -175,5 +177,53 @@ class DraftController extends Controller
             'campaign' => $this->campaignService->serialize($campaign),
             'preflight' => $preflight,
         ], 201);
+    }
+
+    public function uploadAttachment(Request $request, MailDraft $draft): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+        ], [
+            'file.required' => 'Un fichier est requis.',
+            'file.file' => 'Le fichier est invalide.',
+            'file.max' => 'Le fichier ne peut pas dépasser 10 Mo.',
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('attachments/'.$draft->id, 'local');
+
+        $attachment = MailAttachment::query()->create([
+            'draft_id' => $draft->id,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'size_bytes' => $file->getSize(),
+            'storage_disk' => 'local',
+            'storage_path' => $path,
+            'disposition' => 'attachment',
+        ]);
+
+        return response()->json([
+            'attachment' => [
+                'id' => $attachment->id,
+                'name' => $attachment->original_name,
+                'size' => $attachment->size_bytes,
+                'mimeType' => $attachment->mime_type,
+            ],
+        ], 201);
+    }
+
+    public function deleteAttachment(MailDraft $draft, MailAttachment $attachment): JsonResponse
+    {
+        if ((int) $attachment->draft_id !== (int) $draft->id) {
+            return response()->json(['message' => 'Pièce jointe introuvable pour ce brouillon.'], 404);
+        }
+
+        if ($attachment->storage_path && $attachment->storage_disk) {
+            Storage::disk($attachment->storage_disk)->delete($attachment->storage_path);
+        }
+
+        $attachment->delete();
+
+        return response()->json(['message' => 'Pièce jointe supprimée.']);
     }
 }

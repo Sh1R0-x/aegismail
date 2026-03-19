@@ -42,6 +42,9 @@ Route::post('/drafts/{draft}/unschedule', [DraftController::class, 'unschedule']
 Route::post('/drafts/{draft}/send-now', [DraftController::class, 'sendNow']);
 Route::post('/drafts/{draft}/test-send', [DraftController::class, 'testSend']);
 Route::post('/drafts/{draft}/campaign', [DraftController::class, 'createCampaign']);
+Route::post('/drafts/{draft}/attachments', [DraftController::class, 'uploadAttachment']);
+Route::delete('/drafts/{draft}/attachments/{attachment}', [DraftController::class, 'deleteAttachment']);
+Route::post('/drafts/bulk-delete', [DraftController::class, 'bulkDestroy']);
 
 Route::get('/campaigns', [CampaignController::class, 'index']);
 Route::get('/campaigns/audiences', [CampaignAutosaveController::class, 'audiences']);
@@ -56,6 +59,7 @@ Route::get('/import-export/export', [ContactImportController::class, 'export']);
 Route::post('/import-export/preview', [ContactImportController::class, 'preview']);
 Route::post('/import-export/confirm', [ContactImportController::class, 'store']);
 Route::post('/contacts', [ContactController::class, 'store']);
+Route::get('/contacts/search', [ContactController::class, 'search']);
 Route::get('/contacts/imports/template', [ContactImportController::class, 'template']);
 Route::get('/contacts/imports/export', [ContactImportController::class, 'export']);
 Route::post('/contacts/imports/preview', [ContactImportController::class, 'preview']);

@@ -766,34 +766,34 @@ Frontend handling:
 - `organizationSummary`: `{ matchedExistingCount, createdCount, keptExistingCount, updatedCount, missingCount }`
 - `contactSummary`: `{ createdCount, updatedCount, unchangedCount }`
 - `rows[]`: each with:
-  - `lineNumber`
-  - `status('valid'|'unchanged'|'invalid'|'duplicate_in_file')`
-  - `action('create'|'update'|'unchanged'|'skip'|'error')`
-  - `plannedActions.organization{ code, label }`
-  - `plannedActions.contact{ code, label }`
-  - `organization.action('create'|'update'|'reuse'|'keep_existing'|'preserve_existing'|'missing'|'ambiguous')`
-  - `organization.writeAction('create'|'update'|'unchanged')`
-  - `organization.willWrite`
-  - `organization.matchStrategy`
-  - `organization.changes[]`
-  - `contact.action('create'|'update'|'unchanged')`
-  - `contact.willWrite`
-  - `contact.matchStrategy('exact_email'|'exact_email_missing')`
-  - `contact.changes[]`
-  - `primaryEmail`
-  - `name`
-  - `organizationName`
-  - `linkedinUrl`
-  - `phoneLandline`
-  - `phoneMobile`
-  - `reason`
-  - `reasonCode`
-  - `normalized{}`
-  - `persistedFields[]`
-  - `errors[]`
-  - `warnings[]`
-  - `conflicts[]`
-  - `existingContact?`
+    - `lineNumber`
+    - `status('valid'|'unchanged'|'invalid'|'duplicate_in_file')`
+    - `action('create'|'update'|'unchanged'|'skip'|'error')`
+    - `plannedActions.organization{ code, label }`
+    - `plannedActions.contact{ code, label }`
+    - `organization.action('create'|'update'|'reuse'|'keep_existing'|'preserve_existing'|'missing'|'ambiguous')`
+    - `organization.writeAction('create'|'update'|'unchanged')`
+    - `organization.willWrite`
+    - `organization.matchStrategy`
+    - `organization.changes[]`
+    - `contact.action('create'|'update'|'unchanged')`
+    - `contact.willWrite`
+    - `contact.matchStrategy('exact_email'|'exact_email_missing')`
+    - `contact.changes[]`
+    - `primaryEmail`
+    - `name`
+    - `organizationName`
+    - `linkedinUrl`
+    - `phoneLandline`
+    - `phoneMobile`
+    - `reason`
+    - `reasonCode`
+    - `normalized{}`
+    - `persistedFields[]`
+    - `errors[]`
+    - `warnings[]`
+    - `conflicts[]`
+    - `existingContact?`
 
 **Import response** (`POST /api/import-export/confirm`):
 

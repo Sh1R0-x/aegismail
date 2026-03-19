@@ -9,7 +9,7 @@
           <option value="opened">Ouvertures</option>
           <option value="replied">Réponses</option>
           <option value="auto_replied">Réponses automatiques</option>
-          <option value="bounced">Bounces</option>
+          <option value="bounced">Rebonds</option>
         </select>
         <input
           v-model="search"

@@ -243,7 +243,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 // ── Local state ────────────────────────────────────────────
-const activeTab = ref('contacts');
+const activeTab = ref('organizations');
 const contactSearch = ref('');
 const loading = ref(false);
 const loadError = ref(null);

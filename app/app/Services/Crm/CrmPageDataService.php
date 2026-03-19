@@ -66,7 +66,7 @@ class CrmPageDataService
             ->where('direction', 'in')
             ->where('classification', 'human_reply')
             ->orderByDesc('received_at')
-            ->limit(5)
+            ->limit(10)
             ->get()
             ->map(fn (MailMessage $message): array => [
                 'id' => $message->id,
@@ -79,9 +79,9 @@ class CrmPageDataService
 
         $recentAlerts = MailMessage::query()
             ->where('direction', 'in')
-            ->whereIn('classification', ['auto_reply', 'out_of_office', 'auto_ack', 'soft_bounce', 'hard_bounce', 'system'])
+            ->whereIn('classification', ['auto_reply', 'out_of_office', 'auto_ack', 'soft_bounce', 'hard_bounce', 'system', 'failed'])
             ->orderByDesc('received_at')
-            ->limit(5)
+            ->limit(10)
             ->get()
             ->map(fn (MailMessage $message): array => [
                 'id' => $message->id,
@@ -262,8 +262,8 @@ class CrmPageDataService
             'email' => $primaryEmail?->email ?? '',
             'linkedinUrl' => $contact->linkedin_url,
             'phone' => $contact->phone_landline ?: $contact->phone_mobile ?: $contact->phone,
-            'phoneLandline' => $contact->phone_landline ?: $contact->phone,
-            'phoneMobile' => $contact->phone_mobile,
+            'phoneLandline' => $contact->phone_landline,
+            'phoneMobile' => $contact->phone_mobile && $contact->phone_mobile !== $contact->phone_landline ? $contact->phone_mobile : null,
             'score' => $score,
             'scoreLevel' => $this->resolveScoreLevel($score, $excluded, $unsubscribed),
             'excluded' => $excluded,
@@ -386,8 +386,8 @@ class CrmPageDataService
         $label = match ($message->classification) {
             'out_of_office' => 'Absence automatique',
             'auto_ack' => 'Accusé automatique',
-            'soft_bounce' => 'Soft bounce',
-            'hard_bounce' => 'Hard bounce',
+            'soft_bounce' => 'Rebond temporaire',
+            'hard_bounce' => 'Rebond permanent',
             'system' => 'Message système',
             default => 'Réponse automatique',
         };

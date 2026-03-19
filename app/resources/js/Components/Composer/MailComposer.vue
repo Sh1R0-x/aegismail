@@ -26,6 +26,9 @@
         </button>
       </div>
       <span v-if="draftId" class="text-xs font-medium text-slate-400">Brouillon #{{ draftId }}</span>
+      <span class="text-xs font-medium text-slate-400">
+        {{ form.mode === 'single' ? 'Un seul destinataire — message personnel' : 'Plusieurs destinataires — chacun reçoit un mail individuel' }}
+      </span>
       <span v-if="savedAt" class="text-xs font-bold text-emerald-600">Sauvegardé {{ savedAtLabel }}</span>
 
       <!-- Action buttons -->
@@ -87,12 +90,28 @@
               {{ form.mode === 'multiple' ? 'Destinataires' : 'Destinataire' }}
             </label>
             <div v-if="form.mode === 'single'" class="flex gap-3">
-              <input
-                v-model="singleEmail"
-                type="email"
-                placeholder="adresse@exemple.fr"
-                class="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
-              />
+              <div class="relative flex-1">
+                <input
+                  v-model="singleEmail"
+                  type="email"
+                  placeholder="adresse@exemple.fr — tapez pour rechercher un contact"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+                  @input="onRecipientSearch"
+                  @blur="hideContactSuggestions"
+                />
+                <ul v-if="contactSuggestions.length > 0 && showSuggestions" class="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                  <li
+                    v-for="c in contactSuggestions"
+                    :key="c.contactEmailId"
+                    class="cursor-pointer px-4 py-2.5 text-sm hover:bg-slate-50"
+                    @mousedown.prevent="selectContact(c)"
+                  >
+                    <span class="font-bold text-slate-900">{{ c.name }}</span>
+                    <span class="ml-2 text-xs text-slate-400">{{ c.email }}</span>
+                    <span v-if="c.organizationName" class="ml-2 text-xs text-slate-300">· {{ c.organizationName }}</span>
+                  </li>
+                </ul>
+              </div>
               <input
                 v-model="singleName"
                 type="text"
@@ -212,9 +231,34 @@
           </div>
         </div>
 
-        <!-- Attachments note -->
-        <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-4 text-xs font-medium text-slate-500">
-          Les pièces jointes peuvent être ajoutées après sauvegarde du brouillon via l'API.
+        <!-- ── Attachments ─────────────────────────────── -->
+        <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Pièces jointes</h3>
+              <p class="mt-0.5 text-xs font-medium text-slate-400">10 Mo max par fichier</p>
+            </div>
+            <label class="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all">
+              Ajouter un fichier
+              <input type="file" class="hidden" multiple @change="onFileSelected" />
+            </label>
+          </div>
+          <p v-if="attachmentError" class="text-xs font-semibold text-red-600">{{ attachmentError }}</p>
+          <div v-if="attachments.length > 0" class="space-y-2">
+            <div v-for="att in attachments" :key="att.id" class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+              <div class="flex items-center gap-3 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 shrink-0 text-slate-400">
+                  <path fill-rule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.52 9.52l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.451a1.125 1.125 0 001.587 1.595l3.454-3.553a3 3 0 000-4.242z" clip-rule="evenodd" />
+                </svg>
+                <span class="truncate text-sm font-medium text-slate-700">{{ att.name }}</span>
+                <span class="shrink-0 text-xs text-slate-400">{{ formatFileSize(att.size) }}</span>
+              </div>
+              <button class="shrink-0 text-xs font-bold text-red-500 hover:text-red-700" @click="removeAttachment(att.id)">
+                Supprimer
+              </button>
+            </div>
+          </div>
+          <p v-if="uploadingAttachment" class="text-xs font-medium text-blue-600">Téléversement en cours…</p>
         </div>
 
       </div>
@@ -253,6 +297,16 @@
           </div>
           <template v-if="showSchedule">
             <div class="space-y-3">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="opt in quickScheduleOptions"
+                  :key="opt.label"
+                  class="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-100 transition-colors"
+                  @click="scheduledAt = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
               <div>
                 <label class="mb-1 block text-xs font-bold text-blue-700">Date et heure d'envoi</label>
                 <input
@@ -415,6 +469,116 @@ const testResult = ref(null);
 
 // ── Email preview state ────────────────────────────────────
 const showEmailPreview = ref(false);
+
+// ── Contact search state ───────────────────────────────────
+const contactSuggestions = ref([]);
+const showSuggestions = ref(false);
+let searchTimeout = null;
+
+function onRecipientSearch() {
+  const q = singleEmail.value.trim();
+  if (q.length < 2) {
+    contactSuggestions.value = [];
+    showSuggestions.value = false;
+    return;
+  }
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(async () => {
+    try {
+      const { data } = await axios.get('/api/contacts/search', { params: { q } });
+      contactSuggestions.value = data.results ?? [];
+      showSuggestions.value = contactSuggestions.value.length > 0;
+    } catch {
+      contactSuggestions.value = [];
+      showSuggestions.value = false;
+    }
+  }, 300);
+}
+
+function selectContact(contact) {
+  singleEmail.value = contact.email;
+  singleName.value = contact.name || '';
+  showSuggestions.value = false;
+  contactSuggestions.value = [];
+}
+
+function hideContactSuggestions() {
+  setTimeout(() => { showSuggestions.value = false; }, 200);
+}
+
+// ── Attachment state ───────────────────────────────────────
+const attachments = ref(props.draft?.attachments ?? []);
+const uploadingAttachment = ref(false);
+const attachmentError = ref(null);
+
+async function onFileSelected(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+  attachmentError.value = null;
+
+  // Auto-save draft if not yet saved
+  if (!draftId.value) {
+    await saveDraft();
+    if (!draftId.value) return; // save failed
+  }
+
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) {
+      attachmentError.value = `Le fichier "${file.name}" dépasse la limite de 10 Mo.`;
+      continue;
+    }
+    uploadingAttachment.value = true;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await axios.post(`/api/drafts/${draftId.value}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      attachments.value.push(data.attachment);
+    } catch (e) {
+      attachmentError.value = e.response?.data?.message ?? `Impossible de téléverser "${file.name}".`;
+    } finally {
+      uploadingAttachment.value = false;
+    }
+  }
+  event.target.value = '';
+}
+
+async function removeAttachment(attachmentId) {
+  if (!draftId.value) return;
+  try {
+    await axios.delete(`/api/drafts/${draftId.value}/attachments/${attachmentId}`);
+    attachments.value = attachments.value.filter(a => a.id !== attachmentId);
+  } catch (e) {
+    attachmentError.value = e.response?.data?.message ?? 'Impossible de supprimer la pièce jointe.';
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 o';
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+}
+
+// ── Quick schedule options ─────────────────────────────────
+const quickScheduleOptions = computed(() => {
+  const now = new Date();
+  const today9h = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0);
+  const today14h = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0);
+  const tomorrow9h = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0);
+  const tomorrow14h = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 14, 0);
+  const apdem9h = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 9, 0);
+
+  const fmt = d => d.toISOString().slice(0, 16);
+  const options = [];
+  if (today9h > now) options.push({ label: "Aujourd'hui 9h", value: fmt(today9h) });
+  if (today14h > now) options.push({ label: "Aujourd'hui 14h", value: fmt(today14h) });
+  options.push({ label: 'Demain 9h', value: fmt(tomorrow9h) });
+  options.push({ label: 'Demain 14h', value: fmt(tomorrow14h) });
+  options.push({ label: 'Après-demain 9h', value: fmt(apdem9h) });
+  return options;
+});
 
 // ── Template ───────────────────────────────────────────────
 const selectedTemplateId = ref(props.draft?.templateId ?? '');

@@ -89,7 +89,7 @@
             <dd class="font-bold text-emerald-800">{{ result.recipientSummary.deliverable }}</dd>
           </div>
           <div v-if="result.recipientSummary.excluded > 0" class="flex justify-between">
-            <dt class="font-medium text-red-600">Exclus (hard bounce)</dt>
+            <dt class="font-medium text-red-600">Exclus (rebond permanent)</dt>
             <dd class="font-bold text-red-700">{{ result.recipientSummary.excluded }}</dd>
           </div>
           <div v-if="result.recipientSummary.optOut > 0" class="flex justify-between">

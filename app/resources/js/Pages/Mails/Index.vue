@@ -92,6 +92,12 @@
       <!-- ═══ TAB: Envoyés ═══ -->
       <template v-if="activeTab === 'sent'">
 
+      <!-- Error banner -->
+      <div v-if="deleteError" class="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4">
+        <p class="text-sm font-semibold text-red-700">{{ deleteError }}</p>
+        <button class="shrink-0 text-xs font-bold text-red-500 hover:text-red-800" @click="deleteError = null">✕</button>
+      </div>
+
       <!-- Filters -->
       <div class="flex items-center gap-3">
         <select
@@ -105,8 +111,8 @@
           <option value="clicked">Cliqués</option>
           <option value="replied">Répondus</option>
           <option value="auto_replied">Réponses auto</option>
-          <option value="soft_bounced">Soft bounce</option>
-          <option value="hard_bounced">Hard bounce</option>
+          <option value="soft_bounced">Rebond temporaire</option>
+          <option value="hard_bounced">Rebond permanent</option>
           <option value="unsubscribed">Désinscrits</option>
           <option value="failed">Échec</option>
           <option value="scheduled">Planifiés</option>
@@ -188,6 +194,11 @@
 
       <!-- ═══ TAB: Brouillons ═══ -->
       <template v-if="activeTab === 'drafts'">
+        <!-- Error banner -->
+        <div v-if="deleteError" class="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4">
+          <p class="text-sm font-semibold text-red-700">{{ deleteError }}</p>
+          <button class="shrink-0 text-xs font-bold text-red-500 hover:text-red-800" @click="deleteError = null">✕</button>
+        </div>
         <div class="flex items-center gap-3">
           <input
             v-model="draftSearch"
@@ -367,6 +378,7 @@ const composerOpen = ref(false);
 const composerMode = ref('single');
 const editingDraft = ref(null);
 const selectedDrafts = ref([]);
+const deleteError = ref(null);
 
 const composerTitle = computed(() =>
   editingDraft.value ? 'Édition du brouillon' : (composerMode.value === 'multiple' ? 'Envoi multiple' : 'Mail simple'),
@@ -450,30 +462,32 @@ async function duplicateDraft(draftId) {
   try {
     await axios.post(`/api/drafts/${draftId}/duplicate`);
     router.reload({ preserveState: false });
-  } catch {
-    // silently fail
+  } catch (e) {
+    deleteError.value = e.response?.data?.message ?? 'Impossible de dupliquer le brouillon.';
   }
 }
 
 async function deleteDraft(draftId) {
   if (!window.confirm('Supprimer ce brouillon ?')) return;
+  deleteError.value = null;
   try {
     await axios.delete(`/api/drafts/${draftId}`);
     selectedDrafts.value = selectedDrafts.value.filter(id => id !== draftId);
     router.reload({ preserveState: false });
-  } catch {
-    // silently fail
+  } catch (e) {
+    deleteError.value = e.response?.data?.message ?? 'Impossible de supprimer le brouillon.';
   }
 }
 
 async function deleteSelectedDrafts() {
   if (!window.confirm(`Supprimer ${selectedDrafts.value.length} brouillon(s) ?`)) return;
+  deleteError.value = null;
   try {
-    await axios.delete('/api/drafts', { data: { ids: selectedDrafts.value } });
+    await axios.post('/api/drafts/bulk-delete', { ids: selectedDrafts.value });
     selectedDrafts.value = [];
     router.reload({ preserveState: false });
-  } catch {
-    // silently fail
+  } catch (e) {
+    deleteError.value = e.response?.data?.message ?? 'Impossible de supprimer les brouillons sélectionnés.';
   }
 }
 
@@ -481,8 +495,8 @@ async function unscheduleDraft(draftId) {
   try {
     await axios.post(`/api/drafts/${draftId}/unschedule`);
     router.reload({ preserveState: false });
-  } catch {
-    // silently fail
+  } catch (e) {
+    deleteError.value = e.response?.data?.message ?? 'Impossible de déprogrammer cet envoi.';
   }
 }
 

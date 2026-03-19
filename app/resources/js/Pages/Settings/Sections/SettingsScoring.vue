@@ -6,8 +6,8 @@
         <FieldGroup label="Clic" v-model="form.click_points" type="number" suffix="pts" />
         <FieldGroup label="Réponse" v-model="form.reply_points" type="number" suffix="pts" />
         <FieldGroup label="Réponse automatique" v-model="form.auto_reply_points" type="number" suffix="pts" />
-        <FieldGroup label="Soft bounce" v-model="form.soft_bounce_points" type="number" suffix="pts" />
-        <FieldGroup label="Hard bounce" v-model="form.hard_bounce_points" type="number" suffix="pts" />
+        <FieldGroup label="Rebond temporaire" v-model="form.soft_bounce_points" type="number" suffix="pts" />
+        <FieldGroup label="Rebond permanent" v-model="form.hard_bounce_points" type="number" suffix="pts" />
         <FieldGroup label="Désinscription" v-model="form.unsubscribe_points" type="number" suffix="pts" />
       </div>
     </SectionCard>

@@ -55,7 +55,8 @@ class ComposerPageDataService
                 'campaign' => fn ($q) => $q->select(['id', 'draft_id', 'mode'])->with('draft:id,subject'),
                 'messages' => fn ($q) => $q->select(['id', 'recipient_id', 'thread_id'])->orderByDesc('id'),
                 'contact' => fn ($q) => $q->select(['id', 'first_name', 'last_name'])->with('organization:id,name'),
-            ]);
+            ])
+            ->whereNotIn('status', ['draft', 'scheduled', 'queued']);
 
         if ($status !== '' && $status !== 'all') {
             $query->where('status', $status);

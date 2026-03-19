@@ -181,6 +181,7 @@ function resetForm() {
   form.value = snapshot();
   fieldErrors.value = {};
   banner.value = null;
+  router.visit('/contacts');
 }
 
 async function save() {

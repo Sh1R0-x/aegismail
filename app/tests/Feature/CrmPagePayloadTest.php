@@ -115,7 +115,7 @@ class CrmPagePayloadTest extends TestCase
                 ->has('recentAlerts.0', fn (Assert $alert) => $alert
                     ->where('status', 'hard_bounced')
                     ->where('email', 'mailer-daemon@ovh.test')
-                    ->where('detail', 'Hard bounce · Delivery failure')
+                    ->where('detail', 'Rebond permanent · Delivery failure')
                     ->where('time', '2026-03-15T10:45:00+01:00')
                     ->etc()
                 )

@@ -70,6 +70,9 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `POST /api/drafts/{draft}/send-now` — schedules for immediate dispatch (runs preflight, same pipeline as schedule). Returns: `{ ok, message, campaign, driver }`
 - `POST /api/drafts/{draft}/test-send` — sends a test email via the gateway client without creating recipients/messages. Body: `{ email: string }`. Returns: `{ success, message, driver, acceptedAt }`
 - `POST /api/drafts/{draft}/campaign`
+- `POST /api/drafts/bulk-delete` — bulk-delete drafts via POST (avoids DELETE body issues). Body: `{ ids: int[] }`. Same logic as `DELETE /api/drafts`
+- `POST /api/drafts/{draft}/attachments` — upload a file attachment to a draft. Multipart form: `{ file: UploadedFile }`. Max 10 MB. Returns: `{ attachment: { id, name, size, mimeType } }`
+- `DELETE /api/drafts/{draft}/attachments/{attachment}` — remove an attachment from a draft and delete the stored file
 
 ### Campaigns
 
@@ -92,6 +95,7 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `POST /api/import-export/preview`
 - `POST /api/import-export/confirm`
 - `POST /api/contacts`
+- `GET /api/contacts/search` — lightweight contact search for composer autocomplete. Query: `?q=string` (min 2 chars). Returns: `{ results: [{ contactId, name, email, contactEmailId, organizationId, organizationName }] }`. Max 20 results.
 - `GET /api/contacts/imports/template`
 - `GET /api/contacts/imports/export`
 - `POST /api/contacts/imports/preview`

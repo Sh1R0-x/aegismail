@@ -404,6 +404,12 @@ class DraftService
             'recipientCount' => $this->recipientCount($draft),
             'recipients' => array_values($draft->payload_json['recipients'] ?? []),
             'attachmentCount' => $draft->attachments->count(),
+            'attachments' => $draft->attachments->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->original_name,
+                'size' => $a->size_bytes,
+                'mimeType' => $a->mime_type,
+            ])->values()->all(),
             'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
         ];
     }

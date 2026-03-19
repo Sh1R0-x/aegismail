@@ -85,6 +85,26 @@
 - Backend API endpoints consumed: `GET /api/import-export/template`, `GET /api/import-export/export`, `POST /api/import-export/preview`, `POST /api/import-export/confirm`
 - All labels are in French
 - The previewToken expiry / already-consumed case is handled with a dedicated error message
+
+## Stabilization pass — transverse fixes
+
+- `CrmPageDataService::mapContact()` no longer falls back `phoneLandline` to the legacy `phone` field; `phoneMobile` is deduplicated against `phoneLandline` at backend level. Frontend also guards display: if `phoneMobile === phoneLandline`, only one is shown
+- `CrmPageDataService::describeAlert()` now outputs French labels: "Rebond temporaire", "Rebond permanent" instead of "Soft bounce", "Hard bounce"
+- `CrmPageDataService` — `recentReplies` and `recentAlerts` limits raised from 5 to 10; `recentAlerts` now includes `failed` classification
+- `ComposerPageDataService::mails()` — recipients in Envoyés tab now filtered with `whereNotIn('status', ['draft', 'scheduled', 'queued'])` to exclude pre-send statuses
+- `DraftService::serialize()` now includes full `attachments[]` array `{ id, name, size, mimeType }` alongside existing `attachmentCount`
+- New API routes added: `POST /api/drafts/bulk-delete` (safer than DELETE with body), `POST /api/drafts/{draft}/attachments`, `DELETE /api/drafts/{draft}/attachments/{attachment}`, `GET /api/contacts/search?q=`
+- Contact search endpoint returns max 20 matches (name, email, org), min 2 chars, contacts without email excluded
+- Draft attachment upload: max 10 MB per file, stored on local disk, auto-creates directory
+- Cancel button on contact detail page (`Contacts/Show.vue`) now navigates back to `/contacts` instead of only resetting the form
+- StatusBadge.vue, filter dropdowns, settings labels: all `Soft bounce` → `Rebond temporaire`, `Hard bounce` → `Rebond permanent`, `bounce rate` → `taux de rebond`, `Bounces` → `Rebonds`
+- CampaignAudiencePicker default tab changed from `contacts` to `organizations`
+- MailComposer.vue: mode description text added ("Un seul destinataire — message personnel" vs "Plusieurs destinataires — chacun reçoit un mail individuel")
+- MailComposer.vue: contact search autocomplete added to single recipient field (debounced 300ms, calls `GET /api/contacts/search`)
+- MailComposer.vue: file attachment upload section replaces placeholder note; auto-saves draft before first upload if needed
+- MailComposer.vue: quick scheduling buttons added (Aujourd'hui 9h/14h, Demain 9h/14h, Après-demain 9h)
+- Mails/Index.vue: bulk-delete now uses `POST /api/drafts/bulk-delete` instead of `DELETE /api/drafts` with body; all silent catch blocks replaced with error banners
+- All French translation audit complete: no remaining English UI labels in Vue components
 - E2E smoke navigation test updated to include the Import / Export route
 
 ## Documentation alignment

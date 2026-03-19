@@ -108,7 +108,7 @@
               <td class="px-6 py-4">
                 <div class="flex flex-col gap-0.5 text-xs text-slate-600">
                   <span v-if="contact.phoneLandline">{{ contact.phoneLandline }}</span>
-                  <span v-if="contact.phoneMobile">{{ contact.phoneMobile }}</span>
+                  <span v-if="contact.phoneMobile && contact.phoneMobile !== contact.phoneLandline">{{ contact.phoneMobile }}</span>
                   <span v-if="!contact.phoneLandline && !contact.phoneMobile && contact.phone">{{ contact.phone }}</span>
                   <span v-if="!contact.phoneLandline && !contact.phoneMobile && !contact.phone" class="text-slate-300">—</span>
                 </div>

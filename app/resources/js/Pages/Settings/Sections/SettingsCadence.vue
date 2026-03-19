@@ -24,7 +24,7 @@
 
     <SectionCard title="Arrêt automatique" subtitle="Seuils de sécurité pour stopper les envois">
       <div class="grid grid-cols-2 gap-4">
-        <FieldGroup label="Seuil hard bounce" v-model="form.stop_on_hard_bounce_threshold" type="number" suffix="%" />
+        <FieldGroup label="Seuil de rebond permanent" v-model="form.stop_on_hard_bounce_threshold" type="number" suffix="%" />
         <FieldGroup label="Max erreurs consécutives" v-model="form.stop_on_consecutive_failures" type="number" />
       </div>
     </SectionCard>

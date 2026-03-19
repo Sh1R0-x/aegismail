@@ -10,12 +10,51 @@ use App\Models\Contact;
 use App\Models\ContactEmail;
 use App\Services\Crm\CrmManagementService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ContactController extends Controller
 {
     public function __construct(
         private readonly CrmManagementService $crmManagementService,
     ) {
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $q = trim((string) $request->query('q', ''));
+
+        if ($q === '' || mb_strlen($q) < 2) {
+            return response()->json(['contacts' => []]);
+        }
+
+        $contacts = Contact::query()
+            ->with(['organization:id,name', 'contactEmails' => fn ($query) => $query->orderByDesc('is_primary')->orderBy('id')])
+            ->where(function ($query) use ($q) {
+                $query->where('first_name', 'like', "%{$q}%")
+                    ->orWhere('last_name', 'like', "%{$q}%")
+                    ->orWhere('full_name', 'like', "%{$q}%")
+                    ->orWhereHas('organization', fn ($oq) => $oq->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('contactEmails', fn ($eq) => $eq->where('email', 'like', "%{$q}%"));
+            })
+            ->limit(20)
+            ->get()
+            ->map(function (Contact $contact) {
+                $primaryEmail = $contact->contactEmails->first();
+
+                return [
+                    'contactId' => $contact->id,
+                    'name' => trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')) ?: $contact->full_name,
+                    'email' => $primaryEmail?->email,
+                    'contactEmailId' => $primaryEmail?->id,
+                    'organizationId' => $contact->organization_id,
+                    'organizationName' => $contact->organization?->name,
+                ];
+            })
+            ->filter(fn ($c) => $c['email'] !== null)
+            ->values()
+            ->all();
+
+        return response()->json(['contacts' => $contacts]);
     }
 
     public function store(StoreContactRequest $request): JsonResponse

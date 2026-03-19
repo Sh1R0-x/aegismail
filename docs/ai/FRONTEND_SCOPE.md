@@ -7,6 +7,7 @@ The immediate goal is to support the current CRM frontend foundation with stable
 ## Current phase
 
 This phase focuses on the currently wired frontend pages:
+
 - `/dashboard`
 - `/contacts`
 - `/organizations`
@@ -14,6 +15,7 @@ This phase focuses on the currently wired frontend pages:
 The rest of the main navigation must remain visible and consistent even when some sections are still placeholders.
 
 ## Must implement now
+
 1. Keep the CRM layout and navigation stable
 2. Bind pages to the documented payloads in `docs/ai/FRONTEND_CONTRACTS.md`
 3. Reuse shared components before creating new ones
@@ -24,6 +26,7 @@ The rest of the main navigation must remain visible and consistent even when som
 8. Import / Export is a dedicated module in the main navigation, not a sub-page of Contacts
 
 ## Must not do now
+
 - invent a different product IA
 - rename frozen statuses
 - invent backend payloads outside documented contracts
@@ -32,6 +35,7 @@ The rest of the main navigation must remain visible and consistent even when som
 - optimize for speculative mobile patterns over desktop clarity
 
 ## Frozen rules to keep
+
 - frontend navigation stays aligned with the master reference
 - `docs/ai/AEGIS_MAILING_MASTER_REFERENCE.md` remains the product source of truth
 - shared workflow rules live in `docs/ai/AI_WORKFLOW_METHOD.md`
