@@ -50,8 +50,14 @@ Route::post('/campaigns/{campaign}/clone', [CampaignManagementController::class,
 Route::delete('/campaigns/{campaign}', [CampaignManagementController::class, 'destroy']);
 Route::get('/threads', [ThreadController::class, 'index']);
 Route::get('/threads/{thread}', [ThreadController::class, 'show']);
+Route::get('/import-export', [ContactImportController::class, 'index']);
+Route::get('/import-export/template', [ContactImportController::class, 'template']);
+Route::get('/import-export/export', [ContactImportController::class, 'export']);
+Route::post('/import-export/preview', [ContactImportController::class, 'preview']);
+Route::post('/import-export/confirm', [ContactImportController::class, 'store']);
 Route::post('/contacts', [ContactController::class, 'store']);
 Route::get('/contacts/imports/template', [ContactImportController::class, 'template']);
+Route::get('/contacts/imports/export', [ContactImportController::class, 'export']);
 Route::post('/contacts/imports/preview', [ContactImportController::class, 'preview']);
 Route::post('/contacts/imports', [ContactImportController::class, 'store']);
 Route::get('/contacts/{contact}', [ContactController::class, 'show']);

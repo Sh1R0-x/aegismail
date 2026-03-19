@@ -86,8 +86,14 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 
 ### CRM
 
+- `GET /api/import-export`
+- `GET /api/import-export/template`
+- `GET /api/import-export/export`
+- `POST /api/import-export/preview`
+- `POST /api/import-export/confirm`
 - `POST /api/contacts`
 - `GET /api/contacts/imports/template`
+- `GET /api/contacts/imports/export`
 - `POST /api/contacts/imports/preview`
 - `POST /api/contacts/imports`
 - `GET /api/contacts/{contact}`
@@ -596,17 +602,49 @@ Rules:
 - keeps historical threads and recipients by detaching `contact_id` / `contact_email_id`
 - returns `{ "message": "Contact supprimé." }`
 
-### Contact import preview contract
+### Import / Export module contract
 
-`POST /api/contacts/imports/preview` expects a multipart file upload:
+The dedicated backend module is exposed on:
+
+- `GET /api/import-export`
+- `GET /api/import-export/template`
+- `GET /api/import-export/export`
+- `POST /api/import-export/preview`
+- `POST /api/import-export/confirm`
+
+Legacy contact-import routes stay available and point to the same implementation:
+
+- `GET /api/contacts/imports/template`
+- `GET /api/contacts/imports/export`
+- `POST /api/contacts/imports/preview`
+- `POST /api/contacts/imports`
+
+`GET /api/import-export` response:
+
+- `module.moduleKey`: required string, currently `contacts_organizations`
+- `module.pagePath`: required string, currently `/contacts/imports`
+- `module.previewEndpoint`: required string
+- `module.confirmEndpoint`: required string
+- `module.templateEndpoint`: required string
+- `module.exportEndpoint`: required string
+- `module.acceptedFileTypes`: required array (`csv`, `xlsx`)
+- `module.templateColumns`: required array of template headers
+- `module.acceptedAliases`: required object keyed by backend field name
+- `module.recentImports`: required array
+
+### Import preview contract
+
+`POST /api/import-export/preview` and `POST /api/contacts/imports/preview` expect a multipart file upload:
 
 - `file`: required file, `csv|txt|xlsx`
 
 Response shape:
 
+- `preview.moduleKey`: required string
 - `preview.previewToken`: required string
 - `preview.sourceName`: required string
 - `preview.sourceType`: required enum `csv|txt|xlsx`
+- `preview.templateColumns`: required array
 - `preview.detectedColumns`: required array
 - `preview.mapping`: required object
 - `preview.sampleRows`: required array
@@ -617,14 +655,17 @@ Response shape:
 - `preview.warnings`: required array
 - `preview.conflicts`: required array
 - `preview.organizationSummary`: required object
+- `preview.contactSummary`: required object
 - `preview.rows`: required array
 
 `preview.summary`:
 
 - `totalRows`: required integer
 - `validRows`: required integer
+- `writeRows`: required integer
 - `createRows`: required integer
 - `updateRows`: required integer
+- `unchangedRows`: required integer
 - `skipRows`: required integer
 - `errorRows`: required integer
 - `invalidRows`: required integer
@@ -632,19 +673,24 @@ Response shape:
 - `duplicateFileRows`: required integer
 - `organizationMatches`: required integer
 - `organizationCreates`: required integer
+- `organizationUpdates`: required integer
+- `contactCreates`: required integer
+- `contactUpdates`: required integer
+- `contactUnchanged`: required integer
 
 `preview.counters`:
 
 - `create`: required integer
 - `update`: required integer
+- `unchanged`: required integer
 - `skip`: required integer
 - `error`: required integer
 
 `preview.rows[]`:
 
 - `lineNumber`: required integer
-- `status`: required enum `valid|invalid|duplicate_in_file`
-- `action`: required enum `create|update|skip|error`
+- `status`: required enum `valid|unchanged|invalid|duplicate_in_file`
+- `action`: required enum `create|update|unchanged|skip|error`
 - `reasonCode`: nullable string
 - `reason`: nullable string
 - `primaryEmail`: nullable string
@@ -653,34 +699,48 @@ Response shape:
 - `linkedinUrl`: nullable string
 - `phoneLandline`: nullable string
 - `phoneMobile`: nullable string
+- `plannedActions.organization`: required object `{ code, label }`
+- `plannedActions.contact`: required object `{ code, label }`
 - `organization`: required object
+- `organization.action`: required enum `create|update|reuse|keep_existing|preserve_existing|missing|ambiguous`
+- `organization.writeAction`: required enum `create|update|unchanged`
+- `organization.willWrite`: required boolean
+- `organization.matchStrategy`: nullable enum `domain|name|existing`
+- `organization.changes[]`: diff items `{ field, label, current, incoming }`
+- `contact`: required object
+- `contact.action`: required enum `create|update|unchanged`
+- `contact.willWrite`: required boolean
+- `contact.matchStrategy`: required enum `exact_email|exact_email_missing`
+- `contact.changes[]`: diff items `{ field, label, current, incoming }`
 - `normalized`: required object
 - `persistedFields`: required array
 - `errors`: required array
 - `warnings`: required array
 - `conflicts`: required array
-- `contact`: required object
 - `existingContact`: nullable object
 
-Business rules now enforced during preview/import:
+Business rules now enforced during preview/import/export:
 
 - the dry-run never writes contacts or organizations
-- `primary_email` is the minimum reliable dedupe key
-- exact email match previews as `action = update`
+- the import/export module works on a combined `organization + contact` row model
+- `primary_email` is the minimum reliable dedupe key for contacts
+- exact email match previews as `action = update` or `action = unchanged`
 - duplicate emails inside the same file preview as `action = skip`
 - new contacts require a company; existing contacts may keep their linked organization when the CSV omits or conflicts on company
 - organizations match first on exact domain, then on normalized exact name, otherwise Laravel creates the organization at confirmation time
-- invalid or skipped rows keep an explicit reason, warnings, or conflict code
+- organization updates are conservative: Laravel only fills missing `domain` / `website` values and preserves conflicting existing values with warnings
+- export and template share the same column order so the CSV is round-trippable
 - confirmation is single-use per `previewToken`
 
-### Contact import confirm contract
+### Import confirm contract
 
-`POST /api/contacts/imports` request:
+`POST /api/import-export/confirm` and `POST /api/contacts/imports` request:
 
 - `previewToken`: required string returned by preview
 
 Response shape:
 
+- `moduleKey`: required string
 - `message`: required string
 - `batch`: required object
 - `summary`: required object
@@ -689,6 +749,7 @@ Response shape:
 `batch`:
 
 - `id`: required integer
+- `moduleKey`: required string
 - `sourceName`: required string
 - `sourceType`: required string
 - `status`: required string
@@ -700,26 +761,27 @@ Response shape:
 
 `summary`:
 
+- `moduleKey`: required string
 - `totalRows`: required integer
 - `importedRows`: required integer
 - `createdRows`: required integer
 - `updatedRows`: required integer
+- `unchangedRows`: required integer
 - `skippedRows`: required integer
 - `errorRows`: required integer
 - `invalidRows`: required integer
-- `duplicateExistingRows`: required integer
-- `counters.create|update|skip|error`: required integers
+- `counters.create|update|unchanged|skip|error`: required integers
 
 `rows[]`:
 
 - `resultStatus`: required enum `imported|skipped|error`
-- `resultAction`: required enum `create|update|skip|error`
+- `resultAction`: required enum `create|update|unchanged|skip|error`
 - `resultMessage`: required string
 - preview row fields are echoed back for frontend display
 
-### Contact import template download
+### Template and export downloads
 
-`GET /api/contacts/imports/template` returns a CSV download whose headers are:
+`GET /api/import-export/template`, `GET /api/contacts/imports/template`, `GET /api/import-export/export`, and `GET /api/contacts/imports/export` all use the same stable CSV header order:
 
 - `societe`
 - `prenom`

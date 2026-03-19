@@ -67,6 +67,8 @@ Date format used by the current backend:
 - `filters`: required object (echo of active query params — used to hydrate filter state on page load)
 - `organizations`: required array
 - `capabilities`: required object
+- `importExportModule`: required object
+- `recentImports`: required array
 
 ### filters (Contacts)
 
@@ -78,6 +80,29 @@ Date format used by the current backend:
 
 - `canCreate`: required boolean
 - `createEndpoint`: required string, currently `/api/contacts`
+- `organizationRequired`: required boolean
+- `imports.moduleKey`: required string, currently `contacts_organizations`
+- `imports.moduleEndpoint`: required string, currently `/api/import-export`
+- `imports.pagePath`: required string, currently `/contacts/imports`
+- `imports.canImport`: required boolean
+- `imports.canExport`: required boolean
+- `imports.exportEndpoint`: required string, currently `/api/import-export/export`
+- `imports.previewEndpoint`: required string, currently `/api/contacts/imports/preview` (legacy-compatible alias)
+- `imports.confirmEndpoint`: required string, currently `/api/contacts/imports`
+- `imports.templateEndpoint`: required string, currently `/api/contacts/imports/template`
+
+### importExportModule
+
+- `moduleKey`: required string
+- `pagePath`: required string
+- `previewEndpoint`: required string
+- `confirmEndpoint`: required string
+- `templateEndpoint`: required string
+- `exportEndpoint`: required string
+- `acceptedFileTypes`: required array
+- `templateColumns`: required array
+- `acceptedAliases`: required object
+- `recentImports`: required array
 
 ### organizations (Contacts)
 
@@ -693,30 +718,36 @@ Frontend handling:
 **Steps:**
 
 1. Upload (idle): show template download CTA + file drop zone (CSV/XLSX)
-2. Preview: show summary + row table after `POST /api/contacts/imports/preview`
-3. Result: show batch summary after `POST /api/contacts/imports`
+2. Preview: show summary + row table after `POST /api/import-export/preview` or the legacy alias `POST /api/contacts/imports/preview`
+3. Result: show batch summary after `POST /api/import-export/confirm` or the legacy alias `POST /api/contacts/imports`
 
 **API calls:**
 
-- Template download: `GET /api/contacts/imports/template` (streamed CSV file)
-- Preview: `POST /api/contacts/imports/preview` (multipart, field `file`)
-- Confirm: `POST /api/contacts/imports` with `{ previewToken }`
+- Module meta: `GET /api/import-export`
+- Template download: `GET /api/import-export/template` or legacy `GET /api/contacts/imports/template`
+- Export current data: `GET /api/import-export/export`
+- Preview: `POST /api/import-export/preview` (multipart, field `file`)
+- Confirm: `POST /api/import-export/confirm` with `{ previewToken }`
 
-**Preview response** (`POST /api/contacts/imports/preview`):
+**Preview response** (`POST /api/import-export/preview`):
 
 `data.preview`:
 
+- `moduleKey`: string (`contacts_organizations`)
 - `previewToken`: string (UUID, 1-hour TTL)
 - `sourceName`: string
 - `sourceType`: string
+- `templateColumns[]`: string headers in stable import/export order
 - `detectedColumns[]`: `{ index, sourceHeader, normalizedHeader, field, label, retained }`
 - `mapping`: object keyed by backend contract field (`organizationName`, `firstName`, `lastName`, `primaryEmail`, `linkedinUrl`, `phoneLandline`, `phoneMobile`, ...)
 - `sampleRows[]`: raw row samples echoed with original CSV headers
 - `persistedFields[]`: `{ field, label, persistsTo }`
 - `summary.totalRows`: integer
 - `summary.validRows`: integer
+- `summary.writeRows`: integer
 - `summary.createRows`: integer
 - `summary.updateRows`: integer
+- `summary.unchangedRows`: integer
 - `summary.skipRows`: integer
 - `summary.errorRows`: integer
 - `summary.invalidRows`: integer
@@ -724,25 +755,60 @@ Frontend handling:
 - `summary.duplicateFileRows`: integer
 - `summary.organizationMatches`: integer
 - `summary.organizationCreates`: integer
-- `counters`: `{ create, update, skip, error }`
+- `summary.organizationUpdates`: integer
+- `summary.contactCreates`: integer
+- `summary.contactUpdates`: integer
+- `summary.contactUnchanged`: integer
+- `counters`: `{ create, update, unchanged, skip, error }`
 - `errors[]`: aggregated blocking issue groups `{ code, message, count, lineNumbers[] }`
 - `warnings[]`: aggregated warning groups `{ code, message, count, lineNumbers[] }`
 - `conflicts[]`: aggregated conflict groups `{ code, message, count, lineNumbers[] }`
-- `organizationSummary`: `{ matchedExistingCount, createdCount, keptExistingCount, missingCount }`
-- `rows[]`: each with `{ lineNumber, status('valid'|'invalid'|'duplicate_in_file'), action('create'|'update'|'skip'|'error'), primaryEmail, name, organization.name, organization.action, organizationName, linkedinUrl, phoneLandline, phoneMobile, reason, reasonCode, normalized{}, persistedFields[], errors[], warnings[], conflicts[], existingContact? }`
+- `organizationSummary`: `{ matchedExistingCount, createdCount, keptExistingCount, updatedCount, missingCount }`
+- `contactSummary`: `{ createdCount, updatedCount, unchangedCount }`
+- `rows[]`: each with:
+  - `lineNumber`
+  - `status('valid'|'unchanged'|'invalid'|'duplicate_in_file')`
+  - `action('create'|'update'|'unchanged'|'skip'|'error')`
+  - `plannedActions.organization{ code, label }`
+  - `plannedActions.contact{ code, label }`
+  - `organization.action('create'|'update'|'reuse'|'keep_existing'|'preserve_existing'|'missing'|'ambiguous')`
+  - `organization.writeAction('create'|'update'|'unchanged')`
+  - `organization.willWrite`
+  - `organization.matchStrategy`
+  - `organization.changes[]`
+  - `contact.action('create'|'update'|'unchanged')`
+  - `contact.willWrite`
+  - `contact.matchStrategy('exact_email'|'exact_email_missing')`
+  - `contact.changes[]`
+  - `primaryEmail`
+  - `name`
+  - `organizationName`
+  - `linkedinUrl`
+  - `phoneLandline`
+  - `phoneMobile`
+  - `reason`
+  - `reasonCode`
+  - `normalized{}`
+  - `persistedFields[]`
+  - `errors[]`
+  - `warnings[]`
+  - `conflicts[]`
+  - `existingContact?`
 
-**Import response** (`POST /api/contacts/imports`):
+**Import response** (`POST /api/import-export/confirm`):
 
+- `moduleKey`: string
 - `message`: string
 - `batch`: batch summary object
 - `summary.importedRows`: integer
 - `summary.createdRows`: integer
 - `summary.updatedRows`: integer
+- `summary.unchangedRows`: integer
 - `summary.skippedRows`: integer
 - `summary.errorRows`: integer
 - `summary.duplicateExistingRows`: integer
 - `summary.invalidRows`: integer
-- `rows[]`: each with `resultStatus('imported'|'skipped'|'error')`, `resultAction('create'|'update'|'skip'|'error')`, `resultMessage`, `lineNumber`, `primaryEmail`
+- `rows[]`: each with `resultStatus('imported'|'skipped'|'error')`, `resultAction('create'|'update'|'unchanged'|'skip'|'error')`, `resultMessage`, `lineNumber`, `primaryEmail`
 
 ---
 

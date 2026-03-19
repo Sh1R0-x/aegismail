@@ -52,9 +52,18 @@ class CrmPagePayloadTest extends TestCase
                 ->where('capabilities.canCreate', true)
                 ->where('capabilities.createEndpoint', '/api/contacts')
                 ->where('capabilities.organizationRequired', true)
+                ->where('capabilities.imports.moduleKey', 'contacts_organizations')
+                ->where('capabilities.imports.moduleEndpoint', '/api/import-export')
+                ->where('capabilities.imports.pagePath', '/contacts/imports')
+                ->where('capabilities.imports.canExport', true)
+                ->where('capabilities.imports.exportEndpoint', '/api/import-export/export')
                 ->where('capabilities.imports.previewEndpoint', '/api/contacts/imports/preview')
                 ->where('capabilities.imports.confirmEndpoint', '/api/contacts/imports')
                 ->where('capabilities.imports.templateEndpoint', '/api/contacts/imports/template')
+                ->where('importExportModule.moduleKey', 'contacts_organizations')
+                ->where('importExportModule.previewEndpoint', '/api/import-export/preview')
+                ->where('importExportModule.confirmEndpoint', '/api/import-export/confirm')
+                ->where('importExportModule.exportEndpoint', '/api/import-export/export')
             );
     }
 
@@ -168,6 +177,9 @@ class CrmPagePayloadTest extends TestCase
                 ->where('capabilities.canCreate', true)
                 ->where('capabilities.createEndpoint', '/api/contacts')
                 ->where('capabilities.organizationRequired', true)
+                ->where('capabilities.imports.moduleKey', 'contacts_organizations')
+                ->where('capabilities.imports.canExport', true)
+                ->where('capabilities.imports.exportEndpoint', '/api/import-export/export')
                 ->where('capabilities.imports.previewEndpoint', '/api/contacts/imports/preview')
             );
     }

@@ -17,6 +17,19 @@ class CrmApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_import_export_module_endpoint_exposes_stable_backend_contract(): void
+    {
+        $this->getJson('/api/import-export')
+            ->assertOk()
+            ->assertJsonPath('module.moduleKey', 'contacts_organizations')
+            ->assertJsonPath('module.pagePath', '/contacts/imports')
+            ->assertJsonPath('module.previewEndpoint', '/api/import-export/preview')
+            ->assertJsonPath('module.confirmEndpoint', '/api/import-export/confirm')
+            ->assertJsonPath('module.templateEndpoint', '/api/import-export/template')
+            ->assertJsonPath('module.exportEndpoint', '/api/import-export/export')
+            ->assertJsonPath('module.templateColumns.0', 'societe');
+    }
+
     public function test_admin_can_create_an_organization_in_v1_backend_flow(): void
     {
         $response = $this->postJson('/api/organizations', [

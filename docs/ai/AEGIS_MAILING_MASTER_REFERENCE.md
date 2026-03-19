@@ -46,6 +46,7 @@ The V1 target is **OVH MX Plan only**.
 - activity / timeline
 - contacts
 - organizations
+- import / export contacts-organizations
 - settings
 
 ## Architecture
@@ -214,6 +215,7 @@ Before any send or scheduling launch, the UI must show:
 - reusable templates in V1
 - simple scoring without AI in V1
 - auto-reply handling in V1
+- import / export is a first-class backend module in V1 for contacts + organizations with preview-first confirmation and mirrored CSV export
 - default target: around 100 emails/day
 - daily ceiling editable in settings
 - absolute priority: deliverability + reliable exchange tracking

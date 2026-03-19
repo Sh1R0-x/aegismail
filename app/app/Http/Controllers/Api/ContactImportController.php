@@ -15,13 +15,31 @@ class ContactImportController extends Controller
         private readonly ContactImportService $contactImportService,
     ) {}
 
+    public function index(): JsonResponse
+    {
+        return response()->json([
+            'module' => $this->contactImportService->modulePayload(),
+        ]);
+    }
+
     public function template(): StreamedResponse
     {
         $content = $this->contactImportService->templateDownload();
 
         return response()->streamDownload(function () use ($content): void {
             echo $content;
-        }, 'aegis-contacts-import-template.csv', [
+        }, 'aegis-contacts-organizations-template.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function export(): StreamedResponse
+    {
+        $content = $this->contactImportService->exportDownload();
+
+        return response()->streamDownload(function () use ($content): void {
+            echo $content;
+        }, 'aegis-contacts-organizations-export.csv', [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }

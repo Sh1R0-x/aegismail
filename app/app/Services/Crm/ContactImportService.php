@@ -21,6 +21,8 @@ class ContactImportService
 
     private const CONSUMED_PREFIX = 'contact-import-preview-consumed:';
 
+    private const MODULE_KEY = 'contacts_organizations';
+
     private const TEMPLATE_COLUMNS = ['societe', 'prenom', 'nom', 'email', 'linkedin', 'telephone_fixe', 'telephone_portable'];
 
     private const REQUIRED_FIELDS = ['primary_email'];
@@ -32,7 +34,7 @@ class ContactImportService
         'first_name' => ['prenom', 'prénom', 'first_name', 'firstname', 'contact_first_name'],
         'last_name' => ['nom', 'last_name', 'lastname', 'contact_last_name'],
         'full_name' => ['nom_complet', 'full_name', 'fullname', 'contact_full_name'],
-        'primary_email' => ['email', 'e_mail', 'e-mail', 'mail', 'adresse_email', 'primary_email', 'email_principal'],
+        'primary_email' => ['email', 'e_mail', 'e-mail', 'mail', 'adresse_email', 'adresse_e_mail', 'primary_email', 'email_principal'],
         'linkedin_url' => ['linkedin', 'profil_linkedin', 'url_linkedin', 'linkedin_url', 'linkedin_profile'],
         'phone_landline' => ['telephone_fixe', 'téléphone_fixe', 'fixe', 'phone_landline', 'landline', 'phone', 'telephone', 'téléphone'],
         'phone_mobile' => ['telephone_portable', 'téléphone_portable', 'portable', 'mobile', 'phone_mobile', 'mobile_phone'],
@@ -46,7 +48,7 @@ class ContactImportService
         'first_name' => 'Prénom',
         'last_name' => 'Nom',
         'full_name' => 'Nom complet',
-        'primary_email' => 'E-mail',
+        'primary_email' => 'Adresse e-mail',
         'linkedin_url' => 'LinkedIn',
         'phone_landline' => 'Téléphone fixe',
         'phone_mobile' => 'Téléphone portable',
@@ -75,7 +77,10 @@ class ContactImportService
         }
 
         $organizations = Organization::query()->orderBy('id')->get(['id', 'name', 'domain', 'website']);
-        $existingEmails = ContactEmail::query()->with('contact.organization')->get()->mapWithKeys(fn (ContactEmail $email) => [$this->normalizeEmail($email->email) => $email]);
+        $existingEmails = ContactEmail::query()
+            ->with(['contact.organization', 'contact.contactEmails'])
+            ->get()
+            ->mapWithKeys(fn (ContactEmail $email) => [$this->normalizeEmail($email->email) => $email]);
         $previewRows = [];
         $sampleRows = [];
         $seenEmails = [];
@@ -101,9 +106,11 @@ class ContactImportService
         $summary = $this->previewSummary($previewRows);
         $token = (string) Str::uuid();
         $preview = [
+            'moduleKey' => self::MODULE_KEY,
             'previewToken' => $token,
             'sourceName' => $sourceName,
             'sourceType' => $sourceType,
+            'templateColumns' => $this->templateColumns(),
             'detectedColumns' => $mapping['detectedColumns'],
             'mapping' => $mapping['contractMapping'],
             'sampleRows' => $sampleRows,
@@ -114,6 +121,7 @@ class ContactImportService
             'warnings' => $this->mergeIssueGroups($mapping['warnings'], $this->issues($previewRows, 'warnings')),
             'conflicts' => $this->issues($previewRows, 'conflicts'),
             'organizationSummary' => $this->organizationSummary($previewRows),
+            'contactSummary' => $this->contactSummary($previewRows),
             'rows' => $previewRows,
             'createdAt' => now()->toIso8601String(),
             'expiresAt' => now()->addHour()->toIso8601String(),
@@ -149,13 +157,14 @@ class ContactImportService
         }
 
         $summary = $this->importSummary($results);
+        $summary['moduleKey'] = self::MODULE_KEY;
         $batch = ContactImportBatch::query()->create([
             'user_id' => $userId,
             'source_name' => $payload['sourceName'] ?? 'contacts-import.csv',
             'source_type' => $payload['sourceType'] ?? 'csv',
             'status' => 'completed',
             'imported_contacts_count' => $summary['importedRows'],
-            'skipped_rows_count' => $summary['skippedRows'],
+            'skipped_rows_count' => $summary['skippedRows'] + $summary['unchangedRows'],
             'invalid_rows_count' => $summary['errorRows'],
             'contact_ids_json' => array_values(array_unique($contactIds)),
             'summary_json' => $summary,
@@ -165,7 +174,31 @@ class ContactImportService
 
         Cache::forget($this->previewKey($previewToken));
 
-        return ['message' => 'Import des contacts terminé.', 'batch' => $this->serializeBatch($batch), 'summary' => $summary, 'rows' => $results];
+        return ['moduleKey' => self::MODULE_KEY, 'message' => 'Import contacts / organisations terminé.', 'batch' => $this->serializeBatch($batch), 'summary' => $summary, 'rows' => $results];
+    }
+
+    public function modulePayload(): array
+    {
+        return [
+            'moduleKey' => self::MODULE_KEY,
+            'label' => 'Import / Export contacts et organisations',
+            'pagePath' => '/contacts/imports',
+            'previewEndpoint' => '/api/import-export/preview',
+            'confirmEndpoint' => '/api/import-export/confirm',
+            'templateEndpoint' => '/api/import-export/template',
+            'exportEndpoint' => '/api/import-export/export',
+            'legacyEndpoints' => [
+                'preview' => '/api/contacts/imports/preview',
+                'confirm' => '/api/contacts/imports',
+                'template' => '/api/contacts/imports/template',
+                'export' => '/api/contacts/imports/export',
+            ],
+            'acceptedFileTypes' => ['csv', 'xlsx'],
+            'defaultFileType' => 'csv',
+            'templateColumns' => $this->templateColumns(),
+            'acceptedAliases' => $this->acceptedAliases(),
+            'recentImports' => $this->recentImports(),
+        ];
     }
 
     public function recentImports(int $limit = 5): array
@@ -189,23 +222,49 @@ class ContactImportService
                 ->map(fn (Contact $contact) => $this->serializeAudienceContact($contact))
                 ->all();
 
-            return ['id' => $batch->id, 'sourceName' => $batch->source_name, 'sourceType' => $batch->source_type, 'importedAt' => $batch->processed_at?->toIso8601String(), 'contactCount' => count($contacts), 'contacts' => $contacts];
+            return ['id' => $batch->id, 'moduleKey' => self::MODULE_KEY, 'sourceName' => $batch->source_name, 'sourceType' => $batch->source_type, 'importedAt' => $batch->processed_at?->toIso8601String(), 'contactCount' => count($contacts), 'contacts' => $contacts];
         })->all();
     }
 
     public function templateDownload(): string
     {
-        $handle = fopen('php://temp', 'r+');
-        fputcsv($handle, self::TEMPLATE_COLUMNS);
-        fputcsv($handle, ['Acme Industries', 'Alice', 'Martin', 'alice@acme.test', 'https://www.linkedin.com/in/alice-martin', '+33 1 02 03 04 05', '+33 6 12 34 56 78']);
-        rewind($handle);
+        return $this->buildCsv(function ($handle): void {
+            fputcsv($handle, self::TEMPLATE_COLUMNS);
+            fputcsv($handle, ['Acme Industries', 'Alice', 'Martin', 'alice@acme.test', 'https://www.linkedin.com/in/alice-martin', '+33 1 02 03 04 05', '+33 6 12 34 56 78']);
+        });
+    }
 
-        return (string) stream_get_contents($handle);
+    public function exportDownload(): string
+    {
+        return $this->buildCsv(function ($handle): void {
+            fputcsv($handle, self::TEMPLATE_COLUMNS);
+
+            Contact::query()
+                ->with([
+                    'organization:id,name',
+                    'contactEmails' => fn ($query) => $query->orderByDesc('is_primary')->orderBy('id'),
+                ])
+                ->orderBy('id')
+                ->get()
+                ->each(function (Contact $contact) use ($handle): void {
+                    $primaryEmail = $contact->contactEmails->first();
+
+                    fputcsv($handle, [
+                        $contact->organization?->name ?? '',
+                        $contact->first_name ?? '',
+                        $contact->last_name ?? '',
+                        $primaryEmail?->email ?? '',
+                        $contact->linkedin_url ?? '',
+                        $contact->phone_landline ?: $contact->phone ?? '',
+                        $contact->phone_mobile ?? '',
+                    ]);
+                });
+        });
     }
 
     public function serializeBatch(ContactImportBatch $batch): array
     {
-        return ['id' => $batch->id, 'sourceName' => $batch->source_name, 'sourceType' => $batch->source_type, 'status' => $batch->status, 'importedContactsCount' => $batch->imported_contacts_count, 'skippedRowsCount' => $batch->skipped_rows_count, 'invalidRowsCount' => $batch->invalid_rows_count, 'summary' => $batch->summary_json ?? [], 'processedAt' => $batch->processed_at?->toIso8601String()];
+        return ['id' => $batch->id, 'moduleKey' => self::MODULE_KEY, 'sourceName' => $batch->source_name, 'sourceType' => $batch->source_type, 'status' => $batch->status, 'importedContactsCount' => $batch->imported_contacts_count, 'skippedRowsCount' => $batch->skipped_rows_count, 'invalidRowsCount' => $batch->invalid_rows_count, 'summary' => $batch->summary_json ?? [], 'processedAt' => $batch->processed_at?->toIso8601String()];
     }
 
     public function templateColumns(): array
@@ -251,8 +310,9 @@ class ContactImportService
             'notes' => $this->nullableString($row['notes'] ?? null),
         ];
 
-        $action = $existingContact ? 'update' : 'create';
-        $status = 'valid';
+        $contact = $this->previewContactPayload($normalized, $existingContact, $existingEmail, $org['payload']);
+        $action = $contact['action'];
+        $status = $action === 'unchanged' ? 'unchanged' : 'valid';
 
         if ($conflicts !== []) {
             $action = 'skip';
@@ -279,13 +339,23 @@ class ContactImportService
             'linkedinUrl' => $normalized['linkedinUrl'],
             'phoneLandline' => $normalized['phoneLandline'],
             'phoneMobile' => $normalized['phoneMobile'],
+            'plannedActions' => [
+                'organization' => [
+                    'code' => $org['payload']['action'],
+                    'label' => $this->organizationActionLabel($org['payload']['action']),
+                ],
+                'contact' => [
+                    'code' => $contact['action'],
+                    'label' => $this->contactActionLabel($contact['action']),
+                ],
+            ],
             'organization' => $org['payload'],
             'normalized' => array_merge(['organizationName' => $org['payload']['name']], $normalized),
-            'persistedFields' => $this->rowPersistedFields($normalized, $org['payload'], $action),
+            'persistedFields' => $this->rowPersistedFields($contact, $org['payload'], $action),
             'errors' => $errors,
             'warnings' => $warnings,
             'conflicts' => $conflicts,
-            'contact' => $normalized,
+            'contact' => $contact,
             'existingContact' => $existingContact ? $this->existingContactPayload($existingContact, $existingEmail) : null,
             'raw' => $row,
         ];
@@ -301,19 +371,27 @@ class ContactImportService
             return ['resultStatus' => 'skipped', 'resultAction' => 'skip', 'resultMessage' => $row['reason'] ?? 'Ligne ignorée.'];
         }
 
+        if (($row['action'] ?? null) === 'unchanged') {
+            return ['resultStatus' => 'skipped', 'resultAction' => 'unchanged', 'resultMessage' => 'Aucune modification détectée.'];
+        }
+
         $email = $this->normalizeEmail($row['contact']['primaryEmail'] ?? null);
 
         if ($email === null) {
             return ['resultStatus' => 'error', 'resultAction' => 'error', 'resultMessage' => 'Ligne invalide: e-mail manquant.'];
         }
 
-        $existingEmail = ContactEmail::query()->with('contact.organization')->where('email', $email)->first();
-        $mode = ($row['action'] ?? 'create') === 'update' && $existingEmail ? 'update' : 'create';
+        $existingEmail = ContactEmail::query()->with(['contact.organization', 'contact.contactEmails'])->where('email', $email)->first();
 
         if (($row['action'] ?? 'create') === 'create' && $existingEmail) {
             return ['resultStatus' => 'skipped', 'resultAction' => 'skip', 'resultMessage' => 'Un contact utilise désormais cette adresse e-mail. Relancez un aperçu avant de confirmer.'];
         }
 
+        if (($row['action'] ?? null) === 'update' && ! $existingEmail) {
+            return ['resultStatus' => 'skipped', 'resultAction' => 'skip', 'resultMessage' => 'Le contact attendu a changé depuis la prévalidation. Relancez un aperçu avant de confirmer.'];
+        }
+
+        $mode = ($row['action'] ?? 'create') === 'update' ? 'update' : 'create';
         $contact = $mode === 'update' ? $this->updateContactFromImport($row, $existingEmail) : $this->createContactFromImport($row);
 
         return ['resultStatus' => 'imported', 'resultAction' => $mode, 'resultMessage' => $mode === 'update' ? 'Contact mis à jour.' : 'Contact importé.', 'contact' => $this->serializeAudienceContact($contact)];
@@ -389,20 +467,21 @@ class ContactImportService
         $conflicts = [];
         $name = $this->nullableString($row['organization_name'] ?? null);
         $domain = $this->domain($row['organization_domain'] ?? null, $row['organization_website'] ?? null);
+        $website = $this->nullableString($row['organization_website'] ?? null);
         $existingOrganization = $existingContact?->organization;
 
         if ($existingContact && $name === null) {
             if ($existingOrganization) {
-                return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'keep_existing', 'organizationId' => $existingOrganization->id, 'organizationName' => $existingOrganization->name, 'name' => $existingOrganization->name, 'domain' => $existingOrganization->domain]];
+                return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('keep_existing', $existingOrganization, [], 'existing')];
             }
 
             $warnings[] = $this->issue('organization_missing_existing_contact', 'Aucune société fournie: le contact existant sera conservé sans organisation liée.');
 
-            return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'missing', 'organizationId' => null, 'organizationName' => null, 'name' => null, 'domain' => null]];
+            return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('missing', null, [], null)];
         }
 
         if ($name === null) {
-            return ['status' => 'invalid', 'reasonCode' => 'organization_required', 'reason' => 'La société est obligatoire pour créer un nouveau contact.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'missing', 'organizationId' => null, 'organizationName' => null, 'name' => null, 'domain' => null]];
+            return ['status' => 'invalid', 'reasonCode' => 'organization_required', 'reason' => 'La société est obligatoire pour créer un nouveau contact.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('missing', null, [], null)];
         }
 
         $match = null;
@@ -411,7 +490,7 @@ class ContactImportService
             $matches = $organizations->filter(fn (Organization $organization) => Str::lower((string) $organization->domain) === $domain)->values();
 
             if ($matches->count() > 1) {
-                return ['status' => 'invalid', 'reasonCode' => 'organization_domain_ambiguous', 'reason' => 'Le domaine société correspond à plusieurs organisations existantes.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'ambiguous', 'organizationId' => null, 'organizationName' => $name, 'name' => $name, 'domain' => $domain]];
+                return ['status' => 'invalid', 'reasonCode' => 'organization_domain_ambiguous', 'reason' => 'Le domaine société correspond à plusieurs organisations existantes.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('ambiguous', null, [], 'domain', $name, $domain, $website)];
             }
 
             $match = $matches->first();
@@ -422,7 +501,7 @@ class ContactImportService
             $matches = $organizations->filter(fn (Organization $organization) => $this->normalizeOrganizationName($organization->name) === $normalizedName)->values();
 
             if ($matches->count() > 1) {
-                return ['status' => 'invalid', 'reasonCode' => 'organization_name_ambiguous', 'reason' => 'Le nom de société correspond à plusieurs organisations existantes.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'ambiguous', 'organizationId' => null, 'organizationName' => $name, 'name' => $name, 'domain' => $domain]];
+                return ['status' => 'invalid', 'reasonCode' => 'organization_name_ambiguous', 'reason' => 'Le nom de société correspond à plusieurs organisations existantes.', 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('ambiguous', null, [], 'name', $name, $domain, $website)];
             }
 
             $match = $matches->first();
@@ -432,15 +511,38 @@ class ContactImportService
             if ($existingOrganization && $existingOrganization->id !== $match->id) {
                 $conflicts[] = $this->issue('organization_conflict_preserved_existing', 'La société importée ne correspond pas à celle déjà liée au contact; l’organisation existante sera conservée.');
 
-                return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'preserve_existing', 'organizationId' => $existingOrganization->id, 'organizationName' => $existingOrganization->name, 'name' => $existingOrganization->name, 'domain' => $existingOrganization->domain]];
+                return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('preserve_existing', $existingOrganization, [], 'existing')];
             }
 
-            $action = $domain !== null && Str::lower((string) $match->domain) === $domain ? 'match_domain' : 'match_name';
+            $changes = [];
 
-            return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => $action, 'organizationId' => $match->id, 'organizationName' => $match->name, 'name' => $match->name, 'domain' => $match->domain]];
+            if ($match->domain === null && $domain !== null) {
+                $changes[] = $this->change('organizationDomain', 'Domaine société', null, $domain);
+            } elseif ($match->domain !== null && $domain !== null && Str::lower((string) $match->domain) !== $domain) {
+                $warnings[] = $this->issue('organization_domain_preserved_existing', 'Le domaine fourni diffère du domaine enregistré; la valeur existante sera conservée.');
+            }
+
+            if ($match->website === null && $website !== null) {
+                $changes[] = $this->change('organizationWebsite', 'Site web société', null, $website);
+            } elseif ($match->website !== null && $website !== null && $match->website !== $website) {
+                $warnings[] = $this->issue('organization_website_preserved_existing', 'Le site web fourni diffère de la valeur enregistrée; la valeur existante sera conservée.');
+            }
+
+            $action = $changes === [] ? 'reuse' : 'update';
+            $strategy = $domain !== null && Str::lower((string) $match->domain) === $domain ? 'domain' : 'name';
+
+            return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload($action, $match, $changes, $strategy)];
         }
 
-        return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => ['action' => 'create', 'organizationId' => null, 'organizationName' => $name, 'name' => $name, 'domain' => $domain]];
+        $changes = [$this->change('organizationName', 'Société', null, $name)];
+        if ($domain !== null) {
+            $changes[] = $this->change('organizationDomain', 'Domaine société', null, $domain);
+        }
+        if ($website !== null) {
+            $changes[] = $this->change('organizationWebsite', 'Site web société', null, $website);
+        }
+
+        return ['status' => 'resolved', 'reasonCode' => null, 'reason' => null, 'warnings' => $warnings, 'conflicts' => $conflicts, 'payload' => $this->organizationPayload('create', null, $changes, null, $name, $domain, $website)];
     }
 
     private function resolveOrganizationForImport(array $previewRow, ?Contact $existingContact = null): ?Organization
@@ -543,6 +645,13 @@ class ContactImportService
         return $lookup;
     }
 
+    private function acceptedAliases(): array
+    {
+        return collect(self::FIELD_MAP)->mapWithKeys(
+            fn (array $aliases, string $field) => [$this->contractFieldName($field) => array_values(array_unique($aliases))]
+        )->all();
+    }
+
     private function mapRow(array $indices, array $row): array
     {
         return [
@@ -578,22 +687,29 @@ class ContactImportService
     {
         $create = collect($rows)->where('action', 'create')->count();
         $update = collect($rows)->where('action', 'update')->count();
+        $unchanged = collect($rows)->where('action', 'unchanged')->count();
         $skip = collect($rows)->where('action', 'skip')->count();
         $error = collect($rows)->where('action', 'error')->count();
 
         return [
             'totalRows' => count($rows),
-            'validRows' => $create + $update,
+            'validRows' => $create + $update + $unchanged,
+            'writeRows' => $create + $update,
             'createRows' => $create,
             'updateRows' => $update,
+            'unchangedRows' => $unchanged,
             'skipRows' => $skip,
             'errorRows' => $error,
             'invalidRows' => $error,
-            'duplicateExistingRows' => $update,
+            'duplicateExistingRows' => $update + $unchanged,
             'duplicateFileRows' => collect($rows)->where('status', 'duplicate_in_file')->count(),
-            'organizationMatches' => collect($rows)->filter(fn (array $row) => in_array($row['organization']['action'] ?? null, ['match_domain', 'match_name', 'keep_existing', 'preserve_existing'], true))->count(),
+            'organizationMatches' => collect($rows)->filter(fn (array $row) => in_array($row['organization']['action'] ?? null, ['reuse', 'update', 'keep_existing', 'preserve_existing'], true))->count(),
             'organizationCreates' => collect($rows)->where('organization.action', 'create')->count(),
-            'counters' => ['create' => $create, 'update' => $update, 'skip' => $skip, 'error' => $error],
+            'organizationUpdates' => collect($rows)->where('organization.action', 'update')->count(),
+            'contactCreates' => collect($rows)->where('contact.action', 'create')->count(),
+            'contactUpdates' => collect($rows)->where('contact.action', 'update')->count(),
+            'contactUnchanged' => collect($rows)->where('contact.action', 'unchanged')->count(),
+            'counters' => ['create' => $create, 'update' => $update, 'unchanged' => $unchanged, 'skip' => $skip, 'error' => $error],
         ];
     }
 
@@ -601,7 +717,8 @@ class ContactImportService
     {
         $create = collect($rows)->where('resultAction', 'create')->count();
         $update = collect($rows)->where('resultAction', 'update')->count();
-        $skip = collect($rows)->where('resultStatus', 'skipped')->count();
+        $unchanged = collect($rows)->where('resultAction', 'unchanged')->count();
+        $skip = collect($rows)->where('resultAction', 'skip')->count();
         $error = collect($rows)->where('resultStatus', 'error')->count();
 
         return [
@@ -609,11 +726,12 @@ class ContactImportService
             'importedRows' => $create + $update,
             'createdRows' => $create,
             'updatedRows' => $update,
+            'unchangedRows' => $unchanged,
             'skippedRows' => $skip,
             'errorRows' => $error,
             'invalidRows' => $error,
             'duplicateExistingRows' => $update,
-            'counters' => ['create' => $create, 'update' => $update, 'skip' => $skip, 'error' => $error],
+            'counters' => ['create' => $create, 'update' => $update, 'unchanged' => $unchanged, 'skip' => $skip, 'error' => $error],
         ];
     }
 
@@ -622,10 +740,22 @@ class ContactImportService
         $actions = collect($rows)->pluck('organization.action');
 
         return [
-            'matchedExistingCount' => $actions->filter(fn ($action) => in_array($action, ['match_domain', 'match_name'], true))->count(),
+            'matchedExistingCount' => $actions->filter(fn ($action) => in_array($action, ['reuse', 'update'], true))->count(),
             'createdCount' => $actions->filter(fn ($action) => $action === 'create')->count(),
             'keptExistingCount' => $actions->filter(fn ($action) => in_array($action, ['keep_existing', 'preserve_existing'], true))->count(),
+            'updatedCount' => $actions->filter(fn ($action) => $action === 'update')->count(),
             'missingCount' => $actions->filter(fn ($action) => $action === 'missing')->count(),
+        ];
+    }
+
+    private function contactSummary(array $rows): array
+    {
+        $actions = collect($rows)->pluck('contact.action');
+
+        return [
+            'createdCount' => $actions->filter(fn ($action) => $action === 'create')->count(),
+            'updatedCount' => $actions->filter(fn ($action) => $action === 'update')->count(),
+            'unchangedCount' => $actions->filter(fn ($action) => $action === 'unchanged')->count(),
         ];
     }
 
@@ -662,18 +792,12 @@ class ContactImportService
         ];
     }
 
-    private function rowPersistedFields(array $normalized, array $organization, string $action): array
+    private function rowPersistedFields(array $contact, array $organization, string $action): array
     {
-        $fields = [];
+        $fields = collect($contact['changes'] ?? [])->pluck('field')->filter()->values()->all();
 
-        if (($organization['name'] ?? null) !== null && ! in_array($organization['action'] ?? null, ['keep_existing', 'preserve_existing', 'missing'], true) && $action !== 'skip') {
+        if (($organization['name'] ?? null) !== null && in_array($organization['action'] ?? null, ['create', 'update'], true) && $action !== 'skip') {
             $fields[] = 'organizationName';
-        }
-
-        foreach (['firstName', 'lastName', 'primaryEmail', 'linkedinUrl', 'phoneLandline', 'phoneMobile'] as $field) {
-            if (($normalized[$field] ?? null) !== null) {
-                $fields[] = $field;
-            }
         }
 
         return array_values(array_unique($fields));
@@ -681,7 +805,135 @@ class ContactImportService
 
     private function existingContactPayload(Contact $contact, ContactEmail $email): array
     {
-        return ['contactId' => $contact->id, 'organizationId' => $contact->organization_id, 'organizationName' => $contact->organization?->name, 'primaryEmail' => $email->email, 'fullName' => $contact->full_name ?: trim(($contact->first_name ?? '').' '.($contact->last_name ?? ''))];
+        $primaryEmail = $contact->contactEmails->firstWhere('is_primary', true);
+
+        return ['contactId' => $contact->id, 'organizationId' => $contact->organization_id, 'organizationName' => $contact->organization?->name, 'primaryEmail' => $primaryEmail?->email, 'matchedEmail' => $email->email, 'firstName' => $contact->first_name, 'lastName' => $contact->last_name, 'fullName' => $contact->full_name ?: trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')), 'linkedinUrl' => $contact->linkedin_url, 'phoneLandline' => $contact->phone_landline ?: $contact->phone, 'phoneMobile' => $contact->phone_mobile];
+    }
+
+    private function previewContactPayload(array $normalized, ?Contact $existingContact, ?ContactEmail $existingEmail, array $organization): array
+    {
+        if (! $existingContact) {
+            $changes = array_values(array_filter([
+                ($organization['name'] ?? null) !== null ? $this->change('organizationName', 'Société', null, $organization['name']) : null,
+                ($normalized['firstName'] ?? null) !== null ? $this->change('firstName', 'Prénom', null, $normalized['firstName']) : null,
+                ($normalized['lastName'] ?? null) !== null ? $this->change('lastName', 'Nom', null, $normalized['lastName']) : null,
+                ($normalized['primaryEmail'] ?? null) !== null ? $this->change('primaryEmail', 'Adresse e-mail', null, $normalized['primaryEmail']) : null,
+                ($normalized['linkedinUrl'] ?? null) !== null ? $this->change('linkedinUrl', 'LinkedIn', null, $normalized['linkedinUrl']) : null,
+                ($normalized['phoneLandline'] ?? null) !== null ? $this->change('phoneLandline', 'Téléphone fixe', null, $normalized['phoneLandline']) : null,
+                ($normalized['phoneMobile'] ?? null) !== null ? $this->change('phoneMobile', 'Téléphone portable', null, $normalized['phoneMobile']) : null,
+            ]));
+
+            return array_merge($normalized, [
+                'action' => 'create',
+                'willWrite' => true,
+                'changes' => $changes,
+                'matchStrategy' => 'exact_email_missing',
+            ]);
+        }
+
+        $changes = [];
+        $primaryEmail = $existingContact->contactEmails->firstWhere('is_primary', true);
+
+        if ($existingEmail && ! $existingEmail->is_primary) {
+            $changes[] = $this->change('primaryEmail', 'Adresse e-mail', $primaryEmail?->email, $existingEmail->email);
+        }
+
+        if (($organization['organizationId'] ?? $existingContact->organization_id) !== $existingContact->organization_id && ! in_array($organization['action'] ?? null, ['keep_existing', 'preserve_existing', 'missing'], true)) {
+            $changes[] = $this->change('organizationName', 'Société', $existingContact->organization?->name, $organization['name'] ?? null);
+        }
+
+        foreach ([
+            ['field' => 'firstName', 'label' => 'Prénom', 'current' => $existingContact->first_name, 'incoming' => $normalized['firstName'] ?? null],
+            ['field' => 'lastName', 'label' => 'Nom', 'current' => $existingContact->last_name, 'incoming' => $normalized['lastName'] ?? null],
+            ['field' => 'linkedinUrl', 'label' => 'LinkedIn', 'current' => $existingContact->linkedin_url, 'incoming' => $normalized['linkedinUrl'] ?? null],
+            ['field' => 'phoneLandline', 'label' => 'Téléphone fixe', 'current' => $existingContact->phone_landline ?: $existingContact->phone, 'incoming' => $normalized['phoneLandline'] ?? null],
+            ['field' => 'phoneMobile', 'label' => 'Téléphone portable', 'current' => $existingContact->phone_mobile, 'incoming' => $normalized['phoneMobile'] ?? null],
+        ] as $field) {
+            if (($field['incoming'] ?? null) !== null && $field['current'] !== $field['incoming']) {
+                $changes[] = $this->change($field['field'], $field['label'], $field['current'], $field['incoming']);
+            }
+        }
+
+        if ($changes === [] && ! ($organization['willWrite'] ?? false)) {
+            return array_merge($normalized, [
+                'action' => 'unchanged',
+                'willWrite' => false,
+                'changes' => [],
+                'matchStrategy' => 'exact_email',
+            ]);
+        }
+
+        return array_merge($normalized, [
+            'action' => 'update',
+            'willWrite' => true,
+            'changes' => $changes,
+            'matchStrategy' => 'exact_email',
+        ]);
+    }
+
+    private function organizationPayload(
+        string $action,
+        ?Organization $organization,
+        array $changes,
+        ?string $matchStrategy,
+        ?string $name = null,
+        ?string $domain = null,
+        ?string $website = null,
+    ): array {
+        return [
+            'action' => $action,
+            'writeAction' => in_array($action, ['create', 'update'], true) ? $action : 'unchanged',
+            'willWrite' => in_array($action, ['create', 'update'], true),
+            'organizationId' => $organization?->id,
+            'organizationName' => $organization?->name ?? $name,
+            'name' => $organization?->name ?? $name,
+            'domain' => $organization?->domain ?? $domain,
+            'website' => $organization?->website ?? $website,
+            'matchStrategy' => $matchStrategy,
+            'changes' => $changes,
+        ];
+    }
+
+    private function organizationSnapshot(?string $name, ?string $domain, ?string $website): array
+    {
+        return [
+            'name' => $name,
+            'domain' => $domain,
+            'website' => $website,
+        ];
+    }
+
+    private function change(string $field, string $label, mixed $current, mixed $incoming): array
+    {
+        return [
+            'field' => $field,
+            'label' => $label,
+            'current' => $current,
+            'incoming' => $incoming,
+        ];
+    }
+
+    private function organizationActionLabel(?string $action): string
+    {
+        return match ($action) {
+            'create' => 'Créer l’organisation',
+            'update' => 'Mettre à jour l’organisation',
+            'reuse' => 'Réutiliser l’organisation',
+            'keep_existing' => 'Conserver l’organisation liée',
+            'preserve_existing' => 'Conserver l’organisation existante',
+            'missing' => 'Aucune organisation',
+            default => 'Organisation à vérifier',
+        };
+    }
+
+    private function contactActionLabel(?string $action): string
+    {
+        return match ($action) {
+            'create' => 'Créer le contact',
+            'update' => 'Mettre à jour le contact',
+            'unchanged' => 'Aucun changement',
+            default => 'Contact à vérifier',
+        };
     }
 
     private function primaryIssue(array $errors, array $conflicts, array $warnings): array
@@ -802,6 +1054,16 @@ class ContactImportService
         return null;
     }
 
+    private function buildCsv(callable $writer): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, "\xEF\xBB\xBF");
+        $writer($handle);
+        rewind($handle);
+
+        return (string) stream_get_contents($handle);
+    }
+
     /**
      * @return array<int, array<int, string>>
      */
@@ -823,6 +1085,9 @@ class ContactImportService
         }
 
         while (($row = fgetcsv($handle, separator: ',', escape: '\\')) !== false) {
+            if (isset($row[0])) {
+                $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $row[0]) ?? (string) $row[0];
+            }
             $rows[] = array_map(fn ($value) => trim((string) $value), $row);
         }
 

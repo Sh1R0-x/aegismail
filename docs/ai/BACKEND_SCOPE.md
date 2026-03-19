@@ -20,6 +20,12 @@ It also aligns the minimum missing backend entities:
 - `contact_emails`
 - `mail_attachments`
 
+It now also includes a dedicated Import / Export backend module for contacts + organizations:
+- preview-first CSV import
+- explicit confirm step
+- mirrored CSV export for round-trip edits
+- conservative matching and diff exposure for the frontend
+
 ## Must implement now
 1. Keep one OVH MX Plan mailbox only
 2. Keep one sending queue for all outgoing messages
@@ -29,7 +35,8 @@ It also aligns the minimum missing backend entities:
 6. Compute scheduled sends, contactCount and sentCount
 7. Deliver real SMTP send + IMAP sync through the mail-gateway
 8. Persist open/click tracking and expose it to the existing backend projections
-9. Document exact backend/frontend contracts in `docs/ai`
+9. Deliver a stable Import / Export module contract for contacts and organizations
+10. Document exact backend/frontend contracts in `docs/ai`
 
 ## Must not do now
 - build full Gmail-style integrations

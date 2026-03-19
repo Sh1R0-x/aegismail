@@ -157,12 +157,18 @@ class CrmPageDataService
                 'createEndpoint' => '/api/contacts',
                 'organizationRequired' => true,
                 'imports' => [
+                    'moduleKey' => 'contacts_organizations',
+                    'moduleEndpoint' => '/api/import-export',
+                    'pagePath' => '/contacts/imports',
                     'canImport' => true,
+                    'canExport' => true,
+                    'exportEndpoint' => '/api/import-export/export',
                     'previewEndpoint' => '/api/contacts/imports/preview',
                     'confirmEndpoint' => '/api/contacts/imports',
                     'templateEndpoint' => '/api/contacts/imports/template',
                 ],
             ],
+            'importExportModule' => $this->contactImportService->modulePayload(),
             'recentImports' => $this->contactImportService->recentImports(),
         ];
     }
