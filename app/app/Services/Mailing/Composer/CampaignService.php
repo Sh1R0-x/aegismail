@@ -5,11 +5,14 @@ namespace App\Services\Mailing\Composer;
 use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
+use App\Models\MailEvent;
+use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CampaignService
 {
@@ -19,12 +22,18 @@ class CampaignService
         private readonly SettingsStore $settingsStore,
     ) {}
 
-    public function list(): array
+    public function list(bool $includeDeleted = false): array
     {
-        return MailCampaign::query()
+        $query = MailCampaign::query()
             ->with('recipients')
             ->orderByDesc('last_edited_at')
-            ->orderByDesc('updated_at')
+            ->orderByDesc('updated_at');
+
+        if ($includeDeleted) {
+            $query->withTrashed();
+        }
+
+        return $query
             ->get()
             ->map(fn (MailCampaign $campaign) => $this->serializeListItem($campaign))
             ->all();
@@ -36,7 +45,13 @@ class CampaignService
         ?string $name = null,
         ?int $userId = null,
     ): MailCampaign {
-        $existingCampaign = MailCampaign::query()->where('draft_id', $draft->id)->first();
+        $existingCampaign = MailCampaign::query()->withTrashed()->where('draft_id', $draft->id)->first();
+
+        if ($existingCampaign?->trashed()) {
+            throw ValidationException::withMessages([
+                'campaign' => ['Cette campagne a été supprimée et ne peut plus être modifiée.'],
+            ]);
+        }
 
         $campaign = MailCampaign::query()->updateOrCreate(
             ['draft_id' => $draft->id],
@@ -62,6 +77,14 @@ class CampaignService
         ?Carbon $scheduledAt = null,
     ): array {
         $draft->loadMissing('attachments');
+        $existingCampaign = MailCampaign::query()->withTrashed()->where('draft_id', $draft->id)->first();
+
+        if ($existingCampaign?->trashed()) {
+            throw ValidationException::withMessages([
+                'campaign' => ['Cette campagne a été supprimée et ne peut plus être modifiée.'],
+            ]);
+        }
+
         $preflight = $this->preflightService->run($draft, $mailbox);
 
         if (! $preflight['ok']) {
@@ -175,6 +198,7 @@ class CampaignService
             'createdAt' => $campaign->created_at?->toIso8601String(),
             'updatedAt' => $campaign->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
             'lastEditedAt' => $campaign->last_edited_at?->toIso8601String(),
+            'deletedAt' => $campaign->deleted_at?->timezone(config('app.timezone'))->toIso8601String(),
         ];
     }
 
@@ -283,6 +307,25 @@ class CampaignService
         });
     }
 
+    public function destroy(MailCampaign $campaign): string
+    {
+        $campaign->loadMissing(['recipients.messages', 'draft.attachments']);
+
+        if (! $this->hasMeaningfulActivity($campaign)) {
+            $this->hardDelete($campaign);
+
+            return 'hard';
+        }
+
+        if ($campaign->trashed()) {
+            return 'soft';
+        }
+
+        $this->softDelete($campaign);
+
+        return 'soft';
+    }
+
     private function progressPercent(MailCampaign $campaign): int
     {
         $total = max($campaign->recipients->count(), 1);
@@ -301,5 +344,75 @@ class CampaignService
         ])->count();
 
         return (int) floor(($completed / $total) * 100);
+    }
+
+    private function hasMeaningfulActivity(MailCampaign $campaign): bool
+    {
+        return $campaign->recipients->contains(function (MailRecipient $recipient): bool {
+            return $recipient->messages->isNotEmpty()
+                || ! in_array($recipient->status, ['draft'], true);
+        });
+    }
+
+    private function hardDelete(MailCampaign $campaign): void
+    {
+        DB::transaction(function () use ($campaign): void {
+            $recipientIds = $campaign->recipients->pluck('id');
+            $messageIds = $campaign->recipients->flatMap(fn ($recipient) => $recipient->messages->pluck('id'))->unique();
+
+            if ($messageIds->isNotEmpty()) {
+                MailEvent::query()->whereIn('message_id', $messageIds)->delete();
+                MailMessage::query()->whereIn('id', $messageIds)->delete();
+            }
+
+            if ($recipientIds->isNotEmpty()) {
+                MailEvent::query()->whereIn('recipient_id', $recipientIds)->delete();
+                $campaign->recipients()->delete();
+            }
+
+            MailEvent::query()->where('campaign_id', $campaign->id)->delete();
+            $campaign->draft?->attachments()->delete();
+            $campaign->draft?->delete();
+            $campaign->forceDelete();
+        });
+    }
+
+    private function softDelete(MailCampaign $campaign): void
+    {
+        DB::transaction(function () use ($campaign): void {
+            $occurredAt = now();
+            $cancelled = $campaign->recipients()
+                ->whereIn('status', ['draft', 'scheduled', 'queued'])
+                ->update([
+                    'status' => 'cancelled',
+                    'last_event_at' => $occurredAt,
+                ]);
+
+            $campaign->draft?->forceFill([
+                'status' => 'cancelled',
+                'scheduled_at' => null,
+            ])->save();
+
+            $campaign->forceFill([
+                'status' => 'cancelled',
+                'completed_at' => $campaign->completed_at ?? $occurredAt,
+            ])->save();
+
+            $campaign->delete();
+
+            $this->eventLogger->log(
+                'mail_campaign.deleted',
+                [
+                    'campaign_id' => $campaign->id,
+                    'mode' => 'soft',
+                    'cancelled_recipient_count' => $cancelled,
+                ],
+                [
+                    'mailbox_account_id' => $campaign->mailbox_account_id,
+                    'campaign_id' => $campaign->id,
+                ],
+                'mail_campaign.deleted.'.$campaign->id,
+            );
+        });
     }
 }

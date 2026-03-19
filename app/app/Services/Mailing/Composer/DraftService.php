@@ -34,6 +34,7 @@ class DraftService
     public function list(): array
     {
         return MailDraft::query()
+            ->whereDoesntHave('campaigns', fn ($query) => $query->onlyTrashed())
             ->with(['campaigns.recipients'])
             ->orderByDesc('updated_at')
             ->get()
@@ -142,7 +143,9 @@ class DraftService
 
     public function delete(MailDraft $draft): void
     {
-        $campaigns = $draft->campaigns()->with(['recipients.messages', 'events'])->get();
+        $this->ensureCampaignDraftIsEditable($draft);
+
+        $campaigns = $draft->campaigns()->withTrashed()->with(['recipients.messages', 'events'])->get();
 
         $hasSentHistory = $campaigns->contains(function ($campaign) {
             return $campaign->recipients->contains(function ($recipient) {
@@ -230,6 +233,8 @@ class DraftService
 
     public function schedule(MailDraft $draft, Carbon $scheduledAt, ?string $name = null): array
     {
+        $this->ensureCampaignDraftIsEditable($draft);
+
         $mailbox = $this->mailbox();
 
         if ($mailbox === null) {
@@ -273,6 +278,8 @@ class DraftService
 
     public function unschedule(MailDraft $draft): array
     {
+        $this->ensureCampaignDraftIsEditable($draft);
+
         $draft->forceFill([
             'status' => 'draft',
             'scheduled_at' => null,
@@ -295,6 +302,8 @@ class DraftService
 
     public function sendNow(MailDraft $draft, ?string $name = null): array
     {
+        $this->ensureCampaignDraftIsEditable($draft);
+
         return $this->schedule($draft, Carbon::now(), $name);
     }
 
@@ -447,8 +456,14 @@ class DraftService
             : null;
 
         $existingCampaign = isset($validated['campaignId'])
-            ? MailCampaign::query()->findOrFail($validated['campaignId'])
-            : ($draft?->campaigns()->latest('id')->first());
+            ? MailCampaign::query()->withTrashed()->findOrFail($validated['campaignId'])
+            : ($draft?->campaigns()->withTrashed()->latest('id')->first());
+
+        if ($existingCampaign?->trashed()) {
+            throw ValidationException::withMessages([
+                'campaign' => ['Cette campagne a été supprimée et ne peut plus être modifiée.'],
+            ]);
+        }
 
         if ($existingCampaign !== null) {
             $this->assertAutosaveNotStale($existingCampaign, $validated['expectedUpdatedAt'] ?? null);
@@ -523,5 +538,18 @@ class DraftService
         if ($current !== null && $current->greaterThan($expected)) {
             throw new ConflictHttpException('Une version plus récente de la campagne existe déjà. Rechargez la page avant de continuer.');
         }
+    }
+
+    private function ensureCampaignDraftIsEditable(MailDraft $draft): void
+    {
+        $deletedCampaignExists = $draft->campaigns()->withTrashed()->onlyTrashed()->exists();
+
+        if (! $deletedCampaignExists) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'campaign' => ['Cette campagne a été supprimée et ne peut plus être modifiée.'],
+        ]);
     }
 }

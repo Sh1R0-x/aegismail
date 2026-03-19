@@ -48,7 +48,7 @@ Route::get('/templates', TemplatesController::class);
 
 Route::get('/campaigns', CampaignsController::class);
 Route::get('/campaigns/create', CampaignCreateController::class);
-Route::get('/campaigns/{campaign}', CampaignShowController::class);
+Route::get('/campaigns/{campaign}', CampaignShowController::class)->withTrashed();
 
 Route::get('/activity', ActivityController::class);
 

@@ -473,12 +473,15 @@ class OutboundMailService
         $failedCount = $campaign->recipients()->where('status', 'failed')->count();
         $hardBounceCount = $campaign->recipients()->where('status', 'hard_bounced')->count();
 
-        return $failedCount >= $failedLimit || $hardBounceCount >= $hardBounceLimit || in_array($campaign->status, ['cancelled', 'failed'], true);
+        return $failedCount >= $failedLimit
+            || $hardBounceCount >= $hardBounceLimit
+            || $campaign->trashed()
+            || in_array($campaign->status, ['cancelled', 'failed'], true);
     }
 
     private function canDispatchQueuedMessage(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign): bool
     {
-        if ($recipient->status === 'queued' && in_array($campaign->status, ['queued', 'scheduled', 'sending'], true)) {
+        if (! $campaign->trashed() && $recipient->status === 'queued' && in_array($campaign->status, ['queued', 'scheduled', 'sending'], true)) {
             return true;
         }
 
@@ -534,6 +537,15 @@ class OutboundMailService
     private function refreshCampaignStatus(MailCampaign $campaign): void
     {
         $campaign->refresh();
+
+        if ($campaign->trashed() || $campaign->status === 'cancelled') {
+            $campaign->forceFill([
+                'status' => 'cancelled',
+                'completed_at' => $campaign->completed_at ?? now(),
+            ])->save();
+
+            return;
+        }
 
         $remaining = $campaign->recipients()->whereIn('status', ['queued', 'sending', 'scheduled', 'draft'])->count();
         $failed = $campaign->recipients()->where('status', 'failed')->count();

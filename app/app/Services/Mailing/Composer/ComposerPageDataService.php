@@ -14,8 +14,7 @@ class ComposerPageDataService
         private readonly DraftService $draftService,
         private readonly CampaignService $campaignService,
         private readonly SettingsStore $settingsStore,
-    ) {
-    }
+    ) {}
 
     public function templates(): array
     {
@@ -32,10 +31,13 @@ class ComposerPageDataService
         ];
     }
 
-    public function campaigns(): array
+    public function campaigns(bool $includeDeleted = false): array
     {
         return [
-            'campaigns' => $this->campaignService->list(),
+            'campaigns' => $this->campaignService->list($includeDeleted),
+            'filters' => [
+                'includeDeleted' => $includeDeleted,
+            ],
             'creationFlow' => [
                 'type' => 'draft_first',
                 'entryHref' => '/campaigns/create',

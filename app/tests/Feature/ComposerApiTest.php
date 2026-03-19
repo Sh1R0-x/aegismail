@@ -8,6 +8,7 @@ use App\Models\ContactEmail;
 use App\Models\MailAttachment;
 use App\Models\MailboxAccount;
 use App\Models\MailDraft;
+use App\Models\MailEvent;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\Organization;
@@ -446,12 +447,12 @@ class ComposerApiTest extends TestCase
 
         $this->app->bind(MailGatewayClient::class, fn () => new class implements MailGatewayClient
         {
-            public function testImap(array $configuration): array
+            public function test_imap(array $configuration): array
             {
                 return ['success' => true, 'driver' => 'test', 'message' => 'ok'];
             }
 
-            public function testSmtp(array $configuration): array
+            public function test_smtp(array $configuration): array
             {
                 return ['success' => true, 'driver' => 'test', 'message' => 'ok'];
             }
@@ -805,6 +806,131 @@ class ComposerApiTest extends TestCase
 
         $this->assertDatabaseMissing('mail_campaigns', ['id' => $campaignId]);
         $this->assertDatabaseMissing('mail_drafts', ['id' => $draft->id]);
+    }
+
+    public function test_campaign_with_activity_is_soft_deleted_preserves_history_and_cancels_future_dispatch(): void
+    {
+        Carbon::setTestNow('2026-03-20 08:00:00');
+        [$contact, $primaryEmail] = $this->seedContacts();
+        Queue::fake();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => MailboxAccount::query()->firstOrFail()->id,
+            'mode' => 'bulk',
+            'subject' => 'Campaign with history',
+            'html_body' => '<p>Bonjour</p>',
+            'text_body' => 'Bonjour',
+            'payload_json' => [
+                'recipients' => [
+                    [
+                        'contactId' => $contact->id,
+                        'contactEmailId' => $primaryEmail->id,
+                        'organizationId' => $contact->organization_id,
+                        'email' => $primaryEmail->email,
+                    ],
+                    [
+                        'email' => 'second@acme.test',
+                    ],
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $campaignId = $this->postJson('/api/drafts/'.$draft->id.'/schedule', [
+            'scheduledAt' => '2026-03-21 09:00:00',
+            'name' => 'Campaign with history',
+        ])->assertOk()->json('campaign.id');
+
+        $recipients = MailRecipient::query()
+            ->where('campaign_id', $campaignId)
+            ->orderBy('id')
+            ->get();
+
+        $sentRecipient = $recipients->firstWhere('email', $primaryEmail->email);
+        $queuedRecipient = $recipients->firstWhere('email', 'second@acme.test');
+
+        $this->assertNotNull($sentRecipient);
+        $this->assertNotNull($queuedRecipient);
+
+        $sentMessage = MailMessage::query()->where('recipient_id', $sentRecipient->id)->firstOrFail();
+        $queuedMessage = MailMessage::query()->where('recipient_id', $queuedRecipient->id)->firstOrFail();
+
+        $sentRecipient->forceFill([
+            'status' => 'sent',
+            'sent_at' => now(),
+            'last_event_at' => now(),
+        ])->save();
+
+        $sentMessage->forceFill([
+            'sent_at' => now(),
+        ])->save();
+
+        MailEvent::query()->create([
+            'mailbox_account_id' => $sentMessage->mailbox_account_id,
+            'campaign_id' => $campaignId,
+            'recipient_id' => $sentRecipient->id,
+            'thread_id' => $sentMessage->thread_id,
+            'message_id' => $sentMessage->id,
+            'event_type' => 'mail_message.sent',
+            'event_payload' => ['email' => $sentRecipient->email],
+            'occurred_at' => now(),
+            'created_at' => now(),
+        ]);
+
+        $this->deleteJson('/api/campaigns/'.$campaignId)
+            ->assertOk()
+            ->assertJsonPath('message', 'Campagne supprimée.')
+            ->assertJsonPath('deletionMode', 'soft');
+
+        $this->deleteJson('/api/campaigns/'.$campaignId)
+            ->assertOk()
+            ->assertJsonPath('deletionMode', 'soft');
+
+        $this->assertDatabaseHas('mail_campaigns', [
+            'id' => $campaignId,
+            'status' => 'cancelled',
+        ]);
+        $this->assertDatabaseMissing('mail_campaigns', [
+            'id' => $campaignId,
+            'deleted_at' => null,
+        ]);
+        $this->assertDatabaseHas('mail_drafts', [
+            'id' => $draft->id,
+            'status' => 'cancelled',
+            'scheduled_at' => null,
+        ]);
+        $this->assertDatabaseHas('mail_messages', ['id' => $sentMessage->id]);
+        $this->assertDatabaseHas('mail_messages', ['id' => $queuedMessage->id]);
+        $this->assertDatabaseHas('mail_events', ['message_id' => $sentMessage->id, 'event_type' => 'mail_message.sent']);
+        $this->assertDatabaseHas('mail_threads', ['id' => $sentMessage->thread_id]);
+        $this->assertDatabaseHas('mail_recipients', ['id' => $queuedRecipient->id, 'status' => 'cancelled']);
+
+        app(OutboundMailService::class)->dispatchQueuedMessage([
+            'mail_message_id' => $queuedMessage->id,
+            'idempotency_key' => 'dispatch.'.$queuedMessage->id,
+        ], app(MailGatewayClient::class));
+
+        $this->assertNull($queuedMessage->fresh()->sent_at);
+        $this->assertDatabaseHas('mail_events', [
+            'message_id' => $queuedMessage->id,
+            'event_type' => 'mail_message.dispatch_skipped',
+        ]);
+
+        $this->getJson('/api/campaigns')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $campaignId]);
+
+        $deletedList = $this->getJson('/api/campaigns?includeDeleted=1')
+            ->assertOk()
+            ->json('campaigns');
+
+        $deletedCampaign = collect($deletedList)->firstWhere('id', $campaignId);
+
+        $this->assertNotNull($deletedCampaign);
+        $this->assertSame('cancelled', $deletedCampaign['status']);
+        $this->assertNotNull($deletedCampaign['deletedAt']);
+
+        $this->get('/campaigns/'.$campaignId)->assertOk();
     }
 
     private function seedMailboxAndSettings(): void

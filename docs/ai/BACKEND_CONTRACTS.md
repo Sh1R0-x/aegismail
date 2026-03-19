@@ -73,10 +73,11 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 ### Campaigns
 
 - `GET /api/campaigns`
+- `GET /api/campaigns?includeDeleted=1` — includes logically deleted campaigns in the response for audit/admin use
 - `GET /api/campaigns/audiences`
 - `POST /api/campaigns/autosave`
 - `POST /api/campaigns/{campaign}/clone` — clones an existing campaign (including completed ones) into a new draft campaign. Returns: `{ campaign, message }`
-- `DELETE /api/campaigns/{campaign}`
+- `DELETE /api/campaigns/{campaign}` — returns `{ message, deletionMode }` where `deletionMode` is `hard` or `soft`
 
 ### Threads
 
@@ -1139,6 +1140,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `draftId`: nullable integer
 - `name`: required string
 - `status`: required string
+- `deletedAt`: nullable ISO-8601 string
 - `type`: required enum `single|multiple`
 - `recipientCount`: required integer
 - `progressPercent`: required integer
@@ -1198,8 +1200,16 @@ Autosave behavior:
 
 ### Campaign deletion behavior
 
-- `DELETE /api/campaigns/{campaign}` deletes the campaign and its linked technical draft only when no sent or post-send history exists
-- when sent/history exists, Laravel returns a validation error on `campaign`
+- `DELETE /api/campaigns/{campaign}` hard-deletes the campaign and its linked technical draft only when the campaign has no queued/sent/message activity
+- when the campaign already has dispatch activity, Laravel performs a logical deletion instead:
+    - `mail_campaigns.deleted_at` is filled
+    - campaign business `status` becomes `cancelled`
+    - linked draft status becomes `cancelled` and `scheduled_at` is cleared
+    - recipients still in `draft|scheduled|queued` become `cancelled`
+    - `mail_events`, `mail_messages`, `mail_threads`, sent recipients, and timeline history are preserved
+- standard campaign listings exclude logically deleted campaigns by default
+- `GET /api/campaigns?includeDeleted=1` includes logically deleted campaigns and exposes their `deletedAt`
+- `GET /campaigns/{campaign}` still resolves a logically deleted campaign so its history remains consultable
 
 ## Outbound dispatch payload between Laravel and mail-gateway
 

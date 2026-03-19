@@ -187,6 +187,7 @@ Construire un backend fiable qui permet :
 - throttling_json nullable
 - started_at nullable
 - completed_at nullable
+- deleted_at nullable
 - created_at
 - updated_at
 

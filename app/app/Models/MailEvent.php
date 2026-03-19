@@ -41,7 +41,7 @@ class MailEvent extends Model
 
     public function campaign(): BelongsTo
     {
-        return $this->belongsTo(MailCampaign::class, 'campaign_id');
+        return $this->belongsTo(MailCampaign::class, 'campaign_id')->withTrashed();
     }
 
     public function recipient(): BelongsTo

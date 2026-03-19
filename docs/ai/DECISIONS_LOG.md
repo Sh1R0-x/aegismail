@@ -59,6 +59,7 @@
 - `MailboxActivityService::thread()` now serializes `htmlBody` and `textBody` for each message, enabling real mail content reading in thread detail
 - `CrmManagementService::deleteContactEmail()` now nullifies `mail_recipients.contact_email_id` before deletion to prevent dangling references
 - Organization thread serialization now includes `replyReceived` and `autoReplyReceived` fields for consistency with contact and activity views
+- Campaign deletion is now conditional: a campaign with no queued/sent/message activity is hard-deleted; a campaign with existing dispatch activity is soft-deleted (`mail_campaigns.deleted_at`), moved to business status `cancelled`, hidden from standard lists, and only visible through explicit include-deleted queries while its messages, threads, events, and sent history remain intact
 - Switching from stub to real sends requires only `MAIL_GATEWAY_DRIVER=http` in `.env` and the Node mail-gateway running on port 3001; no code changes needed
 - `DraftService::testSend()` must use `MailboxSettingsService::getConnectionConfiguration()` for SMTP credentials (username, password, host, port, secure); `getSettings()` only exposes `mailbox_password_configured: bool` for frontend display — it never returns the actual decrypted password
 - Default local environment is now `MAIL_GATEWAY_DRIVER=http` (real sends); `stub` is reserved for automated tests only (`e2e-serve.ps1` forces stub)

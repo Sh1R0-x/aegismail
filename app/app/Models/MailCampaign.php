@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MailCampaign extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'mailbox_account_id',
@@ -23,6 +25,7 @@ class MailCampaign extends Model
         'throttling_json',
         'started_at',
         'completed_at',
+        'deleted_at',
     ];
 
     protected function casts(): array
@@ -33,6 +36,7 @@ class MailCampaign extends Model
             'last_edited_at' => 'immutable_datetime',
             'started_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
+            'deleted_at' => 'immutable_datetime',
         ];
     }
 
