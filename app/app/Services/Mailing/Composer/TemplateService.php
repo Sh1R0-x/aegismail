@@ -171,7 +171,7 @@ class TemplateService
 
     private function formatDate($value): ?string
     {
-        return $value?->timezone(config('app.timezone'))->format('Y-m-d H:i');
+        return $value?->timezone(config('app.timezone'))->toIso8601String();
     }
 
     private function setActiveState(MailTemplate $template, bool $isActive, string $eventType): MailTemplate

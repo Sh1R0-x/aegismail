@@ -219,7 +219,7 @@
               <p class="text-[11px] text-slate-400">
                 {{ imp.contacts.filter((c) => c.email).length }} contact(s) avec email
                 <span v-if="imp.importedAt">
-                  · {{ new Date(imp.importedAt).toLocaleDateString('fr-FR') }}
+                  · {{ formatDateFR(imp.importedAt, { dateOnly: true }) }}
                 </span>
               </p>
             </div>
@@ -233,6 +233,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import axios from 'axios';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },

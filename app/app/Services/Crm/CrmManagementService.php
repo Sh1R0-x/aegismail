@@ -173,6 +173,10 @@ class CrmManagementService
             }
 
             $wasPrimary = (bool) $contactEmail->is_primary;
+
+            MailRecipient::where('contact_email_id', $contactEmail->id)
+                ->update(['contact_email_id' => null]);
+
             $contactEmail->delete();
 
             if ($wasPrimary) {
@@ -217,7 +221,7 @@ class CrmManagementService
                     'isPrimary' => $email->is_primary,
                     'optedOutAt' => $email->opt_out_at?->toIso8601String(),
                     'bounceStatus' => $email->bounce_status,
-                    'lastSeenAt' => $email->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                    'lastSeenAt' => $email->last_seen_at?->timezone(config('app.timezone'))->toIso8601String(),
                     'canDelete' => ! $email->is_primary || $contact->contactEmails->count() > 1,
                 ])->all(),
             'recentThreads' => $contact->threads
@@ -227,7 +231,7 @@ class CrmManagementService
                 ->map(fn (MailThread $thread): array => [
                     'id' => $thread->id,
                     'subject' => $thread->messages->sortByDesc('created_at')->first()?->subject ?: $thread->subject_canonical,
-                    'lastActivityAt' => $thread->last_message_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                    'lastActivityAt' => $thread->last_message_at?->timezone(config('app.timezone'))->toIso8601String(),
                     'lastDirection' => $thread->last_direction,
                     'replyReceived' => $thread->reply_received,
                     'autoReplyReceived' => $thread->auto_reply_received,
@@ -239,7 +243,7 @@ class CrmManagementService
                     $contact->threads->pluck('last_message_at')->all(),
                     $contact->mailRecipients->pluck('last_event_at')->all(),
                     $contact->contactEmails->pluck('last_seen_at')->all(),
-                ])?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                ])?->timezone(config('app.timezone'))->toIso8601String(),
             ],
         ];
     }
@@ -263,7 +267,7 @@ class CrmManagementService
             'lastActivityAt' => $this->latestDate([
                 $organization->mailThreads->pluck('last_message_at')->all(),
                 MailRecipient::query()->where('organization_id', $organization->id)->pluck('last_event_at')->all(),
-            ])?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            ])?->timezone(config('app.timezone'))->toIso8601String(),
             'contacts' => $organization->contacts
                 ->sortBy(fn (Contact $contact) => mb_strtolower(trim(($contact->last_name ?? '').' '.($contact->first_name ?? ''))))
                 ->values()
@@ -281,8 +285,10 @@ class CrmManagementService
                     'id' => $thread->id,
                     'subject' => $thread->messages->sortByDesc('created_at')->first()?->subject ?: $thread->subject_canonical,
                     'contactName' => trim((string) ($thread->contact?->first_name.' '.$thread->contact?->last_name)) ?: null,
-                    'lastActivityAt' => $thread->last_message_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                    'lastActivityAt' => $thread->last_message_at?->timezone(config('app.timezone'))->toIso8601String(),
                     'lastDirection' => $thread->last_direction,
+                    'replyReceived' => $thread->messages->contains(fn ($m) => $m->direction === 'in' && $m->classification === 'human'),
+                    'autoReplyReceived' => $thread->messages->contains(fn ($m) => $m->direction === 'in' && $m->classification === 'auto_reply'),
                 ])->all(),
         ];
     }

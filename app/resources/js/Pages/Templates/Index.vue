@@ -60,7 +60,7 @@
             <td class="px-6 py-4 font-bold text-slate-900">{{ tpl.name }}</td>
             <td class="px-6 py-4 text-slate-600 truncate max-w-xs">{{ tpl.subject || '—' }}</td>
             <td class="px-6 py-4 font-bold text-slate-600">{{ tpl.usageCount }} fois</td>
-            <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ tpl.updatedAt }}</td>
+            <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ formatDateFR(tpl.updatedAt) }}</td>
             <td class="px-6 py-4 text-right space-x-3">
               <button
                 class="text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-40"
@@ -99,6 +99,7 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TemplateEditor from '@/Components/Templates/TemplateEditor.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 defineProps({
   templates: { type: Array, default: () => [] },

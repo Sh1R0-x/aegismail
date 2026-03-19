@@ -96,6 +96,8 @@ class MailboxActivityService
                         'fromEmail' => $message->from_email,
                         'toEmails' => $message->to_emails ?? [],
                         'subject' => $message->subject,
+                        'htmlBody' => $message->html_body,
+                        'textBody' => $message->text_body,
                         'classification' => $message->classification,
                         'messageIdHeader' => $message->message_id_header,
                         'inReplyToHeader' => $message->in_reply_to_header,

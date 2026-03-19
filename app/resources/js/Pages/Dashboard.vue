@@ -104,7 +104,7 @@
                   <p class="text-sm font-bold text-slate-900 truncate">{{ reply.from }}</p>
                   <p class="text-xs font-medium text-slate-500 truncate">{{ reply.subject }}</p>
                 </div>
-                <p class="shrink-0 text-xs font-medium text-slate-400">{{ reply.time ?? '—' }}</p>
+                <p class="shrink-0 text-xs font-medium text-slate-400">{{ formatDateFR(reply.time) }}</p>
               </div>
             </div>
           </section>
@@ -124,7 +124,7 @@
                   <p class="text-sm font-bold text-slate-900 truncate">{{ alert.email }}</p>
                   <p class="text-xs font-medium text-slate-500 truncate">{{ alert.detail }}</p>
                 </div>
-                <p class="shrink-0 text-xs font-medium text-slate-400">{{ alert.time ?? '—' }}</p>
+                <p class="shrink-0 text-xs font-medium text-slate-400">{{ formatDateFR(alert.time) }}</p>
               </div>
             </div>
           </section>
@@ -145,7 +145,7 @@
                 Aucun envoi programmé.
               </div>
               <div v-for="send in scheduledSends" :key="send.id" class="px-6 py-4">
-                <p class="text-xs font-bold text-blue-600">{{ send.scheduledAt ?? 'Non planifié' }}</p>
+                <p class="text-xs font-bold text-blue-600">{{ formatDateFR(send.scheduledAt) }}</p>
                 <p class="mt-1 text-sm font-bold text-slate-900 truncate">{{ send.subject }}</p>
                 <p class="text-xs font-medium text-slate-500">{{ send.recipientCount }} destinataire(s)</p>
               </div>
@@ -161,6 +161,7 @@
 import { computed } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   stats: {

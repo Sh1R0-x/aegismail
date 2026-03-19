@@ -6,12 +6,29 @@ use App\Http\Controllers\Controller;
 use App\Models\MailCampaign;
 use App\Models\MailEvent;
 use App\Models\MailMessage;
+use App\Services\Mailing\Composer\CampaignService;
+use App\Services\Mailing\Composer\DraftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CampaignManagementController extends Controller
 {
+    public function __construct(
+        private readonly CampaignService $campaignService,
+        private readonly DraftService $draftService,
+    ) {}
+
+    public function clone(MailCampaign $campaign): JsonResponse
+    {
+        $newCampaign = $this->campaignService->clone($campaign);
+
+        return response()->json([
+            'campaign' => $this->campaignService->serialize($newCampaign),
+            'message' => 'Campagne clonée avec succès.',
+        ], 201);
+    }
+
     public function destroy(MailCampaign $campaign): JsonResponse
     {
         $campaign->loadMissing(['recipients.messages', 'draft.attachments']);

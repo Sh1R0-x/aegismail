@@ -93,7 +93,7 @@
               <td class="px-6 py-4">
                 <ScoreBadge :level="contact.scoreLevel" :score="contact.score" />
               </td>
-              <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ contact.lastActivityAt || 'Aucun' }}</td>
+              <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ formatDateFR(contact.lastActivityAt) || 'Aucun' }}</td>
               <td class="px-6 py-4">
                 <span
                   v-if="contact.excluded"
@@ -213,6 +213,7 @@ import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import ScoreBadge from '@/Components/Badges/ScoreBadge.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   contacts: { type: Array, default: () => [] },

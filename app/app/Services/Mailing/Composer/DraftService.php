@@ -391,11 +391,11 @@ class DraftService
             'textBody' => $draft->text_body,
             'signatureHtml' => $draft->signature_snapshot,
             'status' => $draft->status,
-            'scheduledAt' => $draft->scheduled_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'scheduledAt' => $draft->scheduled_at?->timezone(config('app.timezone'))->toIso8601String(),
             'recipientCount' => $this->recipientCount($draft),
             'recipients' => array_values($draft->payload_json['recipients'] ?? []),
             'attachmentCount' => $draft->attachments->count(),
-            'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
         ];
     }
 
@@ -407,8 +407,8 @@ class DraftService
             'recipientCount' => $this->recipientCount($draft),
             'type' => $draft->mode === 'bulk' ? 'multiple' : 'single',
             'status' => $draft->status,
-            'scheduledAt' => $draft->scheduled_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
-            'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'scheduledAt' => $draft->scheduled_at?->timezone(config('app.timezone'))->toIso8601String(),
+            'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
         ];
     }
 

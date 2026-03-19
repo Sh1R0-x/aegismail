@@ -6,8 +6,9 @@ This document freezes the Inertia payload shape exposed by Laravel to the curren
 
 Date format used by the current backend:
 
-- `YYYY-MM-DD HH:mm`
+- ISO 8601 strings (e.g. `2026-03-20T09:30:00+01:00`)
 - nullable dates are returned as `null`
+- Frontend formats all dates using `formatDateFR()` from `resources/js/Utils/formatDate.js`, producing `dd/mm/yyyy - HHhMM` (e.g. `20/03/2026 - 09h30`)
 
 ## Dashboard
 
@@ -244,6 +245,7 @@ Date format used by the current backend:
 ### Props
 
 - `recipients`: required array
+- `drafts`: required array
 - `stats`: required object
 - `templates`: required array (same shape as `Templates/Index > templates[]`)
 - `filters`: required object (echo of active query params)
@@ -261,12 +263,36 @@ Date format used by the current backend:
 
 - `id`: required integer
 - `email`: required string
+- `contactName`: nullable string (resolved from contact relation)
+- `organization`: nullable string (resolved from contact.organization)
 - `subject`: required string
 - `status`: required string (any frozen status value)
 - `type`: required enum `single|multiple`
-- `sentAt`: nullable string
+- `sentAt`: nullable string (ISO 8601)
 - `campaignId`: nullable integer
 - `threadId`: nullable integer
+
+### drafts[]
+
+Same shape as `DraftService::serializeListItem()`:
+
+- `id`: required integer
+- `subject`: nullable string
+- `recipientCount`: required integer
+- `type`: required enum `single|multiple`
+- `status`: required enum `draft|scheduled`
+- `scheduledAt`: nullable string (ISO 8601)
+- `updatedAt`: required string (ISO 8601)
+
+### UI tabs
+
+The Mails page uses a 3-tab layout:
+
+- **Envoyés** — shows `recipients[]` with status filter and search
+- **Brouillons** — shows `drafts[]` where `status === 'draft'`, with bulk select, edit/duplicate/delete
+- **Programmés** — shows `drafts[]` where `status === 'scheduled'`, with edit/unschedule
+
+`/drafts` now redirects (302) to `/mails?tab=drafts`. The initial tab is read from the `tab` URL query param.
 
 ---
 
@@ -463,7 +489,23 @@ Text-first behavior used by the backend:
 **API calls used by the page:**
 
 - `DELETE /api/campaigns/{id}`
+- `POST /api/campaigns/{id}/clone` — creates a new draft campaign; on success redirects to `/campaigns/{newId}?cloned=1`
 - edit mode now uses `CampaignEditor` (replaces MailComposer in campaign context)
+
+**Clone UX:**
+
+- "Cloner" button placed in header-actions between "Modifier" and "Déprogrammer"
+- On success: `router.visit('/campaigns/{newId}', { data: { cloned: '1' } })` redirects to the new campaign
+- On arrival at the new campaign (`?cloned=1`): `onMounted` reads `URLSearchParams`, sets a success banner `"Campagne clonée avec succès — elle repart en brouillon, prête à être éditée."`, then cleans the URL via `window.history.replaceState`
+- Loading state: `cloning` ref disables the button during the API call
+- Error state: sets `banner.value = { type: 'error', message }` inline
+
+**Campaigns/Index clone action:**
+
+- "Cloner" button added in the Actions column per row (before "Détails")
+- `cloningId` ref tracks which row is in-flight (prevents double-click and multiple concurrent clones)
+- On success: same redirect with `{ data: { cloned: '1' } }`
+- Error state: `cloneError` ref drives a top-of-page error banner
 
 ---
 
@@ -680,7 +722,13 @@ Text-first behavior used by the backend:
 - `autoReplyReceived`: boolean
 - `lastDirection`: `in|out`
 - `lastActivityAt`: nullable ISO-8601 string
-- `messages`: array of `{ id, direction, fromEmail, toEmails, subject, classification, messageIdHeader, inReplyToHeader, referencesHeader, sentAt, receivedAt, hasAttachments, attachmentCount }`
+- `messages`: array of `{ id, direction, fromEmail, toEmails, subject, classification, messageIdHeader, inReplyToHeader, referencesHeader, sentAt, receivedAt, hasAttachments, attachmentCount, htmlBody, textBody }`
+
+The thread detail page now displays the actual content of each message:
+
+- `htmlBody`: nullable string — HTML content rendered via `v-html` in a prose container
+- `textBody`: nullable string — plain-text fallback displayed in a `<pre>` block
+- Messages are expandable (toggle button per message)
 
 ---
 

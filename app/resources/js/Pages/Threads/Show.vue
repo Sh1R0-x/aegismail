@@ -19,7 +19,7 @@
           </div>
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Dernière activité</p>
-            <p class="mt-1 text-sm font-bold text-slate-900">{{ thread.lastActivityAt || '—' }}</p>
+            <p class="mt-1 text-sm font-bold text-slate-900">{{ formatDateFR(thread.lastActivityAt) }}</p>
           </div>
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Statut</p>
@@ -38,19 +38,41 @@
           <div v-if="thread.messages.length === 0" class="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-400">
             Aucun message historisé dans ce fil.
           </div>
-          <article v-for="message in thread.messages" :key="message.id" class="rounded-2xl border border-slate-200 p-4">
+          <article
+            v-for="message in thread.messages"
+            :key="message.id"
+            class="rounded-2xl border p-4"
+            :class="message.direction === 'out' ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'"
+          >
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-sm font-bold text-slate-900">{{ message.subject || '(Sans objet)' }}</p>
                 <p class="mt-1 text-xs text-slate-500">
-                  {{ message.direction === 'out' ? 'Sortant' : 'Entrant' }} · {{ message.fromEmail }}
+                  {{ message.direction === 'out' ? '→ Sortant' : '← Entrant' }} · {{ message.fromEmail }}
+                  <span v-if="message.toEmails?.length"> → {{ message.toEmails.join(', ') }}</span>
                 </p>
               </div>
-              <span class="text-xs font-medium text-slate-400">{{ message.receivedAt || message.sentAt || '—' }}</span>
+              <span class="text-xs font-medium text-slate-400">{{ formatDateFR(message.receivedAt || message.sentAt) }}</span>
             </div>
-            <p class="mt-3 text-xs text-slate-500">
-              Classification: {{ message.classification }} · Pièces jointes: {{ message.attachmentCount }}
-            </p>
+
+            <div class="mt-3 flex items-center gap-3 text-xs text-slate-500">
+              <span>Classification: {{ message.classification }}</span>
+              <span v-if="message.hasAttachments">· {{ message.attachmentCount }} pièce(s) jointe(s)</span>
+            </div>
+
+            <!-- Message body -->
+            <div v-if="message.htmlBody || message.textBody" class="mt-4">
+              <button
+                class="text-xs font-bold text-blue-600 hover:text-blue-800"
+                @click="toggleBody(message.id)"
+              >
+                {{ expandedMessages[message.id] ? 'Masquer le contenu' : 'Afficher le contenu' }}
+              </button>
+              <div v-if="expandedMessages[message.id]" class="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+                <div v-if="message.htmlBody" class="prose prose-sm max-w-none text-slate-700" v-html="message.htmlBody" />
+                <pre v-else-if="message.textBody" class="whitespace-pre-wrap text-sm text-slate-700 font-sans">{{ message.textBody }}</pre>
+              </div>
+            </div>
           </article>
         </div>
       </section>
@@ -59,10 +81,18 @@
 </template>
 
 <script setup>
+import { reactive } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
-defineProps({
+const props = defineProps({
   thread: { type: Object, required: true },
 });
+
+const expandedMessages = reactive({});
+
+function toggleBody(messageId) {
+  expandedMessages[messageId] = !expandedMessages[messageId];
+}
 </script>

@@ -26,9 +26,12 @@ class ComposerPagePayloadTest extends TestCase
     public function test_drafts_templates_and_campaigns_pages_expose_empty_shapes(): void
     {
         $this->get('/drafts')
+            ->assertRedirect('/mails?tab=drafts');
+
+        $this->get('/mails')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Drafts/Index')
+                ->component('Mails/Index')
                 ->has('drafts', 0)
             );
 
@@ -55,16 +58,19 @@ class ComposerPagePayloadTest extends TestCase
         [$draft, $template, $campaign] = $this->seedComposerDataset();
 
         $this->get('/drafts')
+            ->assertRedirect('/mails?tab=drafts');
+
+        $this->get('/mails')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Drafts/Index')
+                ->component('Mails/Index')
                 ->has('drafts', 1)
                 ->has('drafts.0', fn (Assert $draftPayload) => $draftPayload
                     ->where('id', $draft->id)
                     ->where('subject', 'Séquence V1')
                     ->where('recipientCount', 2)
                     ->where('type', 'multiple')
-                    ->where('scheduledAt', '2026-03-20 09:30')
+                    ->where('scheduledAt', '2026-03-20T09:30:00+01:00')
                     ->etc()
                 )
             );

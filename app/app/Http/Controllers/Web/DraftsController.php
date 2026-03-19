@@ -3,14 +3,12 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Services\Mailing\Composer\ComposerPageDataService;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
 
 class DraftsController extends Controller
 {
-    public function __invoke(ComposerPageDataService $pageDataService): Response
+    public function __invoke(): RedirectResponse
     {
-        return Inertia::render('Drafts/Index', $pageDataService->drafts());
+        return redirect('/mails?tab=drafts');
     }
 }

@@ -1,5 +1,9 @@
 <template>
   <CrmLayout title="Campagnes" subtitle="Suivi de progression des campagnes d'envoi" current-page="campaigns">
+    <div v-if="cloneError" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+      {{ cloneError }}
+    </div>
+
     <template #header-actions>
       <Link
         :href="creationFlow.entryHref"
@@ -64,12 +68,22 @@
               <span v-else class="font-medium text-slate-400">0</span>
             </td>
             <td class="px-6 py-4 text-right">
-              <Link
-                :href="`/campaigns/${campaign.id}`"
-                class="text-xs font-bold text-blue-600 hover:text-blue-800"
-              >
-                Détails
-              </Link>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  :disabled="cloningId === campaign.id"
+                  class="text-xs font-bold text-violet-600 hover:text-violet-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  :title="'Cloner cette campagne — crée une copie en brouillon sans historique d\'envoi'"
+                  @click="cloneCampaign(campaign)"
+                >
+                  {{ cloningId === campaign.id ? 'Clonage…' : 'Cloner' }}
+                </button>
+                <Link
+                  :href="`/campaigns/${campaign.id}`"
+                  class="text-xs font-bold text-blue-600 hover:text-blue-800"
+                >
+                  Détails
+                </Link>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -79,7 +93,9 @@
 </template>
 
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
 
@@ -91,8 +107,27 @@ const props = defineProps({
       type: 'draft_first',
       entryHref: '/campaigns/create',
       actionLabel: 'Préparer une campagne',
-      helperText: 'Le module Campagnes conserve une couche draft technique interne, mais l’utilisateur prépare, édite et planifie ses campagnes depuis /campaigns.',
+      helperText: 'Le module Campagnes conserve une couche draft technique interne, mais l\'utilisateur prépare, édite et planifie ses campagnes depuis /campaigns.',
     }),
   },
 });
+
+const cloningId = ref(null);
+const cloneError = ref(null);
+
+async function cloneCampaign(campaign) {
+  if (cloningId.value !== null) return;
+  cloningId.value = campaign.id;
+  cloneError.value = null;
+  try {
+    const response = await axios.post(`/api/campaigns/${campaign.id}/clone`);
+    const newId = response.data.campaign.id;
+    router.visit(`/campaigns/${newId}`, {
+      data: { cloned: '1' },
+    });
+  } catch (error) {
+    cloneError.value = error.response?.data?.message ?? 'Impossible de cloner la campagne.';
+    cloningId.value = null;
+  }
+}
 </script>

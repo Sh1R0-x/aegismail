@@ -444,7 +444,7 @@ class ComposerApiTest extends TestCase
             'scheduledAt' => '2026-03-20 08:00:00',
         ])->assertOk()
             ->assertJsonPath('campaign.status', 'scheduled')
-            ->assertJsonPath('campaign.scheduledAt', '2026-03-20 09:00');
+            ->assertJsonPath('campaign.scheduledAt', '2026-03-20T09:00:00+01:00');
     }
 
     public function test_gateway_returned_headers_and_message_id_are_persisted_for_future_threading(): void

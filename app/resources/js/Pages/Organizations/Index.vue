@@ -71,7 +71,7 @@
               <td class="px-6 py-4">
                 <span class="font-bold text-slate-900">{{ org.sentCount }}</span>
               </td>
-              <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ org.lastActivityAt || 'Aucun' }}</td>
+              <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ formatDateFR(org.lastActivityAt) || 'Aucun' }}</td>
               <td class="px-6 py-4 text-right">
                 <Link class="text-xs font-bold text-blue-600 hover:text-blue-800" :href="`/organizations/${org.id}`">Fiche</Link>
                 <span class="mx-1.5 text-slate-200">·</span>
@@ -146,6 +146,7 @@ import { ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   organizations: { type: Array, default: () => [] },

@@ -171,9 +171,9 @@ class CampaignService
             'openCount' => $campaign->recipients->whereIn('status', ['opened', 'clicked', 'replied', 'auto_replied'])->count(),
             'replyCount' => $campaign->recipients->where('status', 'replied')->count(),
             'bounceCount' => $campaign->recipients->whereIn('status', ['soft_bounced', 'hard_bounced'])->count(),
-            'scheduledAt' => $campaign->recipients->sortBy('scheduled_for')->first()?->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'scheduledAt' => $campaign->recipients->sortBy('scheduled_for')->first()?->scheduled_for?->timezone(config('app.timezone'))->toIso8601String(),
             'createdAt' => $campaign->created_at?->toIso8601String(),
-            'updatedAt' => $campaign->updated_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'updatedAt' => $campaign->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
             'lastEditedAt' => $campaign->last_edited_at?->toIso8601String(),
         ];
     }
@@ -199,8 +199,8 @@ class CampaignService
                         'status' => $recipient->status,
                         'contactName' => trim((string) ($recipient->contact?->first_name.' '.$recipient->contact?->last_name)) ?: null,
                         'organization' => $recipient->organization?->name,
-                        'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
-                        'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                        'scheduledFor' => $recipient->scheduled_for?->timezone(config('app.timezone'))->toIso8601String(),
+                        'lastEventAt' => $recipient->last_event_at?->timezone(config('app.timezone'))->toIso8601String(),
                     ])->all()
                 : collect($draftPayload['recipients'] ?? [])
                     ->map(fn (array $recipient, int $index): array => [
@@ -214,6 +214,73 @@ class CampaignService
                         'position' => $index,
                     ])->all(),
         ]);
+    }
+
+    public function clone(MailCampaign $campaign): MailCampaign
+    {
+        $campaign->loadMissing(['draft.attachments']);
+
+        $sourceDraft = $campaign->draft;
+
+        return DB::transaction(function () use ($campaign, $sourceDraft): MailCampaign {
+            $newDraft = MailDraft::query()->create([
+                'mailbox_account_id' => $campaign->mailbox_account_id,
+                'user_id' => $campaign->user_id,
+                'mode' => $campaign->mode,
+                'template_id' => $sourceDraft?->template_id,
+                'subject' => $sourceDraft?->subject ?? $campaign->name,
+                'html_body' => $sourceDraft?->html_body,
+                'text_body' => $sourceDraft?->text_body,
+                'signature_snapshot' => $sourceDraft?->signature_snapshot,
+                'payload_json' => $sourceDraft?->payload_json ?? ['recipients' => []],
+                'status' => 'draft',
+                'scheduled_at' => null,
+            ]);
+
+            if ($sourceDraft !== null) {
+                foreach ($sourceDraft->attachments as $attachment) {
+                    $newDraft->attachments()->create([
+                        'original_name' => $attachment->original_name,
+                        'mime_type' => $attachment->mime_type,
+                        'size_bytes' => $attachment->size_bytes,
+                        'storage_disk' => $attachment->storage_disk,
+                        'storage_path' => $attachment->storage_path,
+                        'content_id' => $attachment->content_id,
+                        'disposition' => $attachment->disposition,
+                    ]);
+                }
+            }
+
+            $newCampaign = MailCampaign::query()->create([
+                'mailbox_account_id' => $campaign->mailbox_account_id,
+                'user_id' => $campaign->user_id,
+                'name' => $campaign->name.' (copie)',
+                'mode' => $campaign->mode,
+                'draft_id' => $newDraft->id,
+                'status' => 'draft',
+                'send_window_json' => $campaign->send_window_json,
+                'throttling_json' => $campaign->throttling_json,
+                'last_edited_at' => now(),
+                'started_at' => null,
+                'completed_at' => null,
+            ]);
+
+            $this->eventLogger->log(
+                'mail_campaign.cloned',
+                [
+                    'source_campaign_id' => $campaign->id,
+                    'new_campaign_id' => $newCampaign->id,
+                    'new_draft_id' => $newDraft->id,
+                ],
+                [
+                    'mailbox_account_id' => $campaign->mailbox_account_id,
+                    'campaign_id' => $newCampaign->id,
+                ],
+                'mail_campaign.cloned.'.$campaign->id.'.'.$newCampaign->id,
+            );
+
+            return $newCampaign->load('recipients');
+        });
     }
 
     private function progressPercent(MailCampaign $campaign): int

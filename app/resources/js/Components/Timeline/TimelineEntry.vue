@@ -62,6 +62,7 @@
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -82,13 +83,6 @@ const dotColor = computed(() => {
 });
 
 const formattedDate = computed(() => {
-  if (!props.date) return '';
-  return new Date(props.date).toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateFR(props.date);
 });
 </script>

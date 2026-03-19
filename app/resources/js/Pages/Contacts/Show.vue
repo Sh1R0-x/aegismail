@@ -101,7 +101,7 @@
                 <p class="mt-1 text-xs text-slate-500">
                   {{ email.isPrimary ? 'Adresse principale' : 'Adresse secondaire' }}
                   <span v-if="email.bounceStatus"> · {{ email.bounceStatus }}</span>
-                  <span v-if="email.lastSeenAt"> · vue le {{ email.lastSeenAt }}</span>
+                  <span v-if="email.lastSeenAt"> · vue le {{ formatDateFR(email.lastSeenAt) }}</span>
                 </p>
               </div>
               <button
@@ -125,7 +125,7 @@
             <div v-for="thread in contact.recentThreads" :key="thread.id" class="rounded-xl border border-slate-200 px-4 py-3">
               <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-bold text-slate-900">{{ thread.subject || '(Sans objet)' }}</p>
-                <span class="text-xs font-medium text-slate-400">{{ thread.lastActivityAt || '—' }}</span>
+                <span class="text-xs font-medium text-slate-400">{{ formatDateFR(thread.lastActivityAt) }}</span>
               </div>
               <p class="mt-1 text-xs text-slate-500">
                 {{ thread.lastDirection === 'in' ? 'Dernier message entrant' : 'Dernier message sortant' }}
@@ -145,6 +145,7 @@ import { computed, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   contact: { type: Object, required: true },

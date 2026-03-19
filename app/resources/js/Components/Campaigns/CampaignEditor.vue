@@ -386,6 +386,7 @@ import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import PreflightResult from '@/Components/Preflight/PreflightResult.vue';
 import CampaignAudiencePicker from '@/Components/Campaigns/CampaignAudiencePicker.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   campaignId: { type: Number, default: null },
@@ -466,7 +467,7 @@ const htmlSizeKb = computed(() => {
 
 const savedAtLabel = computed(() => {
   if (!savedAt.value) return '';
-  return savedAt.value.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return formatDateFR(savedAt.value, { timeOnly: true });
 });
 
 const minScheduledAt = computed(() => {

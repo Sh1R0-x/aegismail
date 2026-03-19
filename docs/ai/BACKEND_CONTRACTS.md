@@ -25,12 +25,13 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `GET /dashboard` -> `Dashboard`
 - `GET /t/o/{token}.gif` -> transparent 1x1 open-tracking pixel
 - `GET /t/c/{token}` -> click-tracking redirect
-- `GET /mails` -> `Mails/Index` — served by `MailsController`, payload from `ComposerPageDataService::mails()`
+- `GET /drafts` -> **302 redirect to `/mails?tab=drafts`** — drafts are now integrated into the unified Mails hub
+- `GET /mails` -> `Mails/Index` — unified hub. Payload from `ComposerPageDataService::mails()` includes `recipients[]`, `drafts[]`, `stats{}`, `templates[]`, `filters{}`
 - `GET /contacts` -> `Contacts/Index`
 - `GET /contacts/{contact}` -> `Contacts/Show`
 - `GET /organizations` -> `Organizations/Index`
 - `GET /organizations/{organization}` -> `Organizations/Show`
-- `GET /drafts` -> `Drafts/Index` — payload includes both `drafts[]` and `templates[]`
+- `GET /drafts` -> **302 redirect** to `/mails?tab=drafts`
 - `GET /templates` -> `Templates/Index`
 - `GET /campaigns` -> `Campaigns/Index`
 - `GET /campaigns/create` -> `Campaigns/Create`
@@ -73,6 +74,7 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `GET /api/campaigns`
 - `GET /api/campaigns/audiences`
 - `POST /api/campaigns/autosave`
+- `POST /api/campaigns/{campaign}/clone` — clones an existing campaign (including completed ones) into a new draft campaign. Returns: `{ campaign, message }`
 - `DELETE /api/campaigns/{campaign}`
 
 ### Threads
@@ -99,6 +101,47 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 ### Deliverability
 
 - `POST /api/settings/deliverability/checks/refresh`
+
+## Campaign clone flow
+
+`POST /api/campaigns/{campaign}/clone` creates a new independent campaign from any existing campaign (including completed/sent ones).
+
+### Fields copied from source
+
+- `name` with `(copie)` suffix
+- `mode` (single/bulk)
+- `mailbox_account_id`
+- `user_id`
+- `send_window_json`
+- `throttling_json`
+- Draft content: `subject`, `html_body`, `text_body`, `signature_snapshot`, `template_id`
+- Draft `payload_json` (audience/recipients logic)
+- Draft attachments (new records referencing same storage paths)
+
+### Fields reset (not copied)
+
+- `status` → `draft`
+- `started_at` → null
+- `completed_at` → null
+- `scheduled_at` → null (on the new draft)
+- `last_edited_at` → now()
+- No `mail_recipients` copied — regenerated from audience logic on schedule via preflight
+- No `mail_events` copied
+- No `mail_messages` copied
+- No execution metrics, opens, clicks, replies, bounces, send dates
+
+### Response shape
+
+```json
+{
+    "campaign": {
+        /* standard campaign serialize shape */
+    },
+    "message": "Campagne clonée avec succès."
+}
+```
+
+HTTP 201 on success. HTTP 404 if campaign not found.
 
 ## Outbound flow used in V1
 

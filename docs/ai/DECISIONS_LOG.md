@@ -28,6 +28,7 @@
 - Local smoke/E2E validation uses Playwright with a dedicated seeded SQLite database and no Docker/Sail
 - Full OVH production realism for V1 means a VPS baseline; OVH mutualized is only acceptable for a degraded or demo mode
 - Drafts and templates are text-first in V1: `text_body` / `text_template` can be the primary authored content, `html_*` stays optional, and Laravel synthesizes a minimal HTML body at dispatch time when only text is provided
+- Campaign clone (`POST /api/campaigns/{campaign}/clone`) creates a new draft campaign with name suffixed by "(copie)", resets status to `draft`, clears send metrics and scheduling data (execution history is not copied); the clone action is available from both the campaign list and the campaign detail page; on success the UI redirects to the new campaign detail with `?cloned=1` which triggers a success banner on arrival
 - Preflight blocks scheduling when both text and HTML bodies are empty
 - Contacts and organizations are creatable in V1 through Laravel API endpoints; page payloads expose explicit `capabilities.canCreate` and `capabilities.createEndpoint`
 - Campaign creation stays technically `draft-first` in V1, but the visible operator entry point is now `/campaigns/create`; draft remains an internal technical layer and should no longer be the visible product destination for “create campaign”
@@ -48,6 +49,13 @@
 - `POST /api/drafts/{draft}/send-now` and `POST /api/drafts/{draft}/schedule` JSON responses now include a `driver` field so the frontend can surface driver awareness at scheduling time
 - Real OVH MX Plan send was validated end-to-end: Laravel → HttpMailGatewayClient → Node gateway → ssl0.ovh.net:465 → delivery to external inbox (ludovic.bellavia@gmail.com), SMTP response `250 2.0.0 Ok`
 - SMTP credentials for real sends live exclusively on `mailbox_accounts` (columns: `username`, `password_encrypted`, `smtp_host`, `smtp_port`, `smtp_secure`); there are no global SMTP credentials in the `settings` table
+- All backend date serialization now uses ISO 8601 (`->toIso8601String()`) with `Europe/Paris` timezone; the frontend formats dates using a shared `formatDateFR()` utility producing `dd/mm/yyyy - HHhMM` format
+- Brouillons (Drafts) is no longer a separate navigation item or page; `/drafts` redirects to `/mails?tab=drafts`
+- The Mails page is the unified operational hub with three tabs: Envoyés (recipients), Brouillons (drafts), Programmés (scheduled)
+- `ComposerPageDataService::mails()` now returns `drafts[]` alongside `recipients[]` and includes `contactName` and `organization` per recipient
+- `MailboxActivityService::thread()` now serializes `htmlBody` and `textBody` for each message, enabling real mail content reading in thread detail
+- `CrmManagementService::deleteContactEmail()` now nullifies `mail_recipients.contact_email_id` before deletion to prevent dangling references
+- Organization thread serialization now includes `replyReceived` and `autoReplyReceived` fields for consistency with contact and activity views
 - Switching from stub to real sends requires only `MAIL_GATEWAY_DRIVER=http` in `.env` and the Node mail-gateway running on port 3001; no code changes needed
 - `DraftService::testSend()` must use `MailboxSettingsService::getConnectionConfiguration()` for SMTP credentials (username, password, host, port, secure); `getSettings()` only exposes `mailbox_password_configured: bool` for frontend display — it never returns the actual decrypted password
 - Default local environment is now `MAIL_GATEWAY_DRIVER=http` (real sends); `stub` is reserved for automated tests only (`e2e-serve.ps1` forces stub)

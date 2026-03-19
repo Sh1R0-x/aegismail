@@ -47,6 +47,7 @@ Route::post('/drafts/{draft}/campaign', [DraftController::class, 'createCampaign
 Route::get('/campaigns', [CampaignController::class, 'index']);
 Route::get('/campaigns/audiences', [CampaignAutosaveController::class, 'audiences']);
 Route::post('/campaigns/autosave', [CampaignAutosaveController::class, 'autosave']);
+Route::post('/campaigns/{campaign}/clone', [CampaignManagementController::class, 'clone']);
 Route::delete('/campaigns/{campaign}', [CampaignManagementController::class, 'destroy']);
 Route::get('/threads', [ThreadController::class, 'index']);
 Route::get('/threads/{thread}', [ThreadController::class, 'show']);

@@ -9,6 +9,14 @@
           {{ editing ? 'Voir le résumé' : 'Modifier' }}
         </button>
         <button
+          class="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 shadow-sm transition-all"
+          :disabled="cloning"
+          :title="'Créer une copie de cette campagne en brouillon, sans historique d\'envoi'"
+          @click="cloneCampaign"
+        >
+          {{ cloning ? 'Clonage…' : 'Cloner' }}
+        </button>
+        <button
           v-if="campaign.status === 'scheduled' && campaign.draft?.id"
           class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 shadow-sm transition-all"
           :disabled="unscheduling"
@@ -57,7 +65,7 @@
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Programmation</p>
-          <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.scheduledAt || 'Non planifiée' }}</p>
+          <p class="mt-2 text-sm font-bold text-slate-900">{{ formatDateFR(campaign.scheduledAt) || 'Non planifiée' }}</p>
         </div>
       </section>
 
@@ -82,7 +90,7 @@
             <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Campagne</p>
             <h2 class="mt-1 text-sm font-bold text-slate-900">{{ campaign.name }}</h2>
           </div>
-          <span class="text-xs font-medium text-slate-400">{{ campaign.updatedAt || '—' }}</span>
+          <span class="text-xs font-medium text-slate-400">{{ formatDateFR(campaign.updatedAt) }}</span>
         </div>
       </section>
 
@@ -109,7 +117,7 @@
               <td class="px-6 py-4 text-slate-600">{{ recipient.contactName || '—' }}</td>
               <td class="px-6 py-4 text-slate-600">{{ recipient.organization || '—' }}</td>
               <td class="px-6 py-4"><StatusBadge :status="recipient.status" /></td>
-              <td class="px-6 py-4 text-slate-500">{{ recipient.scheduledFor || '—' }}</td>
+              <td class="px-6 py-4 text-slate-500">{{ formatDateFR(recipient.scheduledFor) }}</td>
             </tr>
           </tbody>
         </table>
@@ -119,12 +127,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CampaignEditor from '@/Components/Campaigns/CampaignEditor.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   campaign: { type: Object, required: true },
@@ -134,6 +143,15 @@ const props = defineProps({
 const editing = ref(props.campaign.status === 'draft' && Boolean(props.campaign.draft?.id));
 const banner = ref(null);
 const unscheduling = ref(false);
+const cloning = ref(false);
+
+onMounted(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('cloned') === '1') {
+    banner.value = { type: 'success', message: 'Campagne clonée avec succès — elle repart en brouillon, prête à être éditée.' };
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+});
 
 function onDraftSaved() {
   // Autosave doesn't close the editor — just silently confirm
@@ -142,6 +160,22 @@ function onDraftSaved() {
 function onDraftScheduled() {
   editing.value = false;
   router.reload({ preserveState: false });
+}
+
+async function cloneCampaign() {
+  if (cloning.value) return;
+  cloning.value = true;
+  banner.value = null;
+  try {
+    const response = await axios.post(`/api/campaigns/${props.campaign.id}/clone`);
+    const newId = response.data.campaign.id;
+    router.visit(`/campaigns/${newId}`, {
+      data: { cloned: '1' },
+    });
+  } catch (error) {
+    banner.value = { type: 'error', message: error.response?.data?.message ?? 'Impossible de cloner la campagne.' };
+    cloning.value = false;
+  }
 }
 
 async function removeCampaign() {

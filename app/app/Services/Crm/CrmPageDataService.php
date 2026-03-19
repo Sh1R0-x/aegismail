@@ -404,6 +404,6 @@ class CrmPageDataService
 
         $date = $value instanceof Carbon ? $value : Carbon::parse($value);
 
-        return $date->format('Y-m-d H:i');
+        return $date->timezone(config('app.timezone'))->toIso8601String();
     }
 }

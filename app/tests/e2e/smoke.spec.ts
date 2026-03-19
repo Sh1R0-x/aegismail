@@ -228,3 +228,45 @@ test('mails page shows quota bar and status filters', async ({ page }) => {
 
   assertNoClientErrors();
 });
+
+test('campaign clone button is visible in list and creates a new draft', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  // Go to campaign list
+  await page.goto('/campaigns');
+  await expect(page.getByRole('heading', { name: 'Campagnes', exact: true })).toBeVisible();
+
+  // At least one "Cloner" button should be present in the table
+  await expect(page.getByRole('button', { name: 'Cloner' }).first()).toBeVisible();
+
+  // Click the first "Cloner" button
+  await page.getByRole('button', { name: 'Cloner' }).first().click();
+
+  // Should redirect to the new campaign's detail page
+  await expect(page).toHaveURL(/\/campaigns\/\d+/, { timeout: 10000 });
+
+  // Success banner should be visible
+  await expect(page.getByText('Campagne clonée avec succès')).toBeVisible();
+
+  // New campaign should be in draft status
+  await expect(page.getByText('Brouillon').first()).toBeVisible();
+
+  // New campaign name should include "(copie)"
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: 'copie' })).toBeVisible();
+
+  assertNoClientErrors();
+});
+
+test('campaign clone button is visible in campaign detail page', async ({ page }) => {
+  const assertNoClientErrors = captureClientErrors(page);
+
+  // Navigate to a campaign detail page
+  await page.goto('/campaigns');
+  await page.getByRole('link', { name: 'Détails' }).first().click();
+  await expect(page).toHaveURL(/\/campaigns\/\d+$/);
+
+  // "Cloner" button should be visible in the header actions
+  await expect(page.getByRole('button', { name: 'Cloner' })).toBeVisible();
+
+  assertNoClientErrors();
+});

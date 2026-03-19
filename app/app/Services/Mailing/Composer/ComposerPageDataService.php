@@ -54,6 +54,7 @@ class ComposerPageDataService
             ->with([
                 'campaign' => fn ($q) => $q->select(['id', 'draft_id', 'mode'])->with('draft:id,subject'),
                 'messages' => fn ($q) => $q->select(['id', 'recipient_id', 'thread_id'])->orderByDesc('id'),
+                'contact' => fn ($q) => $q->select(['id', 'first_name', 'last_name'])->with('organization:id,name'),
             ]);
 
         if ($status !== '' && $status !== 'all') {
@@ -70,6 +71,8 @@ class ComposerPageDataService
                 return [
                     'id' => $r->id,
                     'email' => $r->email,
+                    'contactName' => $r->contact ? trim($r->contact->first_name.' '.$r->contact->last_name) : null,
+                    'organization' => $r->contact?->organization?->name,
                     'subject' => $r->campaign?->draft?->subject ?: '(Sans objet)',
                     'status' => $r->status,
                     'type' => $r->campaign?->mode === 'bulk' ? 'multiple' : 'single',
@@ -88,6 +91,7 @@ class ComposerPageDataService
 
         return [
             'recipients' => $recipients,
+            'drafts' => $this->draftService->list(),
             'stats' => [
                 'sentToday' => $sentToday,
                 'dailyLimit' => (int) ($generalSettings['daily_limit_default'] ?? 100),
@@ -107,6 +111,6 @@ class ComposerPageDataService
 
         $date = $value instanceof Carbon ? $value : Carbon::parse($value);
 
-        return $date->timezone(config('app.timezone'))->format('Y-m-d H:i');
+        return $date->timezone(config('app.timezone'))->toIso8601String();
     }
 }

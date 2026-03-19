@@ -71,7 +71,7 @@
         <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-slate-700">{{ entry.message }}</p>
           <p v-if="entry.ts" class="text-[11px] font-medium text-slate-400">
-            {{ new Date(entry.ts).toLocaleString('fr-FR') }}
+            {{ formatDateFR(entry.ts) }}
           </p>
         </div>
       </div>
@@ -81,6 +81,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -123,17 +124,6 @@ const statusConfig = computed(() => {
 });
 
 const formattedDate = computed(() => {
-  if (!props.check?.checked_at) return null;
-  try {
-    return new Date(props.check.checked_at).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return props.check.checked_at;
-  }
+  return formatDateFR(props.check?.checked_at);
 });
 </script>
