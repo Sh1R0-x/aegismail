@@ -6,10 +6,13 @@ use App\Models\MailboxAccount;
 use App\Models\SmtpProviderAccount;
 use App\Services\SettingsStore;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class SmtpProviderService
 {
+    private ?bool $providerStorageTableReady = null;
+
     public function __construct(
         private readonly SettingsStore $settingsStore,
     ) {}
@@ -85,6 +88,27 @@ class SmtpProviderService
             ];
         }
 
+        if (! $this->providerStorageReady()) {
+            return [
+                'provider' => $provider,
+                'label' => (string) $definition['label'],
+                'smtp_host' => (string) ($definition['default_smtp_host'] ?? ''),
+                'smtp_port' => (int) ($definition['default_smtp_port'] ?? 0),
+                'smtp_secure' => (bool) ($definition['default_smtp_secure'] ?? false),
+                'smtp_username' => '',
+                'smtp_password_configured' => false,
+                'send_enabled' => true,
+                'supports_imap' => (bool) ($definition['supports_imap'] ?? false),
+                'supports_sync' => (bool) ($definition['supports_sync'] ?? false),
+                'configured' => false,
+                'activatable' => false,
+                'ready' => false,
+                'health_status' => 'warning',
+                'health_message' => $this->providerStorageMessage($provider),
+                'uses_mailbox_credentials' => false,
+            ];
+        }
+
         $account = $this->account($provider);
         $smtpHost = (string) ($account?->smtp_host ?? $definition['default_smtp_host'] ?? '');
         $smtpPort = (int) ($account?->smtp_port ?? $definition['default_smtp_port'] ?? 0);
@@ -117,6 +141,8 @@ class SmtpProviderService
 
     public function runtimeConfiguration(string $provider, MailboxAccount $mailbox): array
     {
+        $this->ensureProviderStorageReady($provider, 'active_provider');
+
         $snapshot = $this->providerPayload($provider, $mailbox);
 
         if (! $snapshot['configured']) {
@@ -170,6 +196,8 @@ class SmtpProviderService
             ]);
         }
 
+        $this->ensureProviderStorageReady($provider, 'active_provider');
+
         $snapshot = $this->providerPayload($provider, $mailbox);
 
         if (! ($snapshot['activatable'] ?? false)) {
@@ -196,6 +224,8 @@ class SmtpProviderService
         if (! $hasAnyValue && $existing === null && $sendEnabled) {
             return null;
         }
+
+        $this->ensureProviderStorageReady($provider, "providers.{$provider}");
 
         return SmtpProviderAccount::query()->updateOrCreate(
             ['provider' => $provider],
@@ -249,7 +279,7 @@ class SmtpProviderService
 
     public function account(string $provider): ?SmtpProviderAccount
     {
-        if ($provider === $this->mailboxProvider()) {
+        if ($provider === $this->mailboxProvider() || ! $this->providerStorageReady()) {
             return null;
         }
 
@@ -285,6 +315,27 @@ class SmtpProviderService
     private function isKnownProvider(string $provider): bool
     {
         return in_array($provider, $this->providerKeys(), true);
+    }
+
+    private function ensureProviderStorageReady(string $provider, string $field): void
+    {
+        if ($provider === $this->mailboxProvider() || $this->providerStorageReady()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            $field => [$this->providerStorageMessage($provider)],
+        ]);
+    }
+
+    private function providerStorageReady(): bool
+    {
+        return $this->providerStorageTableReady ??= Schema::hasTable('smtp_provider_accounts');
+    }
+
+    private function providerStorageMessage(string $provider): string
+    {
+        return "Le schéma {$this->label($provider)} n’est pas prêt. Exécutez php artisan migrate avant de configurer ou d’activer ce provider.";
     }
 
     private function providerKeys(): array

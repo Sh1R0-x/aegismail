@@ -1329,6 +1329,8 @@ Mail settings update rule:
 - explicit signature clearing now requires `clear_signature = true`
 - `active_provider` is persisted in `settings.mail` and is the only source of truth for new drafts
 - `PUT /api/settings/mail` cannot activate a provider whose SMTP configuration is incomplete or disabled
+- `GET /settings` and `GET /api/settings` must stay non-fatal if `smtp_provider_accounts` is not migrated yet locally; in that case `providers.smtp2go` stays visible with `configured = false`, `activatable = false`, `ready = false`, `health_status = warning`, and a health message instructing the operator to run `php artisan migrate`
+- `PUT /api/settings/mail` must return `422` instead of `500` when an operator tries to configure or activate SMTP2GO before the `smtp_provider_accounts` table exists
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` require an explicit `provider`
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` can run directly from unsaved form overrides if the payload already contains all required connection fields
 - `POST /api/settings/mail/test-smtp` never falls back from `smtp2go` to OVH credentials

@@ -57,11 +57,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 - `Dependances PHP absentes`: lancer `cd .\app ; composer install`
 - `Dependances Node absentes`: lancer `cd .\app ; npm install`
 - `Le port 8001 est deja utilise`: liberer le port ou arreter l'ancien environnement avec `powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -Action stop`
-- `no such column` ou `no such table`: le schema SQLite local est desaligne — voir la section Reset ci-dessous
+- `no such column` ou `no such table`: lancer d'abord `cd .\app ; php artisan migrate --no-interaction` pour appliquer les migrations incrementales manquantes sans perdre les donnees; utiliser le reset ci-dessous seulement si la base locale est jetable et reste incoherente apres migrate
 
 ## Reset de la base SQLite locale
 
-Si le schema local est desaligne (colonnes manquantes, migrations en attente), utiliser le script dedie :
+Utiliser ce script uniquement si la base locale est jetable et qu'un `php artisan migrate` non destructif ne suffit plus :
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1
@@ -82,8 +82,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1 -Seed
 
 **Quand l'utiliser :**
 
-- Apres un `git pull` qui ajoute de nouvelles migrations
-- Si l'application affiche une erreur de schema (`no such column`, `no such table`)
+- Quand `php artisan migrate` ne suffit plus a remettre le schema local d'aplomb
+- Si la base locale peut etre reconstruite sans conserver ses donnees
 - Pour repartir d'une base propre sans donnees
 
 **Ce que le script ne touche pas :**

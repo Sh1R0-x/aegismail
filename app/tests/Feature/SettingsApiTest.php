@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\MailboxAccount;
 use App\Models\SmtpProviderAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SettingsApiTest extends TestCase
@@ -29,6 +30,20 @@ class SettingsApiTest extends TestCase
             ->assertJsonPath('deliverability.tracking_opens_enabled', true)
             ->assertJsonPath('deliverability.publicBaseUrl', 'https://mail.example.com')
             ->assertJsonPath('deliverability.publicBaseUrlStatus', 'valid');
+    }
+
+    public function test_it_returns_an_actionable_settings_snapshot_when_smtp_provider_storage_is_missing(): void
+    {
+        Schema::dropIfExists('smtp_provider_accounts');
+
+        $this->getJson('/api/settings')
+            ->assertOk()
+            ->assertJsonPath('mail.providers.smtp2go.label', 'SMTP2GO')
+            ->assertJsonPath('mail.providers.smtp2go.configured', false)
+            ->assertJsonPath('mail.providers.smtp2go.activatable', false)
+            ->assertJsonPath('mail.providers.smtp2go.ready', false)
+            ->assertJsonPath('mail.providers.smtp2go.health_status', 'warning')
+            ->assertJsonPath('mail.providers.smtp2go.health_message', 'Le schéma SMTP2GO n’est pas prêt. Exécutez php artisan migrate avant de configurer ou d’activer ce provider.');
     }
 
     public function test_it_updates_mail_settings_and_keeps_a_single_mailbox_account(): void
@@ -141,6 +156,31 @@ class SettingsApiTest extends TestCase
 
         $this->assertStringContainsString('Impossible d’activer SMTP2GO', $response->json('message'));
         $this->assertDatabaseCount('smtp_provider_accounts', 0);
+    }
+
+    public function test_it_returns_a_validation_error_when_saving_smtp2go_before_the_schema_is_migrated(): void
+    {
+        Schema::dropIfExists('smtp_provider_accounts');
+
+        $response = $this->putJson('/api/settings/mail', $this->validMailPayload([
+            'active_provider' => 'smtp2go',
+            'providers' => [
+                'smtp2go' => [
+                    'smtp_host' => 'mail.smtp2go.com',
+                    'smtp_port' => 2525,
+                    'smtp_secure' => false,
+                    'smtp_username' => 'smtp2go-user',
+                    'smtp_password' => 'smtp2go-secret',
+                    'send_enabled' => true,
+                ],
+            ],
+        ]));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['providers.smtp2go']);
+
+        $this->assertStringContainsString('php artisan migrate', $response->json('message'));
+        $this->assertDatabaseMissing('settings', ['key' => 'mail']);
     }
 
     public function test_mail_settings_preserve_existing_signature_when_standard_save_sends_null_fields(): void

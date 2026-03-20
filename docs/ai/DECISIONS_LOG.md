@@ -191,13 +191,25 @@
 ## Local database schema drift fix
 
 - Root cause: migration `2026_03_19_220000_add_deleted_at_to_mail_campaigns_table` was in **Pending** state on the local SQLite while a later migration (batch 7 indexes) had already been applied — classic out-of-order migration drift
-- Fix: `php artisan migrate:fresh` on the local SQLite database to rebuild the schema from scratch
+- Default fix for local schema drift is now incremental and non-destructive: run `php artisan migrate` first on `app/database/database.sqlite`; reserve destructive reset only for disposable local data
 - Prevention measures added:
     - `scripts/reset-db.ps1`: dedicated script to cleanly reset the local SQLite (delete + recreate + migrate), with optional `-Seed` flag; verifies no pending migrations remain after reset; refuses to run if `DB_CONNECTION` is not `sqlite`
     - `scripts/dev.ps1`: now checks for pending migrations immediately after `php artisan migrate`; prints a loud warning with recommended `reset-db.ps1` command if any are found
     - `docs/LOCAL_DEV_START.md`: added "Reset de la base SQLite locale" section with procedure, and "Difference entre les bases locales" table explaining database.sqlite vs :memory: vs e2e.sqlite
 - Three separate local databases exist and must not be confused: `database.sqlite` (dev app), `:memory:` (phpunit tests), `e2e.sqlite` (Playwright smoke)
 - `ComposerApiTest.php`: fixed `test_imap` / `test_smtp` → `testImap` / `testSmtp` method names to match the `MailGatewayClient` interface (unrelated pre-existing bug blocking the full test suite)
+
+## Local SMTP multi-provider schema hardening
+
+- Root cause on 2026-03-20: local SQLite still had the new SMTP migrations in **Pending** state (`2026_03_20_120000_create_smtp_provider_accounts_table`, `2026_03_20_121000_add_outbound_provider_to_mail_drafts_and_campaigns`) while `/settings` already queried `smtp_provider_accounts`
+- Durable fix:
+    - apply the pending migrations incrementally with `php artisan migrate`
+    - keep `GET /settings` and `GET /api/settings` non-fatal while `smtp_provider_accounts` is still absent by returning a warning snapshot for `providers.smtp2go`
+    - convert attempts to configure SMTP2GO before migration into a `422` validation error with an explicit `php artisan migrate` instruction, instead of a raw `QueryException`
+- New regression coverage now verifies:
+    - the SQLite test schema contains `smtp_provider_accounts`
+    - `mail_drafts.outbound_provider` and `mail_campaigns.outbound_provider` exist
+    - `/settings` stays available even if `smtp_provider_accounts` is temporarily missing
 
 ## Phase 5 — UX bug-fix pass (modals, search, persistence, i18n)
 

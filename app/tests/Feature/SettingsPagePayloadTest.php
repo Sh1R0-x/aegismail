@@ -6,6 +6,7 @@ use App\Models\MailboxAccount;
 use App\Models\Setting;
 use App\Models\SmtpProviderAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -134,6 +135,24 @@ class SettingsPagePayloadTest extends TestCase
                 ->where('settings.scoring.bouncePoints', -25)
                 ->where('settings.signature.global_signature_html', '<p>Cordialement,<br>AEGIS</p>')
                 ->where('settings.signature.text', "Cordialement,\nAEGIS")
+                ->etc()
+            );
+    }
+
+    public function test_settings_page_stays_available_when_smtp_provider_storage_table_is_missing(): void
+    {
+        Schema::dropIfExists('smtp_provider_accounts');
+
+        $this->get('/settings')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Settings/Index')
+                ->where('settings.mail.providers.smtp2go.label', 'SMTP2GO')
+                ->where('settings.mail.providers.smtp2go.configured', false)
+                ->where('settings.mail.providers.smtp2go.activatable', false)
+                ->where('settings.mail.providers.smtp2go.ready', false)
+                ->where('settings.mail.providers.smtp2go.health_status', 'warning')
+                ->where('settings.mail.providers.smtp2go.health_message', 'Le schéma SMTP2GO n’est pas prêt. Exécutez php artisan migrate avant de configurer ou d’activer ce provider.')
                 ->etc()
             );
     }
