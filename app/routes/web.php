@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\CampaignShowController;
 use App\Http\Controllers\Web\ContactsController;
 use App\Http\Controllers\Web\ContactShowController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DiagnosticPageController;
 use App\Http\Controllers\Web\DraftsController;
 use App\Http\Controllers\Web\MailingTrackingController;
 use App\Http\Controllers\Web\MailingUnsubscribeController;
@@ -57,6 +58,8 @@ Route::get('/import-export', fn () => Inertia::render('ImportExport/Index'));
 Route::get('/threads/{thread}', ThreadShowController::class);
 
 Route::get('/settings', SettingsController::class);
+
+Route::get('/diagnostic', DiagnosticPageController::class);
 
 Route::get('/users', function () {
     return Inertia::render('Users/Index');

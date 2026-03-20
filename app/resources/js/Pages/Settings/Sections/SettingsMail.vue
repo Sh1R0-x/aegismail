@@ -141,14 +141,23 @@
           <div
             v-if="imapTestResult"
             :class="[
-              'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
+              'rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
               imapTestResult.ok
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                 : 'border-red-200 bg-red-50 text-red-800',
             ]"
           >
-            <span class="shrink-0 text-sm leading-none mt-0.5">{{ imapTestResult.ok ? '✓' : '✕' }}</span>
-            <span>{{ imapTestResult.message }}</span>
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 text-sm leading-none mt-0.5">{{ imapTestResult.ok ? '✓' : '✕' }}</span>
+              <span>{{ imapTestResult.message }}</span>
+            </div>
+            <div v-if="imapTestResult.details" class="mt-1.5 pl-5 space-y-0.5 text-[11px] opacity-80">
+              <p v-if="imapTestResult.details.tested_host">Hôte : {{ imapTestResult.details.tested_host }}:{{ imapTestResult.details.tested_port }} {{ imapTestResult.details.tested_secure ? '(SSL)' : '(non chiffré)' }}</p>
+              <p v-if="imapTestResult.details.provider_label">Provider : {{ imapTestResult.details.provider_label }}</p>
+              <p v-if="imapTestResult.details.failure_stage">Phase d'échec : {{ imapTestResult.details.failure_stage }}</p>
+              <p v-if="imapTestResult.details.technical_detail">Détail : {{ imapTestResult.details.technical_detail }}</p>
+              <p v-if="imapTestResult.details.tested_at" class="text-[10px] opacity-60">Testé à {{ imapTestResult.details.tested_at }}</p>
+            </div>
           </div>
         </div>
       </template>
@@ -200,14 +209,23 @@
           <div
             v-if="smtpTestResults.ovh_mx_plan"
             :class="[
-              'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
+              'rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
               smtpTestResults.ovh_mx_plan.ok
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                 : 'border-red-200 bg-red-50 text-red-800',
             ]"
           >
-            <span class="shrink-0 text-sm leading-none mt-0.5">{{ smtpTestResults.ovh_mx_plan.ok ? '✓' : '✕' }}</span>
-            <span>{{ smtpTestResults.ovh_mx_plan.message }}</span>
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 text-sm leading-none mt-0.5">{{ smtpTestResults.ovh_mx_plan.ok ? '✓' : '✕' }}</span>
+              <span>{{ smtpTestResults.ovh_mx_plan.message }}</span>
+            </div>
+            <div v-if="smtpTestResults.ovh_mx_plan.details" class="mt-1.5 pl-5 space-y-0.5 text-[11px] opacity-80">
+              <p v-if="smtpTestResults.ovh_mx_plan.details.tested_host">Hôte : {{ smtpTestResults.ovh_mx_plan.details.tested_host }}:{{ smtpTestResults.ovh_mx_plan.details.tested_port }} {{ smtpTestResults.ovh_mx_plan.details.tested_secure ? '(SSL)' : '(non chiffré)' }}</p>
+              <p v-if="smtpTestResults.ovh_mx_plan.details.provider_label">Provider : {{ smtpTestResults.ovh_mx_plan.details.provider_label }}</p>
+              <p v-if="smtpTestResults.ovh_mx_plan.details.failure_stage">Phase d'échec : {{ smtpTestResults.ovh_mx_plan.details.failure_stage }}</p>
+              <p v-if="smtpTestResults.ovh_mx_plan.details.technical_detail">Détail : {{ smtpTestResults.ovh_mx_plan.details.technical_detail }}</p>
+              <p v-if="smtpTestResults.ovh_mx_plan.details.tested_at" class="text-[10px] opacity-60">Testé à {{ smtpTestResults.ovh_mx_plan.details.tested_at }}</p>
+            </div>
           </div>
         </div>
       </template>
@@ -273,14 +291,23 @@
           <div
             v-if="smtpTestResults.smtp2go"
             :class="[
-              'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
+              'rounded-lg border px-3 py-2 text-xs font-medium max-w-lg',
               smtpTestResults.smtp2go.ok
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                 : 'border-red-200 bg-red-50 text-red-800',
             ]"
           >
-            <span class="shrink-0 text-sm leading-none mt-0.5">{{ smtpTestResults.smtp2go.ok ? '✓' : '✕' }}</span>
-            <span>{{ smtpTestResults.smtp2go.message }}</span>
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 text-sm leading-none mt-0.5">{{ smtpTestResults.smtp2go.ok ? '✓' : '✕' }}</span>
+              <span>{{ smtpTestResults.smtp2go.message }}</span>
+            </div>
+            <div v-if="smtpTestResults.smtp2go.details" class="mt-1.5 pl-5 space-y-0.5 text-[11px] opacity-80">
+              <p v-if="smtpTestResults.smtp2go.details.tested_host">Hôte : {{ smtpTestResults.smtp2go.details.tested_host }}:{{ smtpTestResults.smtp2go.details.tested_port }} {{ smtpTestResults.smtp2go.details.tested_secure ? '(SSL)' : '(non chiffré)' }}</p>
+              <p v-if="smtpTestResults.smtp2go.details.provider_label">Provider : {{ smtpTestResults.smtp2go.details.provider_label }}</p>
+              <p v-if="smtpTestResults.smtp2go.details.failure_stage">Phase d'échec : {{ smtpTestResults.smtp2go.details.failure_stage }}</p>
+              <p v-if="smtpTestResults.smtp2go.details.technical_detail">Détail : {{ smtpTestResults.smtp2go.details.technical_detail }}</p>
+              <p v-if="smtpTestResults.smtp2go.details.tested_at" class="text-[10px] opacity-60">Testé à {{ smtpTestResults.smtp2go.details.tested_at }}</p>
+            </div>
           </div>
         </div>
       </template>
@@ -612,12 +639,21 @@ async function testSmtp(provider) {
     const response = await axios.post('/api/settings/mail/test-smtp', smtpPayload(provider));
     smtpTestResults.value = {
       ...smtpTestResults.value,
-      [provider]: { ok: true, message: response.data.message ?? 'Connexion réussie.' },
+      [provider]: {
+        ok: true,
+        message: response.data.message ?? 'Connexion réussie.',
+        details: extractDiagnosticDetails(response.data),
+      },
     };
   } catch (error) {
+    const data = error.response?.data ?? {};
     smtpTestResults.value = {
       ...smtpTestResults.value,
-      [provider]: { ok: false, message: error.response?.data?.message ?? 'Connexion échouée.' },
+      [provider]: {
+        ok: false,
+        message: data.message ?? 'Connexion échouée.',
+        details: extractDiagnosticDetails(data),
+      },
     };
   } finally {
     testingSmtp.value = { ...testingSmtp.value, [provider]: false };
@@ -639,11 +675,33 @@ async function testImap() {
       imap_secure: form.value.imapSecure,
     });
 
-    imapTestResult.value = { ok: true, message: response.data.message ?? 'Connexion réussie.' };
+    imapTestResult.value = {
+      ok: true,
+      message: response.data.message ?? 'Connexion réussie.',
+      details: extractDiagnosticDetails(response.data),
+    };
   } catch (error) {
-    imapTestResult.value = { ok: false, message: error.response?.data?.message ?? 'Connexion échouée.' };
+    const data = error.response?.data ?? {};
+    imapTestResult.value = {
+      ok: false,
+      message: data.message ?? 'Connexion échouée.',
+      details: extractDiagnosticDetails(data),
+    };
   } finally {
     testingImap.value = false;
   }
+}
+
+function extractDiagnosticDetails(data) {
+  if (!data || typeof data !== 'object') return null;
+  const d = {};
+  if (data.tested_host) d.tested_host = data.tested_host;
+  if (data.tested_port) d.tested_port = data.tested_port;
+  if (data.tested_secure !== undefined) d.tested_secure = data.tested_secure;
+  if (data.tested_at) d.tested_at = data.tested_at;
+  if (data.provider_label) d.provider_label = data.provider_label;
+  if (data.failure_stage) d.failure_stage = data.failure_stage;
+  if (data.technical_detail) d.technical_detail = data.technical_detail;
+  return Object.keys(d).length > 0 ? d : null;
 }
 </script>

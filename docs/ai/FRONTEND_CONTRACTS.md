@@ -1029,6 +1029,7 @@ Backend safeguard:
 - `PUT /api/settings/mail` refuses to activate an SMTP provider whose configuration is incomplete or disabled
 - the active provider is frozen on each draft/campaign at creation time; changing settings later does not reroute existing drafts
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` now return a precise aggregated `message` plus field-level `errors`
+- `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` now return enriched diagnostic fields: `tested_host`, `tested_port`, `tested_secure`, `tested_at`, `failure_stage`, `technical_detail` — displayed in expanded test result panels in `SettingsMail.vue`
 - `POST /api/settings/mail/test-smtp` never falls back from `smtp2go` to OVH credentials
 - the `message` string is intentionally French and operator-facing; the frontend can render `errors` per field without rewording the backend validation
 
@@ -1057,3 +1058,29 @@ Used by `SettingsSignature.vue` to merge the current mail configuration before c
 - no dedicated backend payload is sent yet for this page
 - the current component falls back to its local default `users = []`
 - this page should therefore be considered present but partial until a dedicated backend payload is added
+
+## Diagnostic page (Phase 6)
+
+### Route
+
+- `GET /diagnostic` → `Diagnostic/Index`
+
+### Component
+
+- `Diagnostic/Index`
+
+### API calls (all client-side from Vue on mount)
+
+- `GET /api/diagnostic/health` — system health summary
+- `GET /api/diagnostic/event-types` — event type counts for filter dropdown
+- `GET /api/diagnostic/events` — paginated event log (filters: `event_type`, `search`, `page`)
+- `GET /api/diagnostic/stuck-recipients` — stuck recipients drilldown (loaded when stuck count > 0)
+
+### Layout
+
+- Health panel: gateway driver, queue counts, stuck count, 24h error count
+- Provider status cards: per-provider health badge
+- Stuck recipients alert with drilldown table (email, status, campaign name, scheduled time)
+- Paginated event log: type filter, text search, expandable JSON payload per event
+- Navigation: added to sidebar under "Configuration" section as "Diagnostic"
+- Also indexed in CrmLayout header search

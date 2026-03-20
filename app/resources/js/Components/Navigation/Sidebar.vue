@@ -79,6 +79,7 @@ const navItems = [
 ];
 
 const bottomItems = [
+  { id: 'diagnostic', label: 'Diagnostic', href: '/diagnostic', icon: 'activity' },
   { id: 'settings', label: 'Réglages', href: '/settings', icon: 'settings' },
   { id: 'users', label: 'Utilisateurs', href: '/users', icon: 'users' },
 ];

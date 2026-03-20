@@ -107,6 +107,7 @@ const allPages = [
   { label: 'Activité', href: '/activity' },
   { label: 'Import / Export', href: '/import-export' },
   { label: 'Réglages', href: '/settings' },
+  { label: 'Diagnostic', href: '/diagnostic' },
   { label: 'Utilisateurs', href: '/users' },
 ];
 

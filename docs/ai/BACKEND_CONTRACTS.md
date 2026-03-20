@@ -1335,6 +1335,7 @@ Mail settings update rule:
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` can run directly from unsaved form overrides if the payload already contains all required connection fields
 - `POST /api/settings/mail/test-smtp` never falls back from `smtp2go` to OVH credentials
 - those test endpoints return French operator-facing messages for success and the main failure families: missing field, invalid credentials, timeout, refused connection, TLS/SSL mismatch, likely host/port error, and generic failure
+- in addition to the operator `message`, test endpoints now return enriched diagnostic fields: `tested_host`, `tested_port`, `tested_secure`, `tested_at`, `failure_stage`, `technical_detail` (see Diagnostic API contract section)
 - raw technical details remain in logs and `mail_events`, not in the user-facing `message`
 
 ### settings.deliverability used by preflight
@@ -1443,3 +1444,73 @@ Effective base URL behavior:
 - `organizationId`: nullable integer
 - `name`: nullable string
 - `reason`: nullable string on `deliverableRecipients[]`, required on exclusion arrays
+
+## Diagnostic API contract (Phase 6)
+
+### Routes
+
+- `GET /api/diagnostic/events` — paginated event log with optional filters
+- `GET /api/diagnostic/event-types` — grouped event type counts
+- `GET /api/diagnostic/health` — system health summary
+- `GET /api/diagnostic/stuck-recipients` — paginated stuck recipients
+
+### Inertia route
+
+- `GET /diagnostic` → `Diagnostic/Index`
+
+### `GET /api/diagnostic/events` query params
+
+- `event_type`: nullable string — filter by exact event type
+- `campaign_id`: nullable integer — filter by campaign
+- `recipient_id`: nullable integer — filter by recipient
+- `search`: nullable string — text search in event_type and event_payload
+- `from`: nullable date — filter from date
+- `to`: nullable date — filter to date
+- `per_page`: nullable integer (1–100, default 30)
+
+### `GET /api/diagnostic/events` response
+
+Standard Laravel pagination with `data[]` containing `MailEvent` records.
+All `event_payload` values are scrubbed: keys containing `password`, `password_encrypted`, `token`, `secret`, `api_key` are replaced with `[REDACTED]`.
+
+### `GET /api/diagnostic/health` response
+
+```json
+{
+    "gateway_driver": "stub",
+    "mailbox_configured": true,
+    "mailbox_health_status": "healthy",
+    "mailbox_health_message": "...",
+    "providers": [
+        {
+            "provider": "ovh_mx_plan",
+            "label": "OVH MX Plan",
+            "configured": true,
+            "activatable": true,
+            "ready": true,
+            "health_status": "healthy",
+            "health_message": "..."
+        }
+    ],
+    "queue": {
+        "queued": 0,
+        "sending": 0,
+        "stuck": 0
+    },
+    "errors_last_24h": 0,
+    "last_event_at": "2025-01-01T00:00:00Z"
+}
+```
+
+Stuck threshold: 30 minutes past `scheduled_for` (or `created_at` when `scheduled_for` is null) while status is `queued` or `sending`.
+
+### SMTP/IMAP test enriched response (Phase 6)
+
+`POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` now return additional diagnostic fields:
+
+- `tested_host`: string — the host used for the test
+- `tested_port`: integer — the port used for the test
+- `tested_secure`: boolean — whether TLS/SSL was enabled
+- `tested_at`: string — ISO-8601 timestamp of the test
+- `failure_stage`: nullable string — `dns|socket|tls|auth|gateway|unknown` (null on success)
+- `technical_detail`: nullable string — sanitized error detail (secrets redacted, max 300 chars, null on success)

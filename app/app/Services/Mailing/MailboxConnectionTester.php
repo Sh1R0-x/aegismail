@@ -32,6 +32,23 @@ class MailboxConnectionTester
         $mailboxConfiguration = $this->resolveConfiguration($protocol, $provider, $overrides);
         $sanitizedPayload = Arr::except($mailboxConfiguration, ['password']);
 
+        $testedHost = $protocol === 'imap'
+            ? ($mailboxConfiguration['imap_host'] ?? '')
+            : ($mailboxConfiguration['smtp_host'] ?? '');
+        $testedPort = $protocol === 'imap'
+            ? ($mailboxConfiguration['imap_port'] ?? null)
+            : ($mailboxConfiguration['smtp_port'] ?? null);
+        $testedSecure = $protocol === 'imap'
+            ? ($mailboxConfiguration['imap_secure'] ?? false)
+            : ($mailboxConfiguration['smtp_secure'] ?? false);
+
+        $diagnostics = [
+            'tested_host' => $testedHost,
+            'tested_port' => $testedPort,
+            'tested_secure' => $testedSecure,
+            'tested_at' => now()->toIso8601String(),
+        ];
+
         try {
             $result = $protocol === 'imap'
                 ? $this->gatewayClient->testImap($mailboxConfiguration)
@@ -57,18 +74,22 @@ class MailboxConnectionTester
                 ['mailbox_account_id' => $mailbox?->id],
             );
 
-            return [
+            return array_merge($diagnostics, [
                 'success' => false,
                 'protocol' => $protocol,
                 'provider' => $provider,
                 'provider_label' => $this->smtpProviderService->label($provider),
                 'driver' => config('mailing.gateway.driver'),
                 'message' => "Le service de test {$protocol} est indisponible pour le moment.",
+                'failure_stage' => 'gateway',
+                'technical_detail' => 'Passerelle mail injoignable.',
                 'status_code' => 502,
-            ];
+            ]);
         }
 
         $operatorMessage = $this->operatorMessage($protocol, $provider, $result);
+        $failureStage = ($result['success'] ?? false) ? null : $this->detectFailureStage($result);
+        $technicalDetail = ($result['success'] ?? false) ? null : $this->sanitizeTechnicalDetail($result);
         $statusCode = ($result['success'] ?? false) ? 200 : 422;
         $mailbox = $protocol === 'imap' || $provider === $this->smtpProviderService->mailboxProvider()
             ? $this->mailboxSettingsService->updateHealth((bool) ($result['success'] ?? false), $operatorMessage)
@@ -83,15 +104,18 @@ class MailboxConnectionTester
             array_merge($sanitizedPayload, Arr::except($result, ['password']), [
                 'provider' => $provider,
                 'operator_message' => $operatorMessage,
+                'failure_stage' => $failureStage,
             ]),
             ['mailbox_account_id' => $mailbox?->id],
         );
 
-        return array_merge($result, [
+        return array_merge($diagnostics, Arr::except($result, ['password']), [
             'message' => $operatorMessage,
             'protocol' => $protocol,
             'provider' => $provider,
             'provider_label' => $this->smtpProviderService->label($provider),
+            'failure_stage' => $failureStage,
+            'technical_detail' => $technicalDetail,
             'status_code' => $statusCode,
         ]);
     }
@@ -239,6 +263,35 @@ class MailboxConnectionTester
             $this->containsAny($rawMessage, ['host', 'port', 'dns', 'resolve', 'configured host', 'getaddrinfo', 'hôte rejeté']) => "La connexion {$protocolLabel} a échoué : l’hôte ou le port semble incorrect.",
             default => "La connexion {$protocolLabel} a échoué. Vérifiez l’hôte, le port, le mode de sécurité et les identifiants.",
         };
+    }
+
+    private function detectFailureStage(array $result): string
+    {
+        $rawMessage = strtolower(trim((string) ($result['message'] ?? '')));
+
+        return match (true) {
+            $this->containsAny($rawMessage, ['dns', 'resolve', 'getaddrinfo', 'hôte rejeté']) => 'dns',
+            $this->containsAny($rawMessage, ['connection refused', 'refused', 'network is unreachable', 'econnrefused', 'econnreset']) => 'socket',
+            $this->containsAny($rawMessage, ['tls', 'ssl', 'certificate', 'handshake', 'starttls']) => 'tls',
+            $this->containsAny($rawMessage, ['timeout', 'timed out', 'etimedout']) => 'socket',
+            $this->containsAny($rawMessage, ['auth', 'authentication', 'invalid credentials', 'login failed', 'bad credentials', 'username', 'password']) => 'auth',
+            default => 'unknown',
+        };
+    }
+
+    private function sanitizeTechnicalDetail(array $result): ?string
+    {
+        $rawMessage = trim((string) ($result['message'] ?? ''));
+
+        if ($rawMessage === '') {
+            return null;
+        }
+
+        // Strip anything that looks like a password or token value
+        $sanitized = preg_replace('/(?:password|token|secret|key)\s*[:=]\s*\S+/i', '[REDACTED]', $rawMessage);
+
+        // Truncate to reasonable length
+        return mb_substr((string) $sanitized, 0, 300);
     }
 
     private function containsAny(string $haystack, array $needles): bool

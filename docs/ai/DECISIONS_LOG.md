@@ -225,3 +225,17 @@
     - `OutboundMailService`: gateway rejection and auto-stop event log messages
     - `StubMailGatewayClient`: all stub gateway response messages
 - `MailboxConnectionTester::operatorMessage()` host/port pattern now also matches French keyword `'hôte rejeté'` alongside existing English keywords, ensuring correct operator messaging regardless of gateway driver language
+
+## Phase 6 — Diagnostics, observability and debugging
+
+- SMTP/IMAP test responses are now enriched with structured diagnostic fields: `tested_host`, `tested_port`, `tested_secure`, `tested_at`, `failure_stage` (dns/socket/tls/auth/gateway/unknown), `technical_detail` (sanitized, no secrets)
+- Failure stage detection uses pattern matching on gateway error messages to classify failures before they reach the operator message
+- Technical detail sanitization strips values matching `password|token|secret|key` patterns and truncates to 300 chars
+- New diagnostic API (`/api/diagnostic/*`) exposes operational event log, event type counts, system health, and stuck recipient detection
+- All event payloads returned by the diagnostic API are scrubbed: keys containing `password`, `password_encrypted`, `token`, `secret`, `api_key` are replaced with `[REDACTED]`
+- Stuck detection threshold: recipients in `queued` or `sending` for more than 30 minutes past `scheduled_for` (or `created_at` when `scheduled_for` is null)
+- Health endpoint returns: gateway driver, mailbox config status, per-provider health, queue counts (queued/sending/stuck), 24h error count, last event timestamp
+- New Diagnostic page at `/diagnostic` added to sidebar navigation under Configuration section
+- Diagnostic page is a real-time operational dashboard: health panel at top, provider status cards, stuck recipient alert with drilldown table, paginated event log with type filter and text search, expandable JSON payloads
+- SettingsMail.vue SMTP/IMAP test result display now shows expanded diagnostics: host:port, security mode, provider label, failure stage, technical detail, test timestamp
+- 15 new feature tests (111 assertions) covering: SMTP diagnostic enrichment, secret non-exposure, provider separation, gateway failures, event API pagination/filtering/scrubbing, health endpoint, stuck detection, frontend payload coherence

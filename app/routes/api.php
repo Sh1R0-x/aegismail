@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\CampaignManagementController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ContactImportController;
+use App\Http\Controllers\Api\DiagnosticController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\SettingsController;
@@ -70,3 +71,10 @@ Route::post('/organizations', [OrganizationController::class, 'store']);
 Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
 Route::put('/organizations/{organization}', [OrganizationController::class, 'update']);
 Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
+
+Route::prefix('diagnostic')->group(function () {
+    Route::get('/events', [DiagnosticController::class, 'events']);
+    Route::get('/event-types', [DiagnosticController::class, 'eventTypes']);
+    Route::get('/health', [DiagnosticController::class, 'health']);
+    Route::get('/stuck-recipients', [DiagnosticController::class, 'stuckRecipients']);
+});
