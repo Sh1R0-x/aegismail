@@ -14,19 +14,20 @@ The product is a mailing and outreach tracking tool centered on:
 - future AI readiness
 
 This project does **not** reuse Gmail logic from OppoLES.
-The V1 target is **OVH MX Plan only**.
+The V1 target keeps **one OVH MX Plan mailbox** for identity and IMAP sync, with outbound SMTP limited to **OVH MX Plan** and **SMTP2GO**.
 
 ## Frozen V1 scope
 
 ### Mail provider
 
-- one mailbox only
-- OVH MX Plan only
-- IMAP for inbound sync
-- SMTP for outbound send
+- one OVH mailbox only for identity and inbound sync
+- IMAP for inbound sync on OVH only
+- outbound SMTP limited to `ovh_mx_plan` and `smtp2go`
+- `settings.mail.active_provider` is the single source of truth for new drafts
+- each draft/campaign freezes its `outbound_provider` at creation time
 - no Gmail
 - no Google APIs
-- no multi-provider support in V1
+- no generic provider abstraction beyond OVH MX Plan + SMTP2GO
 
 ### Product shape
 
@@ -207,8 +208,8 @@ Before any send or scheduling launch, the UI must show:
 
 ## Validated business decisions
 
-- one mailbox in V1
-- OVH MX Plan only
+- one OVH mailbox in V1
+- outbound SMTP providers limited to OVH MX Plan and SMTP2GO
 - simple and multiple mail inside the same product
 - same sending queue for all mails
 - attachments supported in V1
@@ -267,7 +268,10 @@ Drafts are no longer a separate navigation item — they live under `/mails?tab=
 - sender address
 - sender name
 - global signature
-- IMAP/SMTP config
+- active outbound provider
+- OVH mailbox + IMAP config
+- OVH SMTP config
+- SMTP2GO SMTP config
 - sync state
 
 ### Cadence

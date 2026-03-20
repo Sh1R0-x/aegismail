@@ -15,6 +15,7 @@ class MailCampaign extends Model
 
     protected $fillable = [
         'mailbox_account_id',
+        'outbound_provider',
         'user_id',
         'name',
         'mode',

@@ -3,12 +3,12 @@
 namespace App\Services\Mailing\Inbound;
 
 use App\Models\ContactEmail;
+use App\Models\MailboxAccount;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
-use App\Models\MailboxAccount;
 use App\Services\Mailing\Contracts\MailGatewayClient;
-use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailboxSettingsService;
+use App\Services\Mailing\MailEventLogger;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -23,8 +23,7 @@ class MailboxSyncService
         private readonly InboundMessageClassifier $classifier,
         private readonly ThreadResolver $threadResolver,
         private readonly MailEventLogger $eventLogger,
-    ) {
-    }
+    ) {}
 
     public function sync(array $payload, MailGatewayClient $gatewayClient): array
     {
@@ -475,7 +474,7 @@ class MailboxSyncService
             'mailbox_account_id' => $mailbox->id,
             'folder' => $folder,
             'from_uid' => $this->cursorValue($mailbox, $folder),
-            'provider' => config('mailing.provider'),
+            'provider' => config('mailing.mailbox_provider', 'ovh_mx_plan'),
             'email' => $mailbox->email,
             'username' => $connection['mailbox_username'] ?? $mailbox->username,
             'password' => $connection['mailbox_password'] ?? null,

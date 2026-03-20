@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Settings;
 
 use App\Http\Requests\ApiFormRequest;
+use Illuminate\Validation\Rule;
 
 class MailConnectionTestRequest extends ApiFormRequest
 {
@@ -14,9 +15,12 @@ class MailConnectionTestRequest extends ApiFormRequest
     public function rules(): array
     {
         return [
+            'provider' => ['required', 'string', Rule::in(array_keys(config('mailing.outbound_providers', [])))],
             'sender_email' => ['sometimes', 'email:rfc', 'max:255'],
             'mailbox_username' => ['sometimes', 'string', 'max:255'],
             'mailbox_password' => ['nullable', 'string', 'max:1000'],
+            'smtp_username' => ['sometimes', 'string', 'max:255'],
+            'smtp_password' => ['nullable', 'string', 'max:1000'],
             'imap_host' => ['sometimes', 'string', 'max:255'],
             'imap_port' => ['sometimes', 'integer', 'between:1,65535'],
             'imap_secure' => ['sometimes', 'boolean'],
@@ -29,9 +33,12 @@ class MailConnectionTestRequest extends ApiFormRequest
     public function attributes(): array
     {
         return [
+            'provider' => 'le provider SMTP',
             'sender_email' => 'l’adresse d’envoi',
             'mailbox_username' => 'l’identifiant de la boîte mail',
             'mailbox_password' => 'le mot de passe de la boîte mail',
+            'smtp_username' => 'l’identifiant SMTP',
+            'smtp_password' => 'le mot de passe SMTP',
             'imap_host' => 'l’hôte IMAP',
             'imap_port' => 'le port IMAP',
             'imap_secure' => 'la sécurité IMAP',

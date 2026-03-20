@@ -72,3 +72,29 @@ test('dispatchMessage builds a multipart alternative MIME with unsubscribe heade
   assert.match(driver.rawMessage, /List-Unsubscribe-Post:\s*List-Unsubscribe=One-Click/i);
   assert.doesNotMatch(driver.rawMessage, /\ntracking:/i);
 });
+
+test('dispatchMessage returns the selected SMTP provider as driver metadata', async () => {
+  const driver = new CaptureDriver();
+
+  const result = await driver.dispatchMessage({
+    mailbox_account_id: 1,
+    mail_message_id: 1,
+    provider: 'smtp2go',
+    email: 'ops@example.com',
+    username: 'smtp2go-user',
+    password: 'secret',
+    smtp_host: 'mail.smtp2go.com',
+    smtp_port: 2525,
+    smtp_secure: false,
+    from_email: 'ops@example.com',
+    to_emails: ['alice@example.com'],
+    subject: 'Provider metadata',
+    text_body: 'Bonjour',
+    message_id_header: '<message-id@example.com>',
+    attachments: [],
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.driver, 'smtp2go');
+  assert.match(result.message, /smtp2go/i);
+});

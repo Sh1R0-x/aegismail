@@ -2,13 +2,12 @@
 
 ## Scope
 
-Ce runbook prépare une mise en ligne réaliste d'AEGIS MAILING sur une infrastructure simple type OVH, sans Docker, sans Sail et sans multi-provider.
+Ce runbook prépare une mise en ligne réaliste d'AEGIS MAILING sur une infrastructure simple type OVH, sans Docker et sans Sail, avec OVH comme mailbox principal et SMTP2GO optionnel pour le SMTP sortant.
 
 Règles figées gardées :
 
-- une seule boîte OVH MX Plan
-- IMAP pour la réception
-- SMTP pour l’envoi
+- une seule boîte OVH MX Plan pour l’identité et l’IMAP
+- SMTP sortant limité à OVH MX Plan et SMTP2GO
 - une seule queue sortante
 - statuts gelés inchangés
 
@@ -111,6 +110,9 @@ Variables obligatoires à ajuster :
 - `MAIL_GATEWAY_SHARED_SECRET` si mode `http`
 - `MAIL_OUTBOUND_QUEUE`
 - `MAIL_SYNC_QUEUE`
+- `SMTP2GO_SMTP_HOST` optionnel, par défaut `mail.smtp2go.com`
+- `SMTP2GO_SMTP_PORT` optionnel, par défaut `587`
+- `SMTP2GO_SMTP_SECURE` optionnel, par défaut `false`
 
 Règles impératives pour les URLs publiques email :
 
@@ -306,6 +308,8 @@ Si Redis n’est pas disponible :
 Vérifier :
 
 - credentials OVH MX Plan
+- credentials SMTP2GO si ce provider doit être activé
+- provider SMTP actif cohérent dans `settings.mail.active_provider`
 - `send_enabled = true`
 - `sync_enabled = true`
 - fenêtre d’envoi cohérente
@@ -420,13 +424,14 @@ curl -I https://aegisnetwork.fr/robots.txt
 4. Vérifier `php artisan migrate:status`
 5. Vérifier `php artisan queue:work` lancé
 6. Vérifier le cron `schedule:run`
-7. Vérifier un `test-smtp`
-8. Vérifier un `test-imap`
-9. Sauvegarder un draft
-10. Faire un preflight
-11. Planifier un draft futur
-12. Vérifier la création des jobs et recipients
-13. Vérifier la source brute d’un email réel :
+7. Vérifier un `test-smtp` OVH
+8. Vérifier un `test-imap` OVH
+9. Vérifier un `test-smtp` SMTP2GO si SMTP2GO est configuré
+10. Sauvegarder un draft
+11. Faire un preflight
+12. Planifier un draft futur
+13. Vérifier la création des jobs et recipients
+14. Vérifier la source brute d’un email réel :
     - aucun `localhost`, `127.0.0.1` ou IP privée
     - pixel open en `https://`
     - lien tracké en `https://`

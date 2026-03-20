@@ -11,9 +11,9 @@ use App\Models\MailRecipient;
 use App\Models\MailThread;
 use App\Services\Mailing\Contracts\MailGatewayClient;
 use App\Services\Mailing\EmailContentService;
-use App\Services\Mailing\MailboxSettingsService;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\MailUnsubscribeService;
+use App\Services\Mailing\SmtpProviderService;
 use App\Services\Mailing\Tracking\MailTrackingService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
@@ -25,11 +25,11 @@ class OutboundMailService
 {
     public function __construct(
         private readonly SettingsStore $settingsStore,
-        private readonly MailboxSettingsService $mailboxSettingsService,
         private readonly MailEventLogger $eventLogger,
         private readonly MailTrackingService $trackingService,
         private readonly EmailContentService $emailContentService,
         private readonly MailUnsubscribeService $mailUnsubscribeService,
+        private readonly SmtpProviderService $smtpProviderService,
     ) {}
 
     public function queueCampaign(MailDraft $draft, MailCampaign $campaign, Carbon $requestedStart): MailCampaign
@@ -65,6 +65,7 @@ class OutboundMailService
                     'mail_message.queued',
                     [
                         'mail_message_id' => $message->id,
+                        'outbound_provider' => $campaign->outbound_provider,
                         'scheduled_for' => $scheduledFor->toIso8601String(),
                         'queue' => config('mailing.queues.outbound'),
                     ],
@@ -142,6 +143,7 @@ class OutboundMailService
             'mail_message.dispatch_requested',
             [
                 'driver' => $result['driver'] ?? config('mailing.gateway.driver'),
+                'outbound_provider' => $gatewayPayload['provider'],
                 'result' => array_diff_key($result, array_flip(['html_body', 'text_body', 'password', 'mailbox_password'])),
             ],
             [
@@ -202,6 +204,9 @@ class OutboundMailService
             'References' => null,
             'X-Aegis-Tracking-Id' => $trackingId,
             'tracking' => $trackedBodies['tracking'],
+            'transport' => [
+                'provider' => $draft->outbound_provider,
+            ],
         ];
 
         if ($draft->mode === 'bulk') {
@@ -343,8 +348,9 @@ class OutboundMailService
 
     private function gatewayPayload(MailMessage $message): array
     {
-        $connection = $this->mailboxSettingsService->getConnectionConfiguration();
         $mailbox = $message->mailboxAccount;
+        $provider = $message->recipient?->campaign?->outbound_provider ?: $this->smtpProviderService->activeProvider();
+        $smtpConnection = $this->smtpProviderService->runtimeConfiguration($provider, $mailbox);
 
         return [
             'mailbox_account_id' => $mailbox->id,
@@ -352,13 +358,13 @@ class OutboundMailService
             'thread_id' => $message->thread_id,
             'campaign_id' => $message->recipient?->campaign_id,
             'recipient_id' => $message->recipient_id,
-            'provider' => config('mailing.provider'),
+            'provider' => $provider,
             'email' => $mailbox->email,
-            'username' => $connection['mailbox_username'] ?? $mailbox->username,
-            'password' => $connection['mailbox_password'] ?? null,
-            'smtp_host' => $connection['smtp_host'] ?? $mailbox->smtp_host,
-            'smtp_port' => $connection['smtp_port'] ?? $mailbox->smtp_port,
-            'smtp_secure' => $connection['smtp_secure'] ?? $mailbox->smtp_secure,
+            'username' => $smtpConnection['smtp_username'],
+            'password' => $smtpConnection['smtp_password'],
+            'smtp_host' => $smtpConnection['smtp_host'],
+            'smtp_port' => $smtpConnection['smtp_port'],
+            'smtp_secure' => $smtpConnection['smtp_secure'],
             'from_email' => $message->from_email,
             'from_name' => $mailbox->display_name,
             'to_emails' => $message->to_emails,
@@ -411,6 +417,7 @@ class OutboundMailService
                 'mail_message.sent',
                 [
                     'mail_message_id' => $message->id,
+                    'outbound_provider' => $campaign->outbound_provider,
                     'accepted_at' => $sentAt->toIso8601String(),
                     'message_id_header' => $messageIdHeader,
                 ],
@@ -448,6 +455,7 @@ class OutboundMailService
                 'mail_message.failed',
                 [
                     'mail_message_id' => $message->id,
+                    'outbound_provider' => $campaign->outbound_provider,
                     'message' => $result['message'] ?? 'Envoi rejeté par la passerelle.',
                 ],
                 [

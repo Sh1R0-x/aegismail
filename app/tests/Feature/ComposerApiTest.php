@@ -13,7 +13,9 @@ use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Models\Organization;
 use App\Models\Setting;
+use App\Models\SmtpProviderAccount;
 use App\Services\Mailing\Contracts\MailGatewayClient;
+use App\Services\Mailing\Gateway\StubMailGatewayClient;
 use App\Services\Mailing\Outbound\OutboundMailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -110,11 +112,13 @@ class ComposerApiTest extends TestCase
         ])->assertCreated();
 
         $draftId = $draftResponse->json('draft.id');
+        $this->assertSame('ovh_mx_plan', $draftResponse->json('draft.outboundProvider'));
 
         $this->getJson('/api/drafts/'.$draftId)
             ->assertOk()
             ->assertJsonPath('draft.type', 'multiple')
-            ->assertJsonPath('draft.recipientCount', 1);
+            ->assertJsonPath('draft.recipientCount', 1)
+            ->assertJsonPath('draft.outboundProvider', 'ovh_mx_plan');
 
         $this->putJson('/api/drafts/'.$draftId, [
             'type' => 'bulk',
@@ -143,6 +147,7 @@ class ComposerApiTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('draft.status', 'scheduled')
             ->assertJsonPath('campaign.status', 'scheduled')
+            ->assertJsonPath('campaign.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('campaign.recipientCount', 1)
             ->assertJsonPath('preflight.ok', true);
 
@@ -292,6 +297,7 @@ class ComposerApiTest extends TestCase
             ['key' => 'mail'],
             [
                 'value_json' => [
+                    'active_provider' => 'ovh_mx_plan',
                     'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
                     'global_signature_text' => "Cordialement,\nAEGIS",
                     'send_window_start' => '09:00',
@@ -761,12 +767,14 @@ class ComposerApiTest extends TestCase
             'name' => 'Campaign source batch',
         ])->assertCreated()
             ->assertJsonPath('campaign.name', 'Campaign source batch')
+            ->assertJsonPath('campaign.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('campaign.recipientCount', 1)
             ->assertJsonPath('preflight.ok', true);
 
         $this->getJson('/api/campaigns')
             ->assertOk()
             ->assertJsonPath('campaigns.0.name', 'Campaign source batch')
+            ->assertJsonPath('campaigns.0.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('campaigns.0.progressPercent', 0)
             ->assertJsonPath('campaigns.0.recipientCount', 1)
             ->assertJsonPath('campaigns.0.openCount', 0)
@@ -985,6 +993,33 @@ class ComposerApiTest extends TestCase
         );
     }
 
+    private function seedSmtp2goProvider(): void
+    {
+        SmtpProviderAccount::query()->create([
+            'provider' => 'smtp2go',
+            'username' => 'smtp2go-user',
+            'password_encrypted' => 'smtp2go-secret',
+            'smtp_host' => 'mail.smtp2go.com',
+            'smtp_port' => 2525,
+            'smtp_secure' => false,
+            'send_enabled' => true,
+            'health_status' => 'healthy',
+        ]);
+    }
+
+    private function setActiveProvider(string $provider): void
+    {
+        $mail = Setting::query()->firstWhere('key', 'mail');
+        $payload = array_replace($mail?->value_json ?? config('mailing.defaults.mail', []), [
+            'active_provider' => $provider,
+        ]);
+
+        Setting::query()->updateOrCreate(
+            ['key' => 'mail'],
+            ['value_json' => $payload],
+        );
+    }
+
     private function seedContacts(bool $includeFlags = false): array
     {
         $this->seedMailboxAndSettings();
@@ -1099,7 +1134,77 @@ class ComposerApiTest extends TestCase
         ])->assertOk();
 
         $this->assertTrue($resp->json('success'));
+        $this->assertSame('ovh_mx_plan', $resp->json('provider'));
+        $this->assertSame('OVH MX Plan', $resp->json('providerLabel'));
         $this->assertNotNull($resp->json('acceptedAt'));
+    }
+
+    public function test_draft_freezes_smtp2go_and_test_send_uses_that_provider_even_after_switching_active_provider(): void
+    {
+        $this->seedMailboxAndSettings();
+        $this->seedSmtp2goProvider();
+        $this->setActiveProvider('smtp2go');
+
+        $draftResp = $this->postJson('/api/drafts', [
+            'type' => 'single',
+            'subject' => 'SMTP2GO frozen provider',
+            'textBody' => 'Body',
+            'recipients' => [],
+        ])->assertCreated()
+            ->assertJsonPath('draft.outboundProvider', 'smtp2go')
+            ->assertJsonPath('draft.outboundProviderLabel', 'SMTP2GO');
+
+        $draftId = $draftResp->json('draft.id');
+
+        $this->setActiveProvider('ovh_mx_plan');
+
+        $this->postJson("/api/drafts/{$draftId}/preflight")
+            ->assertOk()
+            ->assertJsonPath('preflight.provider', 'smtp2go')
+            ->assertJsonPath('preflight.providerLabel', 'SMTP2GO')
+            ->assertJsonPath('preflight.providerReady', true);
+
+        $capture = new class
+        {
+            public ?array $payload = null;
+        };
+
+        $this->app->bind(MailGatewayClient::class, fn () => new class($capture) extends StubMailGatewayClient
+        {
+            public function __construct(private object $capture) {}
+
+            public function dispatchMessage(array $payload): array
+            {
+                $this->capture->payload = $payload;
+
+                return [
+                    'success' => true,
+                    'driver' => 'test',
+                    'message' => 'accepted',
+                    'accepted_at' => Carbon::now()->toIso8601String(),
+                    'message_id_header' => $payload['message_id_header'] ?? null,
+                ];
+            }
+
+            public function syncMailbox(array $payload): array
+            {
+                return ['success' => true, 'driver' => 'test', 'message' => 'ok', 'messages' => []];
+            }
+        });
+
+        $resp = $this->postJson("/api/drafts/{$draftId}/test-send", [
+            'email' => 'test@openai.com',
+        ])->assertOk()
+            ->assertJsonPath('provider', 'smtp2go')
+            ->assertJsonPath('providerLabel', 'SMTP2GO');
+
+        $this->assertTrue($resp->json('success'));
+        $this->assertNotNull($capture->payload);
+        $this->assertSame('smtp2go', $capture->payload['provider']);
+        $this->assertSame('mail.smtp2go.com', $capture->payload['smtp_host']);
+        $this->assertSame(2525, $capture->payload['smtp_port']);
+        $this->assertSame('smtp2go-user', $capture->payload['username']);
+        $this->assertSame('smtp2go-secret', $capture->payload['password']);
     }
 
     public function test_test_send_validates_email_format(): void

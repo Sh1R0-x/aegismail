@@ -1,7 +1,8 @@
 export type GatewayProtocol = 'imap' | 'smtp';
+export type SmtpProvider = 'ovh_mx_plan' | 'smtp2go';
 
 export interface MailboxProbePayload {
-  provider: 'ovh_mx_plan';
+  provider: SmtpProvider;
   email: string;
   username: string;
   password: string;
@@ -15,7 +16,7 @@ export interface MailboxProbePayload {
 
 export interface GatewayResult {
   success: boolean;
-  driver: 'stub' | 'http' | 'gateway' | 'ovh_mx_plan';
+  driver: 'stub' | 'http' | 'gateway' | SmtpProvider;
   message: string;
   protocol?: GatewayProtocol;
   accepted_at?: string;
@@ -30,7 +31,7 @@ export interface DispatchMessagePayload {
   campaign_id?: number;
   recipient_id?: number;
   idempotency_key?: string;
-  provider?: 'ovh_mx_plan';
+  provider?: SmtpProvider;
   email?: string;
   username?: string;
   password?: string;

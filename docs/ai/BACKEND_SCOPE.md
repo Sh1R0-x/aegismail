@@ -9,7 +9,7 @@ All V1 backend features are implemented and tested. The goal is now stability, c
 - **CRM core**: contacts, organizations, contact_emails with CRUD, search, filters, split phones (phone_landline, phone_mobile), LinkedIn
 - **Mail composition**: drafts (create, update, duplicate, delete, bulk-delete), templates (CRUD, duplicate, permanent delete), MailComposer single/multiple modes
 - **Campaigns**: draft-first creation, autosave, preflight, scheduling, unscheduling, immediate send, clone, audience picker
-- **Outbound mail**: real OVH MX Plan SMTP dispatch through Node mail-gateway, multipart body synthesis, public URL validation, send window, cadence, one queue (`mail-outbound`)
+- **Outbound mail**: SMTP dispatch through Node mail-gateway with two supported outbound providers (`ovh_mx_plan`, `smtp2go`), multipart body synthesis, public URL validation, send window, cadence, one queue (`mail-outbound`), frozen `outbound_provider` on drafts/campaigns
 - **IMAP sync**: inbox + sent folder sync through Node mail-gateway, UID cursor resume, mailbox+folder lock, thread resolution, message classification (human_reply, auto_reply, out_of_office, auto_ack, soft_bounce, hard_bounce, system)
 - **Tracking**: open pixel, click redirect, one-click unsubscribe (List-Unsubscribe headers), event persistence
 - **Import/Export**: preview-first CSV/XLSX import, confirm with single-use preview token, template download, full export, round-trip support, French aliases, organization resolution
@@ -20,16 +20,17 @@ All V1 backend features are implemented and tested. The goal is now stability, c
 
 ## Must maintain now
 
-1. Keep one OVH MX Plan mailbox only
-2. Keep one sending queue for all outgoing messages
-3. Expose stable Inertia payloads for all pages
-4. Persist and query all CRM entities
-5. Compute score, scoreLevel, excluded, unsubscribed, lastActivityAt correctly
-6. Deliver real SMTP send + IMAP sync through the mail-gateway
-7. Persist tracking events and expose them to existing backend projections
-8. Maintain stable Import / Export module contracts
-9. Document exact backend/frontend contracts in `docs/ai`
-10. Keep all tests passing (100 tests, 1370+ assertions)
+1. Keep one OVH MX Plan mailbox identity/inbound sync source only
+2. Limit outbound SMTP to OVH MX Plan and SMTP2GO
+3. Keep one sending queue for all outgoing messages
+4. Expose stable Inertia payloads for all pages
+5. Persist and query all CRM entities
+6. Compute score, scoreLevel, excluded, unsubscribed, lastActivityAt correctly
+7. Deliver real SMTP send + IMAP sync through the mail-gateway
+8. Persist tracking events and expose them to existing backend projections
+9. Maintain stable Import / Export module contracts
+10. Document exact backend/frontend contracts in `docs/ai`
+11. Keep all tests passing (118 tests, 1555+ assertions)
 
 ## Must not do now
 
@@ -38,7 +39,7 @@ All V1 backend features are implemented and tested. The goal is now stability, c
 - add speculative provider abstractions
 - move UI concerns into Laravel
 - expose or maintain embedded SPF / DKIM / DMARC diagnostic flows in V1
-- invent provider-specific behavior outside OVH MX Plan needs
+- invent provider-specific behavior outside OVH MX Plan + SMTP2GO needs
 
 ## Frozen rules to keep
 

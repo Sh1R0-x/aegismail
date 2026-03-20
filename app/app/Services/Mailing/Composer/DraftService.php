@@ -13,6 +13,7 @@ use App\Services\Mailing\MailboxSettingsService;
 use App\Services\Mailing\MailEventLogger;
 use App\Services\Mailing\Outbound\OutboundMailService;
 use App\Services\Mailing\PublicEmailUrlService;
+use App\Services\Mailing\SmtpProviderService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class DraftService
         private readonly OutboundMailService $outboundMailService,
         private readonly EmailContentService $emailContentService,
         private readonly PublicEmailUrlService $publicEmailUrlService,
+        private readonly SmtpProviderService $smtpProviderService,
     ) {}
 
     public function list(): array
@@ -52,10 +54,14 @@ class DraftService
             ]);
         }
 
+        $provider = $this->smtpProviderService->activeProvider();
+        $this->smtpProviderService->validateActiveProvider($provider, $mailbox);
+
         $mailSettings = $this->mailboxSettingsService->getSettings();
 
         $draft = MailDraft::query()->create([
             'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => $provider,
             'user_id' => $userId,
             'mode' => $validated['type'],
             'template_id' => $validated['templateId'] ?? null,
@@ -71,7 +77,10 @@ class DraftService
 
         $this->eventLogger->log(
             'mail_draft.created',
-            ['draft_id' => $draft->id],
+            [
+                'draft_id' => $draft->id,
+                'outbound_provider' => $provider,
+            ],
             ['mailbox_account_id' => $mailbox->id],
             'mail_draft.created.'.$draft->id,
         );
@@ -107,6 +116,7 @@ class DraftService
     {
         $copy = MailDraft::query()->create([
             'mailbox_account_id' => $draft->mailbox_account_id,
+            'outbound_provider' => $draft->outbound_provider,
             'user_id' => $draft->user_id,
             'mode' => $draft->mode,
             'template_id' => $draft->template_id,
@@ -213,13 +223,15 @@ class DraftService
     public function preflight(MailDraft $draft): array
     {
         $draft->loadMissing('attachments');
+        $provider = $draft->outbound_provider ?: $this->smtpProviderService->activeProvider();
 
-        $preflight = $this->preflightService->run($draft, $this->mailbox());
+        $preflight = $this->preflightService->run($draft, $this->mailboxForDraft($draft), $provider);
 
         $this->eventLogger->log(
             'mail_draft.preflight_ran',
             [
                 'draft_id' => $draft->id,
+                'outbound_provider' => $provider,
                 'ok' => $preflight['ok'],
                 'errors' => array_column($preflight['errors'], 'code'),
                 'warnings' => array_column($preflight['warnings'], 'code'),
@@ -235,7 +247,7 @@ class DraftService
     {
         $this->ensureCampaignDraftIsEditable($draft);
 
-        $mailbox = $this->mailbox();
+        $mailbox = $this->mailboxForDraft($draft);
 
         if ($mailbox === null) {
             throw ValidationException::withMessages([
@@ -243,7 +255,13 @@ class DraftService
             ]);
         }
 
-        [$campaign, $preflight] = $this->campaignService->createFromDraft($draft->fresh(['attachments']), $mailbox, $name, $scheduledAt);
+        [$campaign, $preflight] = $this->campaignService->createFromDraft(
+            $draft->fresh(['attachments']),
+            $mailbox,
+            $draft->outbound_provider ?: $this->smtpProviderService->activeProvider(),
+            $name,
+            $scheduledAt,
+        );
 
         if ($campaign === null) {
             throw ValidationException::withMessages([
@@ -263,6 +281,7 @@ class DraftService
             [
                 'draft_id' => $draft->id,
                 'campaign_id' => $campaign->id,
+                'outbound_provider' => $draft->outbound_provider,
                 'scheduled_at' => $scheduledAt->toIso8601String(),
                 'queue' => config('mailing.queues.outbound'),
             ],
@@ -309,7 +328,7 @@ class DraftService
 
     public function testSend(MailDraft $draft, string $testEmail): array
     {
-        $mailbox = $this->mailbox();
+        $mailbox = $this->mailboxForDraft($draft);
 
         if ($mailbox === null) {
             throw ValidationException::withMessages([
@@ -324,7 +343,8 @@ class DraftService
         }
 
         $mailSettings = $this->mailboxSettingsService->getSettings();
-        $connection = $this->mailboxSettingsService->getConnectionConfiguration();
+        $provider = $draft->outbound_provider ?: $this->smtpProviderService->activeProvider();
+        $smtpConnection = $this->smtpProviderService->runtimeConfiguration($provider, $mailbox);
         $gatewayClient = app(MailGatewayClient::class);
         $preparedBodies = $this->emailContentService->prepareBodies(
             $draft->html_body,
@@ -354,14 +374,14 @@ class DraftService
             'thread_id' => null,
             'campaign_id' => null,
             'recipient_id' => null,
-            'provider' => config('mailing.provider'),
+            'provider' => $provider,
             'email' => $mailbox->email,
-            'username' => $connection['mailbox_username'] ?? $mailbox->username,
-            'password' => $connection['mailbox_password'] ?? null,
-            'smtp_host' => $connection['smtp_host'] ?? $mailbox->smtp_host,
-            'smtp_port' => $connection['smtp_port'] ?? $mailbox->smtp_port,
-            'smtp_secure' => $connection['smtp_secure'] ?? $mailbox->smtp_secure,
-            'from_email' => $connection['sender_email'] ?: $mailbox->email,
+            'username' => $smtpConnection['smtp_username'],
+            'password' => $smtpConnection['smtp_password'],
+            'smtp_host' => $smtpConnection['smtp_host'],
+            'smtp_port' => $smtpConnection['smtp_port'],
+            'smtp_secure' => $smtpConnection['smtp_secure'],
+            'from_email' => $mailbox->email,
             'from_name' => $mailbox->display_name,
             'to_emails' => [$testEmail],
             'subject' => '[TEST] '.($draft->subject ?: '(Sans objet)'),
@@ -371,7 +391,12 @@ class DraftService
             'in_reply_to_header' => null,
             'references_header' => null,
             'aegis_tracking_id' => null,
-            'headers_json' => ['X-Aegis-Test' => 'true'],
+            'headers_json' => [
+                'X-Aegis-Test' => 'true',
+                'transport' => [
+                    'provider' => $provider,
+                ],
+            ],
             'attachments' => [],
         ];
 
@@ -381,6 +406,7 @@ class DraftService
             'mail_draft.test_sent',
             [
                 'draft_id' => $draft->id,
+                'outbound_provider' => $provider,
                 'test_email' => $testEmail,
                 'success' => $result['success'] ?? false,
                 'driver' => $result['driver'] ?? config('mailing.gateway.driver'),
@@ -391,6 +417,8 @@ class DraftService
         return [
             'success' => $result['success'] ?? false,
             'message' => $result['message'] ?? ($result['success'] ? 'Test envoyé.' : 'Échec de l\'envoi de test.'),
+            'provider' => $provider,
+            'providerLabel' => $this->smtpProviderService->label($provider),
             'driver' => $result['driver'] ?? config('mailing.gateway.driver'),
             'acceptedAt' => $result['accepted_at'] ?? null,
         ];
@@ -404,6 +432,8 @@ class DraftService
             'id' => $draft->id,
             'templateId' => $draft->template_id,
             'type' => $draft->mode === 'bulk' ? 'multiple' : 'single',
+            'outboundProvider' => $draft->outbound_provider,
+            'outboundProviderLabel' => $this->smtpProviderService->label($draft->outbound_provider ?: $this->smtpProviderService->activeProvider()),
             'subject' => $draft->subject,
             'htmlBody' => $draft->html_body,
             'textBody' => $draft->text_body,
@@ -430,6 +460,8 @@ class DraftService
             'subject' => $draft->subject,
             'recipientCount' => $this->recipientCount($draft),
             'type' => $draft->mode === 'bulk' ? 'multiple' : 'single',
+            'outboundProvider' => $draft->outbound_provider,
+            'outboundProviderLabel' => $this->smtpProviderService->label($draft->outbound_provider ?: $this->smtpProviderService->activeProvider()),
             'status' => $draft->status,
             'scheduledAt' => $draft->scheduled_at?->timezone(config('app.timezone'))->toIso8601String(),
             'updatedAt' => $draft->updated_at?->timezone(config('app.timezone'))->toIso8601String(),
@@ -438,7 +470,7 @@ class DraftService
 
     public function mailbox(): ?MailboxAccount
     {
-        return MailboxAccount::query()->where('provider', config('mailing.provider'))->first();
+        return $this->mailboxSettingsService->mailbox();
     }
 
     public function autosaveCampaign(array $validated, ?int $userId = null): array
@@ -551,5 +583,10 @@ class DraftService
         throw ValidationException::withMessages([
             'campaign' => ['Cette campagne a été supprimée et ne peut plus être modifiée.'],
         ]);
+    }
+
+    private function mailboxForDraft(MailDraft $draft): ?MailboxAccount
+    {
+        return $draft->mailboxAccount()->first() ?? $this->mailbox();
     }
 }

@@ -5,16 +5,17 @@ namespace Tests\Feature;
 use App\Models\Contact;
 use App\Models\ContactEmail;
 use App\Models\MailAttachment;
+use App\Models\MailboxAccount;
 use App\Models\MailCampaign;
 use App\Models\MailDraft;
 use App\Models\MailEvent;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
-use App\Models\MailboxAccount;
 use App\Models\MailThread;
 use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CampaignCloneApiTest extends TestCase
@@ -64,6 +65,7 @@ class CampaignCloneApiTest extends TestCase
         // Campaign parameters preserved
         $this->assertSame($campaign->mode, $newCampaign->mode);
         $this->assertSame($campaign->mailbox_account_id, $newCampaign->mailbox_account_id);
+        $this->assertSame($campaign->outbound_provider, $newCampaign->outbound_provider);
         $this->assertEquals($campaign->send_window_json, $newCampaign->send_window_json);
         $this->assertEquals($campaign->throttling_json, $newCampaign->throttling_json);
 
@@ -76,6 +78,7 @@ class CampaignCloneApiTest extends TestCase
         $this->assertSame($draft->text_body, $newDraft->text_body);
         $this->assertSame($draft->template_id, $newDraft->template_id);
         $this->assertSame($draft->signature_snapshot, $newDraft->signature_snapshot);
+        $this->assertSame($draft->outbound_provider, $newDraft->outbound_provider);
         $this->assertSame('draft', $newDraft->status);
         $this->assertNull($newDraft->scheduled_at);
     }
@@ -242,6 +245,7 @@ class CampaignCloneApiTest extends TestCase
             ['key' => 'mail'],
             [
                 'value_json' => [
+                    'active_provider' => 'ovh_mx_plan',
                     'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
                     'global_signature_text' => "Cordialement,\nAEGIS",
                     'send_window_start' => '09:00',
@@ -283,6 +287,7 @@ class CampaignCloneApiTest extends TestCase
 
         $draft = MailDraft::query()->create([
             'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
             'mode' => 'bulk',
             'template_id' => null,
             'subject' => 'Campagne Avril',
@@ -306,6 +311,7 @@ class CampaignCloneApiTest extends TestCase
 
         $campaign = MailCampaign::query()->create([
             'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
             'name' => 'Campagne Avril',
             'mode' => 'bulk',
             'draft_id' => $draft->id,
@@ -319,7 +325,7 @@ class CampaignCloneApiTest extends TestCase
 
         $thread = MailThread::query()->create([
             'mailbox_account_id' => $mailbox->id,
-            'public_uuid' => \Illuminate\Support\Str::uuid()->toString(),
+            'public_uuid' => Str::uuid()->toString(),
             'subject_canonical' => 'campagne avril',
             'first_message_at' => '2026-03-15 09:00:00',
             'last_message_at' => '2026-03-15 09:00:00',

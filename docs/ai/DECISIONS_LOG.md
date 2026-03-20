@@ -3,7 +3,8 @@
 ## Current frozen decisions
 
 - One mailbox in V1
-- OVH MX Plan only
+- One OVH MX Plan mailbox for identity + inbound sync
+- Outbound SMTP providers limited to OVH MX Plan and SMTP2GO
 - No Gmail logic
 - One queue for simple and multiple mail
 - Global signature
@@ -51,7 +52,7 @@
 - Gateway driver (`stub` vs `http`) is now exposed as an Inertia shared prop `gatewayDriver` on all pages; `CrmLayout` shows a permanent amber warning banner when running in stub mode
 - `POST /api/drafts/{draft}/send-now` and `POST /api/drafts/{draft}/schedule` JSON responses now include a `driver` field so the frontend can surface driver awareness at scheduling time
 - Real OVH MX Plan send was validated end-to-end: Laravel → HttpMailGatewayClient → Node gateway → ssl0.ovh.net:465 → delivery to external inbox (ludovic.bellavia@gmail.com), SMTP response `250 2.0.0 Ok`
-- SMTP credentials for real sends live exclusively on `mailbox_accounts` (columns: `username`, `password_encrypted`, `smtp_host`, `smtp_port`, `smtp_secure`); there are no global SMTP credentials in the `settings` table
+- OVH mailbox credentials for real sends live on `mailbox_accounts` (columns: `username`, `password_encrypted`, `smtp_host`, `smtp_port`, `smtp_secure`); optional non-mailbox outbound SMTP credentials live on `smtp_provider_accounts`; there are no raw SMTP credentials in the `settings` table
 - All backend date serialization now uses ISO 8601 (`->toIso8601String()`) with `Europe/Paris` timezone; the frontend formats dates using a shared `formatDateFR()` utility producing `dd/mm/yyyy - HHhMM` format
 - Brouillons (Drafts) is no longer a separate navigation item or page; `/drafts` redirects to `/mails?tab=drafts`
 - The Mails page is the unified operational hub with three tabs: Envoyés (recipients), Brouillons (drafts), Programmés (scheduled)
@@ -62,6 +63,13 @@
 - Campaign deletion is now conditional: a campaign with no queued/sent/message activity is hard-deleted; a campaign with existing dispatch activity is soft-deleted (`mail_campaigns.deleted_at`), moved to business status `cancelled`, hidden from standard lists, and only visible through explicit include-deleted queries while its messages, threads, events, and sent history remain intact
 - Switching from stub to real sends requires only `MAIL_GATEWAY_DRIVER=http` in `.env` and the Node mail-gateway running on port 3001; no code changes needed
 - `DraftService::testSend()` must use `MailboxSettingsService::getConnectionConfiguration()` for SMTP credentials (username, password, host, port, secure); `getSettings()` only exposes `mailbox_password_configured: bool` for frontend display — it never returns the actual decrypted password
+- `settings.mail.active_provider` is the single source of truth for the active outbound SMTP provider used by new drafts, campaigns, and explicit SMTP tests in settings
+- `mail_drafts.outbound_provider` and `mail_campaigns.outbound_provider` freeze the provider at creation time so later settings changes never silently reroute an existing send
+- SMTP provider separation is strict in V1:
+    - OVH mailbox identity + IMAP stay on `mailbox_accounts`
+    - SMTP2GO relay config stays on `smtp_provider_accounts`
+    - `POST /api/settings/mail/test-smtp` requires an explicit `provider`
+    - there is no fallback from SMTP2GO to OVH credentials
 - Default local environment is now `MAIL_GATEWAY_DRIVER=http` (real sends); `stub` is reserved for automated tests only (`e2e-serve.ps1` forces stub)
 - `scripts/dev.ps1` now auto-starts mail-gateway (Node, port 3001) and queue worker (`mail-outbound,mail-sync`) alongside Laravel and Vite; all four services managed as a single dev stack
 - Send window defaults remain `09:00–18:00`; `sendNow` at night schedules for the next morning — this is intentional for deliverability. Operators who need to send outside the window must adjust settings

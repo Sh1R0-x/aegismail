@@ -26,7 +26,7 @@ class CrmPageDataService
     {
         $generalSettings = $this->settingsStore->get('general', config('mailing.defaults.general', []));
         $mailbox = MailboxAccount::query()
-            ->where('provider', config('mailing.provider'))
+            ->where('provider', config('mailing.mailbox_provider', 'ovh_mx_plan'))
             ->first();
 
         $scheduledSends = MailDraft::query()

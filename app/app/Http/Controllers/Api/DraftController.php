@@ -21,8 +21,7 @@ class DraftController extends Controller
     public function __construct(
         private readonly DraftService $draftService,
         private readonly CampaignService $campaignService,
-    ) {
-    }
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -146,7 +145,7 @@ class DraftController extends Controller
 
     public function createCampaign(CreateCampaignFromDraftRequest $request, MailDraft $draft): JsonResponse
     {
-        $mailbox = $this->draftService->mailbox();
+        $mailbox = $draft->mailboxAccount()->first() ?? $this->draftService->mailbox();
 
         if ($mailbox === null) {
             return response()->json([
@@ -157,6 +156,7 @@ class DraftController extends Controller
         [$campaign, $preflight] = $this->campaignService->createFromDraft(
             $draft->fresh(['attachments']),
             $mailbox,
+            $draft->outbound_provider,
             $request->validated('name'),
             $request->filled('scheduledAt') ? Carbon::parse($request->validated('scheduledAt')) : null,
         );

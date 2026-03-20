@@ -48,16 +48,17 @@ export class OvhMxPlanDriver {
 
       const transporter = this.createTransport(payload);
       await transporter.verify();
+      const provider = payload.provider ?? DRIVER;
 
       return {
         success: true,
-        driver: DRIVER,
+        driver: provider,
         protocol: 'smtp',
-        message: 'OVH MX Plan SMTP connection succeeded.',
+        message: `${provider} SMTP connection succeeded.`,
         accepted_at: new Date().toISOString(),
       };
     } catch (error) {
-      return this.failure('smtp', error);
+      return this.failure('smtp', error, payload.provider ?? DRIVER);
     }
   }
 
@@ -66,6 +67,7 @@ export class OvhMxPlanDriver {
       this.assertDispatchPayload(payload);
 
       const transporter = this.createTransport(payload);
+      const provider = payload.provider ?? DRIVER;
       const info: {
         messageId?: string;
         accepted?: string[];
@@ -99,8 +101,8 @@ export class OvhMxPlanDriver {
 
       return {
         success: true,
-        driver: DRIVER,
-        message: 'Outbound message accepted by OVH MX Plan SMTP.',
+        driver: provider,
+        message: `Outbound message accepted by ${provider} SMTP.`,
         accepted_at: new Date().toISOString(),
         message_id_header: info.messageId ?? payload.message_id_header,
         headers_json: {
@@ -111,7 +113,7 @@ export class OvhMxPlanDriver {
         },
       };
     } catch (error) {
-      return this.failure(undefined, error);
+      return this.failure(undefined, error, payload.provider ?? DRIVER);
     }
   }
 
@@ -442,10 +444,10 @@ export class OvhMxPlanDriver {
     }
   }
 
-  private failure(protocol: 'imap' | 'smtp' | undefined, error: unknown): GatewayResult {
+  private failure(protocol: 'imap' | 'smtp' | undefined, error: unknown, driver: GatewayResult['driver'] = DRIVER): GatewayResult {
     return {
       success: false,
-      driver: DRIVER,
+      driver,
       protocol,
       message: this.errorMessage(error),
       accepted_at: new Date().toISOString(),

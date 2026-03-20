@@ -6,11 +6,12 @@ This document freezes the backend contracts exposed by Laravel to the current fr
 
 Rules kept:
 
-- one mailbox only
-- `provider = ovh_mx_plan`
+- one OVH mailbox identity only
+- mailbox provider = `ovh_mx_plan`
+- outbound providers limited to `ovh_mx_plan|smtp2go`
 - no Gmail logic
 - no Google APIs
-- no multi-provider abstraction
+- no generic multi-provider abstraction beyond OVH MX Plan + SMTP2GO
 - one sending queue for all outgoing mail
 
 ## Inertia shared props
@@ -64,7 +65,7 @@ All Inertia pages receive these shared props via `HandleInertiaRequests`:
 - `POST /api/drafts/{draft}/schedule` — returns: `{ ok, message, campaign, driver }`
 - `POST /api/drafts/{draft}/unschedule`
 - `POST /api/drafts/{draft}/send-now` — schedules for immediate dispatch (runs preflight, same pipeline as schedule). Returns: `{ ok, message, campaign, driver }`
-- `POST /api/drafts/{draft}/test-send` — sends a test email via the gateway client without creating recipients/messages. Body: `{ email: string }`. Returns: `{ success, message, driver, acceptedAt }`
+- `POST /api/drafts/{draft}/test-send` — sends a test email via the gateway client without creating recipients/messages. Body: `{ email: string }`. Returns: `{ success, message, provider, providerLabel, driver, acceptedAt }`
 - `POST /api/drafts/{draft}/campaign`
 - `POST /api/drafts/bulk-delete` — bulk-delete drafts via POST (avoids DELETE body issues). Body: `{ ids: int[] }`. Same logic as `DELETE /api/drafts`
 - `POST /api/drafts/{draft}/attachments` — upload a file attachment to a draft. Multipart form: `{ file: UploadedFile }`. Max 10 MB. Returns: `{ attachment: { id, name, size, mimeType } }`
@@ -347,6 +348,9 @@ Frontend `MailComposer` maps `mode === 'multiple'` → sends `type: 'bulk'` to A
 ```json
 {
     "ok": true,
+    "provider": "smtp2go",
+    "providerLabel": "SMTP2GO",
+    "providerReady": true,
     "mailboxValid": true,
     "hasTextVersion": true,
     "hasRemoteImages": false,
@@ -1091,6 +1095,8 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `id`: required integer
 - `templateId`: nullable integer
 - `type`: required enum `single|multiple`
+- `outboundProvider`: required enum `ovh_mx_plan|smtp2go`
+- `outboundProviderLabel`: required string
 - `subject`: required string
 - `htmlBody`: nullable string
 - `textBody`: nullable string
@@ -1141,6 +1147,8 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `draftId`: nullable integer
 - `name`: required string
 - `status`: required string
+- `outboundProvider`: required enum `ovh_mx_plan|smtp2go`
+- `outboundProviderLabel`: required string
 - `deletedAt`: nullable ISO-8601 string
 - `type`: required enum `single|multiple`
 - `recipientCount`: required integer
@@ -1223,7 +1231,7 @@ Autosave behavior:
 - `thread_id`: required integer
 - `campaign_id`: required integer
 - `recipient_id`: required integer
-- `provider`: required string, always `ovh_mx_plan`
+- `provider`: required enum `ovh_mx_plan|smtp2go`
 - `email`: required sender email
 - `username`: required SMTP username
 - `password`: required SMTP password
@@ -1273,22 +1281,31 @@ There is currently no separate persisted `settings.throttling` key. Cadence and 
 
 ### settings.mail
 
+- `mailbox_provider`
+- `active_provider`
 - `sender_email`
 - `sender_name`
 - `global_signature_html`
 - `global_signature_text`
 - `clear_signature` optional on `PUT /api/settings/mail` only
 - `mailbox_username`
+- `mailbox_password` optional on `PUT /api/settings/mail` only
 - `imap_host`
 - `imap_port`
 - `imap_secure`
-- `smtp_host`
-- `smtp_port`
-- `smtp_secure`
 - `sync_enabled`
 - `send_enabled`
 - `send_window_start`
 - `send_window_end`
+- `providers.ovh_mx_plan.smtp_host`
+- `providers.ovh_mx_plan.smtp_port`
+- `providers.ovh_mx_plan.smtp_secure`
+- `providers.smtp2go.smtp_host`
+- `providers.smtp2go.smtp_port`
+- `providers.smtp2go.smtp_secure`
+- `providers.smtp2go.smtp_username`
+- `providers.smtp2go.smtp_password` optional on `PUT /api/settings/mail` only
+- `providers.smtp2go.send_enabled`
 
 ### settings.general
 
@@ -1310,7 +1327,11 @@ Mail settings update rule:
 
 - `PUT /api/settings/mail` preserves the existing global signature when `global_signature_html` / `global_signature_text` are sent as `null`
 - explicit signature clearing now requires `clear_signature = true`
+- `active_provider` is persisted in `settings.mail` and is the only source of truth for new drafts
+- `PUT /api/settings/mail` cannot activate a provider whose SMTP configuration is incomplete or disabled
+- `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` require an explicit `provider`
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` can run directly from unsaved form overrides if the payload already contains all required connection fields
+- `POST /api/settings/mail/test-smtp` never falls back from `smtp2go` to OVH credentials
 - those test endpoints return French operator-facing messages for success and the main failure families: missing field, invalid credentials, timeout, refused connection, TLS/SSL mismatch, likely host/port error, and generic failure
 - raw technical details remain in logs and `mail_events`, not in the user-facing `message`
 
@@ -1367,6 +1388,9 @@ Effective base URL behavior:
 ### Response shape
 
 - `ok`: required boolean
+- `provider`: required enum `ovh_mx_plan|smtp2go`
+- `providerLabel`: required string
+- `providerReady`: required boolean
 - `mailboxValid`: required boolean
 - `hasTextVersion`: required boolean
 - `hasRemoteImages`: required boolean

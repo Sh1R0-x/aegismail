@@ -13,8 +13,8 @@ class MailboxSettingsService
     public function __construct(
         private readonly SettingsStore $settingsStore,
         private readonly MailEventLogger $eventLogger,
-    ) {
-    }
+        private readonly SmtpProviderService $smtpProviderService,
+    ) {}
 
     public function getSettings(): array
     {
@@ -24,14 +24,17 @@ class MailboxSettingsService
             'global_signature_text' => $defaults['global_signature_text'] ?? null,
             'send_window_start' => $defaults['send_window_start'] ?? '09:00',
             'send_window_end' => $defaults['send_window_end'] ?? '18:00',
+            'active_provider' => $defaults['active_provider'] ?? $this->smtpProviderService->mailboxProvider(),
         ]);
 
         $mailbox = $this->mailbox();
+        $activeProvider = $this->smtpProviderService->activeProvider();
+        $providers = $this->smtpProviderService->providersPayload($mailbox);
 
         $mailboxPayload = $mailbox === null
             ? []
             : [
-                'provider' => $mailbox->provider,
+                'mailbox_provider' => $mailbox->provider,
                 'sender_email' => $mailbox->email,
                 'sender_name' => $mailbox->display_name,
                 'mailbox_username' => $mailbox->username,
@@ -39,9 +42,6 @@ class MailboxSettingsService
                 'imap_host' => $mailbox->imap_host,
                 'imap_port' => $mailbox->imap_port,
                 'imap_secure' => $mailbox->imap_secure,
-                'smtp_host' => $mailbox->smtp_host,
-                'smtp_port' => $mailbox->smtp_port,
-                'smtp_secure' => $mailbox->smtp_secure,
                 'sync_enabled' => $mailbox->sync_enabled,
                 'send_enabled' => $mailbox->send_enabled,
                 'health_status' => $mailbox->health_status,
@@ -49,7 +49,24 @@ class MailboxSettingsService
                 'last_sync_at' => $mailbox->last_sync_at?->toIso8601String(),
             ];
 
-        return array_replace($defaults, $supplemental, $mailboxPayload);
+        return array_replace_recursive(
+            $defaults,
+            Arr::only($supplemental, [
+                'global_signature_html',
+                'global_signature_text',
+                'send_window_start',
+                'send_window_end',
+                'active_provider',
+            ]),
+            $mailboxPayload,
+            [
+                'mailbox_provider' => $mailbox?->provider ?? $this->smtpProviderService->mailboxProvider(),
+                'active_provider' => $activeProvider,
+                'activeProvider' => $activeProvider,
+                'active_provider_label' => $this->smtpProviderService->label($activeProvider),
+                'providers' => $providers,
+            ],
+        );
     }
 
     public function getConnectionConfiguration(): array
@@ -68,9 +85,6 @@ class MailboxSettingsService
             'imap_host' => $mailbox->imap_host,
             'imap_port' => $mailbox->imap_port,
             'imap_secure' => $mailbox->imap_secure,
-            'smtp_host' => $mailbox->smtp_host,
-            'smtp_port' => $mailbox->smtp_port,
-            'smtp_secure' => $mailbox->smtp_secure,
             'sync_enabled' => $mailbox->sync_enabled,
             'send_enabled' => $mailbox->send_enabled,
         ];
@@ -86,15 +100,16 @@ class MailboxSettingsService
             Arr::only($validated, [
                 'send_window_start',
                 'send_window_end',
+                'active_provider',
             ]),
         );
 
         DB::transaction(function () use ($mailbox, $password, $updatedBy, $validated, $mailSettingsPayload): void {
             $mailbox = MailboxAccount::query()->updateOrCreate(
-                ['provider' => config('mailing.provider')],
+                ['provider' => $this->smtpProviderService->mailboxProvider()],
                 [
                     'user_id' => $updatedBy,
-                    'provider' => config('mailing.provider'),
+                    'provider' => $this->smtpProviderService->mailboxProvider(),
                     'email' => $validated['sender_email'],
                     'display_name' => $validated['sender_name'],
                     'username' => $validated['mailbox_username'],
@@ -102,9 +117,9 @@ class MailboxSettingsService
                     'imap_host' => $validated['imap_host'],
                     'imap_port' => $validated['imap_port'],
                     'imap_secure' => $validated['imap_secure'],
-                    'smtp_host' => $validated['smtp_host'],
-                    'smtp_port' => $validated['smtp_port'],
-                    'smtp_secure' => $validated['smtp_secure'],
+                    'smtp_host' => Arr::get($validated, 'providers.ovh_mx_plan.smtp_host'),
+                    'smtp_port' => Arr::get($validated, 'providers.ovh_mx_plan.smtp_port'),
+                    'smtp_secure' => Arr::get($validated, 'providers.ovh_mx_plan.smtp_secure'),
                     'sync_enabled' => $validated['sync_enabled'],
                     'send_enabled' => $validated['send_enabled'],
                     'health_status' => $mailbox?->health_status ?? 'unknown',
@@ -112,25 +127,33 @@ class MailboxSettingsService
                 ],
             );
 
+            $this->smtpProviderService->upsert($validated, $updatedBy);
+            $this->smtpProviderService->validateActiveProvider($validated['active_provider'], $mailbox->fresh());
             $this->settingsStore->put('mail', $mailSettingsPayload, $updatedBy);
 
             $this->eventLogger->log(
                 'settings.mail.updated',
-                Arr::except(Arr::only($validated, [
-                    'sender_email',
-                    'sender_name',
-                    'mailbox_username',
-                    'imap_host',
-                    'imap_port',
-                    'imap_secure',
-                    'smtp_host',
-                    'smtp_port',
-                    'smtp_secure',
-                    'sync_enabled',
-                    'send_enabled',
-                    'send_window_start',
-                    'send_window_end',
-                ]), ['mailbox_password']),
+                array_replace(
+                    Arr::except(Arr::only($validated, [
+                        'sender_email',
+                        'sender_name',
+                        'mailbox_username',
+                        'imap_host',
+                        'imap_port',
+                        'imap_secure',
+                        'sync_enabled',
+                        'send_enabled',
+                        'send_window_start',
+                        'send_window_end',
+                        'active_provider',
+                    ]), ['mailbox_password']),
+                    [
+                        'providers' => [
+                            'ovh_mx_plan' => Arr::except(Arr::get($validated, 'providers.ovh_mx_plan', []), ['smtp_password']),
+                            'smtp2go' => Arr::except(Arr::get($validated, 'providers.smtp2go', []), ['smtp_password']),
+                        ],
+                    ],
+                ),
                 ['mailbox_account_id' => $mailbox->id],
             );
         });
@@ -182,14 +205,14 @@ class MailboxSettingsService
         }
 
         throw ValidationException::withMessages([
-            'mailbox_password' => ['Un mot de passe est requis pour le compte OVH MX Plan.'],
+            'mailbox_password' => ['Un mot de passe est requis pour la boîte mail OVH MX Plan.'],
         ]);
     }
 
-    private function mailbox(): ?MailboxAccount
+    public function mailbox(): ?MailboxAccount
     {
         return MailboxAccount::query()
-            ->where('provider', config('mailing.provider'))
+            ->where('provider', $this->smtpProviderService->mailboxProvider())
             ->first();
     }
 }

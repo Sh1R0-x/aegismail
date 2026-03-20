@@ -103,23 +103,38 @@ async function save() {
     // Fetch current mail settings first, then merge signature fields
     const { data: current } = await axios.get('/api/settings').catch(() => ({ data: { mail: {} } }));
     const mailSettings = current.mail ?? {};
+    const providers = mailSettings.providers ?? {};
+    const ovh = providers.ovh_mx_plan ?? {};
+    const smtp2go = providers.smtp2go ?? {};
 
     await axios.put('/api/settings/mail', {
+      active_provider:       mailSettings.active_provider     ?? mailSettings.activeProvider ?? 'ovh_mx_plan',
       sender_email:          mailSettings.sender_email        ?? '',
       sender_name:           mailSettings.sender_name         ?? '',
       mailbox_username:      mailSettings.mailbox_username    ?? '',
       imap_host:             mailSettings.imap_host           ?? '',
       imap_port:             mailSettings.imap_port           ?? 993,
       imap_secure:           mailSettings.imap_secure         ?? true,
-      smtp_host:             mailSettings.smtp_host           ?? '',
-      smtp_port:             mailSettings.smtp_port           ?? 465,
-      smtp_secure:           mailSettings.smtp_secure         ?? true,
       sync_enabled:          mailSettings.sync_enabled        ?? true,
       send_enabled:          mailSettings.send_enabled        ?? true,
-      send_window_start:     mailSettings.send_window_start   ?? '08:00',
-      send_window_end:       mailSettings.send_window_end     ?? '19:00',
+      send_window_start:     mailSettings.send_window_start   ?? '09:00',
+      send_window_end:       mailSettings.send_window_end     ?? '18:00',
       global_signature_html: signatureHtml.value || null,
       global_signature_text: signatureText.value || null,
+      providers: {
+        ovh_mx_plan: {
+          smtp_host: ovh.smtp_host ?? 'smtp.mail.ovh.net',
+          smtp_port: ovh.smtp_port ?? 465,
+          smtp_secure: ovh.smtp_secure ?? true,
+        },
+        smtp2go: {
+          smtp_host: smtp2go.smtp_host ?? null,
+          smtp_port: smtp2go.smtp_port ?? null,
+          smtp_secure: smtp2go.smtp_secure ?? false,
+          smtp_username: smtp2go.smtp_username ?? null,
+          send_enabled: smtp2go.send_enabled ?? true,
+        },
+      },
     });
     banner.value = { type: 'success', message: 'Signature enregistrée.' };
     router.reload({ preserveState: true });

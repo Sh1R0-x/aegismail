@@ -12,7 +12,7 @@ Artisan::command('inspire', function () {
 
 Artisan::command('mailbox:poll', function () {
     $mailbox = MailboxAccount::query()
-        ->where('provider', config('mailing.provider'))
+        ->where('provider', config('mailing.mailbox_provider', 'ovh_mx_plan'))
         ->where('sync_enabled', true)
         ->first();
 

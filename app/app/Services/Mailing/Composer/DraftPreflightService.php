@@ -7,6 +7,7 @@ use App\Models\MailboxAccount;
 use App\Models\MailDraft;
 use App\Services\Mailing\EmailContentService;
 use App\Services\Mailing\PublicEmailUrlService;
+use App\Services\Mailing\SmtpProviderService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -17,10 +18,13 @@ class DraftPreflightService
         private readonly SettingsStore $settingsStore,
         private readonly EmailContentService $emailContentService,
         private readonly PublicEmailUrlService $publicEmailUrlService,
+        private readonly SmtpProviderService $smtpProviderService,
     ) {}
 
-    public function run(MailDraft $draft, ?MailboxAccount $mailbox): array
+    public function run(MailDraft $draft, ?MailboxAccount $mailbox, ?string $outboundProvider = null): array
     {
+        $provider = $outboundProvider ?: $draft->outbound_provider ?: $this->smtpProviderService->activeProvider();
+        $providerSnapshot = $this->smtpProviderService->providerPayload($provider, $mailbox);
         $deliverabilitySettings = $this->settingsStore->get('deliverability', config('mailing.defaults.deliverability', []));
         $resolvedRecipients = $this->resolvedRecipients($draft);
         $deliverableRecipients = $resolvedRecipients->where('deliverable', true)->values();
@@ -45,7 +49,7 @@ class DraftPreflightService
         $remoteImageCount = (int) $analysis['remoteImageCount'];
         $attachmentBytes = (int) $attachments->sum('size_bytes');
         $estimatedWeightBytes = strlen((string) $draft->subject) + strlen($htmlBody) + strlen($textBody) + $attachmentBytes;
-        $mailboxValid = $this->mailboxValid($mailbox);
+        $mailboxValid = $this->mailboxValid($mailbox, $providerSnapshot);
         $hasTextVersion = (bool) $analysis['hasTextVersion'];
 
         $errors = [];
@@ -54,7 +58,7 @@ class DraftPreflightService
         if (! $mailboxValid) {
             $errors[] = [
                 'code' => 'mailbox_invalid',
-                'message' => 'La boîte OVH MX Plan n’est pas prête pour la planification.',
+                'message' => "Le contexte d’envoi {$providerSnapshot['label']} n’est pas prêt pour la planification.",
             ];
         }
 
@@ -128,6 +132,9 @@ class DraftPreflightService
 
         return [
             'ok' => count($errors) === 0,
+            'provider' => $provider,
+            'providerLabel' => $providerSnapshot['label'],
+            'providerReady' => (bool) $providerSnapshot['ready'],
             'mailboxValid' => $mailboxValid,
             'hasTextVersion' => $hasTextVersion,
             'hasRemoteImages' => $remoteImageCount > 0,
@@ -231,18 +238,17 @@ class DraftPreflightService
         return null;
     }
 
-    private function mailboxValid(?MailboxAccount $mailbox): bool
+    private function mailboxValid(?MailboxAccount $mailbox, array $providerSnapshot): bool
     {
         if ($mailbox === null) {
             return false;
         }
 
-        return $mailbox->provider === config('mailing.provider')
-            && $mailbox->send_enabled
+        return $mailbox->provider === $this->smtpProviderService->mailboxProvider()
             && filled($mailbox->email)
             && filled($mailbox->username)
             && filled($mailbox->password_encrypted)
             && filled($mailbox->imap_host)
-            && filled($mailbox->smtp_host);
+            && (bool) ($providerSnapshot['ready'] ?? false);
     }
 }

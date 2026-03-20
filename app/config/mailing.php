@@ -1,7 +1,28 @@
 <?php
 
 return [
-    'provider' => 'ovh_mx_plan',
+    'mailbox_provider' => 'ovh_mx_plan',
+
+    'outbound_providers' => [
+        'ovh_mx_plan' => [
+            'label' => 'OVH MX Plan',
+            'supports_imap' => true,
+            'supports_sync' => true,
+            'uses_mailbox_credentials' => true,
+            'default_smtp_host' => 'smtp.mail.ovh.net',
+            'default_smtp_port' => 465,
+            'default_smtp_secure' => true,
+        ],
+        'smtp2go' => [
+            'label' => 'SMTP2GO',
+            'supports_imap' => false,
+            'supports_sync' => false,
+            'uses_mailbox_credentials' => false,
+            'default_smtp_host' => env('SMTP2GO_SMTP_HOST', 'mail.smtp2go.com'),
+            'default_smtp_port' => (int) env('SMTP2GO_SMTP_PORT', 587),
+            'default_smtp_secure' => filter_var(env('SMTP2GO_SMTP_SECURE', false), FILTER_VALIDATE_BOOL),
+        ],
+    ],
 
     // All outbound sends share the same queue in V1, whether single or bulk.
     'queues' => [
@@ -33,7 +54,8 @@ return [
             'inactivity_decay_days' => 30,
         ],
         'mail' => [
-            'provider' => 'ovh_mx_plan',
+            'mailbox_provider' => 'ovh_mx_plan',
+            'active_provider' => 'ovh_mx_plan',
             'sender_email' => '',
             'sender_name' => '',
             'global_signature_html' => null,
@@ -43,9 +65,6 @@ return [
             'imap_host' => '',
             'imap_port' => 993,
             'imap_secure' => true,
-            'smtp_host' => '',
-            'smtp_port' => 465,
-            'smtp_secure' => true,
             'sync_enabled' => true,
             'send_enabled' => true,
             'send_window_start' => '09:00',
@@ -53,6 +72,44 @@ return [
             'health_status' => 'unknown',
             'health_message' => null,
             'last_sync_at' => null,
+            'providers' => [
+                'ovh_mx_plan' => [
+                    'provider' => 'ovh_mx_plan',
+                    'label' => 'OVH MX Plan',
+                    'smtp_host' => 'smtp.mail.ovh.net',
+                    'smtp_port' => 465,
+                    'smtp_secure' => true,
+                    'smtp_username' => '',
+                    'smtp_password_configured' => false,
+                    'send_enabled' => true,
+                    'supports_imap' => true,
+                    'supports_sync' => true,
+                    'configured' => false,
+                    'activatable' => false,
+                    'ready' => false,
+                    'health_status' => 'unknown',
+                    'health_message' => null,
+                    'uses_mailbox_credentials' => true,
+                ],
+                'smtp2go' => [
+                    'provider' => 'smtp2go',
+                    'label' => 'SMTP2GO',
+                    'smtp_host' => env('SMTP2GO_SMTP_HOST', 'mail.smtp2go.com'),
+                    'smtp_port' => (int) env('SMTP2GO_SMTP_PORT', 587),
+                    'smtp_secure' => filter_var(env('SMTP2GO_SMTP_SECURE', false), FILTER_VALIDATE_BOOL),
+                    'smtp_username' => '',
+                    'smtp_password_configured' => false,
+                    'send_enabled' => true,
+                    'supports_imap' => false,
+                    'supports_sync' => false,
+                    'configured' => false,
+                    'activatable' => false,
+                    'ready' => false,
+                    'health_status' => 'unknown',
+                    'health_message' => null,
+                    'uses_mailbox_credentials' => false,
+                ],
+            ],
         ],
         'deliverability' => [
             'tracking_opens_enabled' => true,

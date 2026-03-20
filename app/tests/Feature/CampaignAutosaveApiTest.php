@@ -39,7 +39,9 @@ class CampaignAutosaveApiTest extends TestCase
 
         $campaignId = $response->assertCreated()
             ->assertJsonPath('draft.status', 'draft')
+            ->assertJsonPath('draft.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('campaign.status', 'draft')
+            ->assertJsonPath('campaign.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('campaign.recipientCount', 1)
             ->json('campaign.id');
 
@@ -107,6 +109,7 @@ class CampaignAutosaveApiTest extends TestCase
         $updated->assertOk()
             ->assertJsonPath('campaign.id', $campaignId)
             ->assertJsonPath('campaign.name', 'Campagne autosave V2')
+            ->assertJsonPath('campaign.outboundProvider', 'ovh_mx_plan')
             ->assertJsonPath('draft.subject', 'Version 2');
 
         $this->postJson('/api/campaigns/autosave', [
@@ -169,6 +172,7 @@ class CampaignAutosaveApiTest extends TestCase
         Setting::query()->updateOrCreate(
             ['key' => 'mail'],
             ['value_json' => [
+                'active_provider' => 'ovh_mx_plan',
                 'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
                 'global_signature_text' => "Cordialement,\nAEGIS",
                 'send_window_start' => '09:00',

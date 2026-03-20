@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\MailboxAccount;
 use App\Models\Setting;
+use App\Models\SmtpProviderAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -21,7 +22,10 @@ class SettingsPagePayloadTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Settings/Index')
                 ->has('settings')
-                ->where('settings.mail.provider', 'ovh_mx_plan')
+                ->where('settings.mail.mailbox_provider', 'ovh_mx_plan')
+                ->where('settings.mail.active_provider', 'ovh_mx_plan')
+                ->where('settings.mail.providers.ovh_mx_plan.label', 'OVH MX Plan')
+                ->where('settings.mail.providers.smtp2go.label', 'SMTP2GO')
                 ->where('settings.cadence.dailyLimit', 100)
                 ->where('settings.scoring.replyPoints', 8)
                 ->where('settings.signature.global_signature_html', null)
@@ -77,6 +81,7 @@ class SettingsPagePayloadTest extends TestCase
         Setting::query()->updateOrCreate(
             ['key' => 'mail'],
             ['value_json' => [
+                'active_provider' => 'smtp2go',
                 'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
                 'global_signature_text' => "Cordialement,\nAEGIS",
                 'send_window_start' => '08:00',
@@ -101,11 +106,26 @@ class SettingsPagePayloadTest extends TestCase
             'health_status' => 'healthy',
         ]);
 
+        SmtpProviderAccount::query()->create([
+            'provider' => 'smtp2go',
+            'username' => 'smtp2go-user',
+            'password_encrypted' => 'smtp2go-secret',
+            'smtp_host' => 'mail.smtp2go.com',
+            'smtp_port' => 2525,
+            'smtp_secure' => false,
+            'send_enabled' => true,
+            'health_status' => 'healthy',
+        ]);
+
         $this->get('/settings')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Settings/Index')
                 ->where('settings.mail.sender_email', 'ops@aegis.test')
+                ->where('settings.mail.active_provider', 'smtp2go')
+                ->where('settings.mail.providers.ovh_mx_plan.smtp_host', 'smtp.mail.ovh.net')
+                ->where('settings.mail.providers.smtp2go.smtp_host', 'mail.smtp2go.com')
+                ->where('settings.mail.providers.smtp2go.smtp_username', 'smtp2go-user')
                 ->where('settings.mail.send_window_start', '08:00')
                 ->missing('settings.deliverability')
                 ->where('settings.cadence.dailyLimit', 150)

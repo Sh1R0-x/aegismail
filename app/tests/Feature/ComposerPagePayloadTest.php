@@ -70,6 +70,7 @@ class ComposerPagePayloadTest extends TestCase
                     ->where('subject', 'Séquence V1')
                     ->where('recipientCount', 2)
                     ->where('type', 'multiple')
+                    ->where('outboundProvider', 'ovh_mx_plan')
                     ->where('scheduledAt', '2026-03-20T09:30:00+01:00')
                     ->etc()
                 )
@@ -103,6 +104,7 @@ class ComposerPagePayloadTest extends TestCase
                     ->where('id', $campaign->id)
                     ->where('name', 'Séquence V1')
                     ->where('status', 'scheduled')
+                    ->where('outboundProvider', 'ovh_mx_plan')
                     ->where('progressPercent', 0)
                     ->where('recipientCount', 2)
                     ->where('openCount', 0)
@@ -136,8 +138,10 @@ class ComposerPagePayloadTest extends TestCase
                 ->component('Campaigns/Show')
                 ->where('campaign.id', $campaign->id)
                 ->where('campaign.draftId', $draft->id)
+                ->where('campaign.outboundProvider', 'ovh_mx_plan')
                 ->where('campaign.draft.id', $draft->id)
                 ->where('campaign.draft.type', 'multiple')
+                ->where('campaign.draft.outboundProvider', 'ovh_mx_plan')
                 ->has('campaign.recipients', 2)
                 ->where('campaign.recipients.0.email', 'alice@acme.test')
                 ->where('campaign.recipients.1.email', 'bob@acme.test')
@@ -282,6 +286,7 @@ class ComposerPagePayloadTest extends TestCase
         Setting::query()->create([
             'key' => 'mail',
             'value_json' => [
+                'active_provider' => 'ovh_mx_plan',
                 'global_signature_html' => '<p>Cordialement,<br>AEGIS</p>',
                 'global_signature_text' => "Cordialement,\nAEGIS",
                 'send_window_start' => '09:00',
@@ -346,6 +351,7 @@ class ComposerPagePayloadTest extends TestCase
 
         $draft = MailDraft::query()->create([
             'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
             'mode' => 'bulk',
             'template_id' => $template->id,
             'subject' => 'Séquence V1',
@@ -364,6 +370,7 @@ class ComposerPagePayloadTest extends TestCase
 
         $campaign = MailCampaign::query()->create([
             'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
             'name' => 'Séquence V1',
             'mode' => 'bulk',
             'draft_id' => $draft->id,

@@ -13,6 +13,7 @@ class MailDraft extends Model
 
     protected $fillable = [
         'mailbox_account_id',
+        'outbound_provider',
         'user_id',
         'mode',
         'template_id',

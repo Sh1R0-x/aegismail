@@ -9,6 +9,7 @@ use App\Models\MailEvent;
 use App\Models\MailMessage;
 use App\Models\MailRecipient;
 use App\Services\Mailing\MailEventLogger;
+use App\Services\Mailing\SmtpProviderService;
 use App\Services\SettingsStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class CampaignService
         private readonly DraftPreflightService $preflightService,
         private readonly MailEventLogger $eventLogger,
         private readonly SettingsStore $settingsStore,
+        private readonly SmtpProviderService $smtpProviderService,
     ) {}
 
     public function list(bool $includeDeleted = false): array
@@ -57,6 +59,7 @@ class CampaignService
             ['draft_id' => $draft->id],
             [
                 'mailbox_account_id' => $mailbox->id,
+                'outbound_provider' => $draft->outbound_provider,
                 'user_id' => $userId ?? $draft->user_id,
                 'name' => $name ?: $draft->subject ?: 'Campagne sans nom',
                 'mode' => $draft->mode,
@@ -73,6 +76,7 @@ class CampaignService
     public function createFromDraft(
         MailDraft $draft,
         MailboxAccount $mailbox,
+        string $outboundProvider,
         ?string $name = null,
         ?Carbon $scheduledAt = null,
     ): array {
@@ -85,7 +89,7 @@ class CampaignService
             ]);
         }
 
-        $preflight = $this->preflightService->run($draft, $mailbox);
+        $preflight = $this->preflightService->run($draft, $mailbox, $outboundProvider);
 
         if (! $preflight['ok']) {
             return [null, $preflight];
@@ -94,11 +98,12 @@ class CampaignService
         $generalSettings = $this->settingsStore->get('general', config('mailing.defaults.general', []));
         $mailSettings = $this->settingsStore->get('mail', config('mailing.defaults.mail', []));
 
-        $campaign = DB::transaction(function () use ($draft, $mailbox, $name, $scheduledAt, $preflight, $generalSettings, $mailSettings): MailCampaign {
+        $campaign = DB::transaction(function () use ($draft, $mailbox, $outboundProvider, $name, $scheduledAt, $preflight, $generalSettings, $mailSettings): MailCampaign {
             $campaign = MailCampaign::query()->updateOrCreate(
                 ['draft_id' => $draft->id],
                 [
                     'mailbox_account_id' => $mailbox->id,
+                    'outbound_provider' => $outboundProvider,
                     'user_id' => $draft->user_id,
                     'name' => $name ?: $draft->subject,
                     'mode' => $draft->mode,
@@ -131,6 +136,7 @@ class CampaignService
                 'mail_campaign.created_from_draft',
                 [
                     'draft_id' => $draft->id,
+                    'outbound_provider' => $outboundProvider,
                     'scheduled_at' => $scheduledAt?->toIso8601String(),
                     'recipient_count' => count($preflight['deliverableRecipients']),
                     'queue' => config('mailing.queues.outbound'),
@@ -186,6 +192,8 @@ class CampaignService
             'draftId' => $campaign->draft_id,
             'name' => $campaign->name,
             'status' => $campaign->status,
+            'outboundProvider' => $campaign->outbound_provider,
+            'outboundProviderLabel' => $this->smtpProviderService->label($campaign->outbound_provider ?: $this->smtpProviderService->activeProvider()),
             'type' => $campaign->mode === 'bulk' ? 'multiple' : 'single',
             'recipientCount' => $campaign->recipients->count() > 0
                 ? $campaign->recipients->count()
@@ -253,6 +261,7 @@ class CampaignService
         return DB::transaction(function () use ($campaign, $sourceDraft): MailCampaign {
             $newDraft = MailDraft::query()->create([
                 'mailbox_account_id' => $campaign->mailbox_account_id,
+                'outbound_provider' => $campaign->outbound_provider,
                 'user_id' => $campaign->user_id,
                 'mode' => $campaign->mode,
                 'template_id' => $sourceDraft?->template_id,
@@ -281,6 +290,7 @@ class CampaignService
 
             $newCampaign = MailCampaign::query()->create([
                 'mailbox_account_id' => $campaign->mailbox_account_id,
+                'outbound_provider' => $campaign->outbound_provider,
                 'user_id' => $campaign->user_id,
                 'name' => $campaign->name.' (copie)',
                 'mode' => $campaign->mode,

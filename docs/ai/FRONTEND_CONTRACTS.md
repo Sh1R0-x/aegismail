@@ -177,6 +177,8 @@ Date format used by the current backend:
 - `subject`: required string
 - `recipientCount`: required integer
 - `type`: required enum `single|multiple`
+- `outboundProvider`: required enum `ovh_mx_plan|smtp2go`
+- `outboundProviderLabel`: required string
 - `status`: required enum `draft|scheduled`
 - `scheduledAt`: nullable string
 - `updatedAt`: nullable string
@@ -186,7 +188,7 @@ Date format used by the current backend:
 - Schedule: `POST /api/drafts/{id}/schedule` — runs preflight, creates recipients, queues dispatch
 - Send now: `POST /api/drafts/{id}/send-now` — same pipeline as schedule with `scheduledAt = now()`
 - Unschedule: `POST /api/drafts/{id}/unschedule` — reverts draft to `draft` status
-- Test send: `POST /api/drafts/{id}/test-send` — body `{ email: string }`, returns `{ success, message, driver, acceptedAt }`. Does not create recipients/messages.
+- Test send: `POST /api/drafts/{id}/test-send` — body `{ email: string }`, returns `{ success, message, provider, providerLabel, driver, acceptedAt }`. Does not create recipients/messages.
 - Preflight: `POST /api/drafts/{id}/preflight` — returns verification checks
 
 ## Templates
@@ -232,6 +234,8 @@ Date format used by the current backend:
 - `id`: required integer
 - `name`: required string
 - `status`: required enum `draft|scheduled|queued|sending|sent|cancelled|failed`
+- `outboundProvider`: required enum `ovh_mx_plan|smtp2go`
+- `outboundProviderLabel`: required string
 - `progressPercent`: required integer
 - `recipientCount`: required integer
 - `openCount`: required integer
@@ -313,6 +317,8 @@ Same shape as `DraftService::serializeListItem()`:
 - `subject`: nullable string
 - `recipientCount`: required integer
 - `type`: required enum `single|multiple`
+- `outboundProvider`: required enum `ovh_mx_plan|smtp2go`
+- `outboundProviderLabel`: required string
 - `status`: required enum `draft|scheduled`
 - `scheduledAt`: nullable string (ISO 8601)
 - `updatedAt`: required string (ISO 8601)
@@ -440,6 +446,9 @@ The Mails page uses a 3-tab layout:
 **Preflight API response shape:**
 
 - `ok`: boolean
+- `provider`: `'ovh_mx_plan' | 'smtp2go'`
+- `providerLabel`: string
+- `providerReady`: boolean
 - `mailboxValid`: boolean
 - `hasTextVersion`: boolean
 - `hasRemoteImages`: boolean
@@ -969,37 +978,58 @@ Expected shape:
 
 V1 note:
 
-- the Settings page no longer exposes a `Délivrabilité` section
+- the Settings page exposes a `Délivrabilité` section, but it fetches its own data from `GET /api/settings`
 - SPF / DKIM / DMARC diagnostics are not rendered in the UI
 - DNS configuration remains an external prerequisite
 
 ### mail settings prop shape (passed to `SettingsMail.vue`)
 
-- `smtp_host`: nullable string
-- `smtp_port`: nullable integer
-- `smtp_secure`: nullable boolean
+- `mailbox_provider`: string, currently `ovh_mx_plan`
+- `active_provider`: `'ovh_mx_plan' | 'smtp2go'`
+- `activeProvider`: `'ovh_mx_plan' | 'smtp2go'` legacy camelCase alias
 - `imap_host`: nullable string
 - `imap_port`: nullable integer
 - `imap_secure`: nullable boolean
 - `mailbox_username`: nullable string
+- `mailbox_password_configured`: boolean
 - `sender_email`: nullable string
 - `sender_name`: nullable string
 - `send_window_start`: nullable string (HH:mm)
 - `send_window_end`: nullable string (HH:mm)
 - `sync_enabled`: nullable boolean
 - `send_enabled`: nullable boolean
+- `providers.ovh_mx_plan.label`: string
+- `providers.ovh_mx_plan.smtp_host`: string
+- `providers.ovh_mx_plan.smtp_port`: integer
+- `providers.ovh_mx_plan.smtp_secure`: boolean
+- `providers.ovh_mx_plan.smtp_username`: string
+- `providers.ovh_mx_plan.smtp_password_configured`: boolean
+- `providers.ovh_mx_plan.activatable`: boolean
+- `providers.ovh_mx_plan.ready`: boolean
+- `providers.smtp2go.label`: string
+- `providers.smtp2go.smtp_host`: nullable string
+- `providers.smtp2go.smtp_port`: nullable integer
+- `providers.smtp2go.smtp_secure`: boolean
+- `providers.smtp2go.smtp_username`: nullable string
+- `providers.smtp2go.smtp_password_configured`: boolean
+- `providers.smtp2go.send_enabled`: boolean
+- `providers.smtp2go.activatable`: boolean
+- `providers.smtp2go.ready`: boolean
 
 ### `SettingsMail` API calls
 
-- `PUT /api/settings/mail` — full payload (all fields required on backend)
-- `POST /api/settings/mail/test-smtp` — partial payload (smtp + credentials)
-- `POST /api/settings/mail/test-imap` — partial payload (imap + credentials)
+- `PUT /api/settings/mail` — full payload with `active_provider` and nested `providers.{provider}` settings
+- `POST /api/settings/mail/test-smtp` — partial payload with explicit `provider`
+- `POST /api/settings/mail/test-imap` — partial payload with explicit `provider`
 
 Backend safeguard:
 
 - `PUT /api/settings/mail` preserves the existing global signature when the payload contains `global_signature_html = null` and `global_signature_text = null`
 - explicit signature clearing now requires `clear_signature = true`
+- `PUT /api/settings/mail` refuses to activate an SMTP provider whose configuration is incomplete or disabled
+- the active provider is frozen on each draft/campaign at creation time; changing settings later does not reroute existing drafts
 - `POST /api/settings/mail/test-smtp` and `POST /api/settings/mail/test-imap` now return a precise aggregated `message` plus field-level `errors`
+- `POST /api/settings/mail/test-smtp` never falls back from `smtp2go` to OVH credentials
 - the `message` string is intentionally French and operator-facing; the frontend can render `errors` per field without rewording the backend validation
 
 ### `SettingsSignature` API calls
@@ -1013,7 +1043,7 @@ Backend safeguard:
 - `mail`: required object
 
 Used by `SettingsSignature.vue` to merge the current mail configuration before calling `PUT /api/settings/mail`.
-`GET /api/settings` may still include additional internal keys such as `deliverability`, but the Settings UI does not render a dedicated deliverability section in V1.
+`GET /api/settings` may still include additional internal keys such as `deliverability`; the Settings UI renders deliverability in a dedicated section that fetches its own payload on mount.
 
 ## Users
 
