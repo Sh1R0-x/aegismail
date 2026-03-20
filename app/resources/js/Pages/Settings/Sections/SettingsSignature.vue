@@ -77,6 +77,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import axios from 'axios';
+import { router } from '@inertiajs/vue3';
 import SectionCard from './SectionCard.vue';
 
 const props = defineProps({
@@ -121,6 +122,7 @@ async function save() {
       global_signature_text: signatureText.value || null,
     });
     banner.value = { type: 'success', message: 'Signature enregistrée.' };
+    router.reload({ preserveState: true });
   } catch (e) {
     const errs = e.response?.data?.errors;
     const msg = errs

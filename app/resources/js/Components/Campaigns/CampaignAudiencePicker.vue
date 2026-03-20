@@ -137,6 +137,15 @@
 
     <!-- ── Organizations tab ──────────────────────────────── -->
     <template v-else-if="activeTab === 'organizations'">
+      <div class="border-b border-slate-100 px-4 py-3">
+        <input
+          v-model="orgSearch"
+          type="text"
+          placeholder="Rechercher par nom, domaine…"
+          class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/30 outline-none"
+        />
+      </div>
+
       <div class="max-h-72 overflow-y-auto divide-y divide-slate-100">
         <div v-if="audiences.organizations.length === 0" class="px-6 py-10 text-center">
           <p class="text-sm font-medium text-slate-500">Aucune organisation disponible.</p>
@@ -146,7 +155,14 @@
         </div>
 
         <div
-          v-for="org in audiences.organizations"
+          v-else-if="filteredOrganizations.length === 0"
+          class="px-6 py-8 text-center text-xs font-medium text-slate-400"
+        >
+          Aucun résultat pour cette recherche.
+        </div>
+
+        <div
+          v-for="org in filteredOrganizations"
           :key="org.organizationId"
           class="px-4 py-3 space-y-2"
         >
@@ -207,6 +223,7 @@ const emit = defineEmits(['update:modelValue']);
 // ── Local state ────────────────────────────────────────────
 const activeTab = ref('organizations');
 const contactSearch = ref('');
+const orgSearch = ref('');
 const loading = ref(false);
 const loadError = ref(null);
 
@@ -241,6 +258,16 @@ const filteredContacts = computed(() => {
       (c.name || '').toLowerCase().includes(q) ||
       (c.email || '').toLowerCase().includes(q) ||
       (c.organizationName || '').toLowerCase().includes(q),
+  );
+});
+
+const filteredOrganizations = computed(() => {
+  const q = orgSearch.value.trim().toLowerCase();
+  if (!q) return audiences.value.organizations;
+  return audiences.value.organizations.filter(
+    (o) =>
+      (o.organizationName || '').toLowerCase().includes(q) ||
+      (o.domain || '').toLowerCase().includes(q),
   );
 });
 

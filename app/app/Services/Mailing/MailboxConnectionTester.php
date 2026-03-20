@@ -38,7 +38,7 @@ class MailboxConnectionTester
         } catch (Throwable $throwable) {
             report($throwable);
 
-            $mailbox = $this->mailboxSettingsService->updateHealth(false, "Mail gateway unavailable during {$protocol} test.");
+            $mailbox = $this->mailboxSettingsService->updateHealth(false, "Passerelle mail indisponible pendant le test {$protocol}.");
 
             $this->eventLogger->log(
                 "mailbox.test_{$protocol}_failed",
@@ -151,7 +151,7 @@ class MailboxConnectionTester
                 "La connexion {$protocolLabel} a été refusée par le serveur distant.",
             $this->containsAny($rawMessage, ['tls', 'ssl', 'certificate', 'handshake', 'starttls']) =>
                 "La connexion {$protocolLabel} a échoué : le paramètre de sécurité TLS/SSL semble incohérent.",
-            $this->containsAny($rawMessage, ['host', 'port', 'dns', 'resolve', 'configured host', 'getaddrinfo']) =>
+            $this->containsAny($rawMessage, ['host', 'port', 'dns', 'resolve', 'configured host', 'getaddrinfo', 'hôte rejeté']) =>
                 "La connexion {$protocolLabel} a échoué : l’hôte ou le port semble incorrect.",
             default =>
                 "La connexion {$protocolLabel} a échoué. Vérifiez l’hôte, le port, le mode de sécurité et les identifiants.",

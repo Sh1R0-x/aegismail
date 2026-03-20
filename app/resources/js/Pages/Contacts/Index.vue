@@ -151,7 +151,7 @@
 
   <!-- Create contact modal -->
   <Teleport to="body">
-    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="closeCreateModal">
+    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" @keydown.escape.prevent>
       <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6">
         <div class="flex items-center justify-between mb-5">
           <h2 class="text-base font-bold text-slate-900">Nouveau contact</h2>

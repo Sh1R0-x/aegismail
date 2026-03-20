@@ -182,7 +182,7 @@ class MailboxSettingsService
         }
 
         throw ValidationException::withMessages([
-            'mailbox_password' => ['A mailbox password is required for the OVH MX Plan account.'],
+            'mailbox_password' => ['Un mot de passe est requis pour le compte OVH MX Plan.'],
         ]);
     }
 

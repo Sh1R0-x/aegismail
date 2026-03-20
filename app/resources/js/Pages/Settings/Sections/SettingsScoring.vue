@@ -46,6 +46,7 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import axios from 'axios';
+import { router } from '@inertiajs/vue3';
 import SectionCard from './SectionCard.vue';
 import FieldGroup from './FieldGroup.vue';
 import ScoreLevel from './ScoreLevel.vue';
@@ -76,6 +77,7 @@ async function save() {
     const payload = { ...props.generalSettings, ...form };
     await axios.put('/api/settings/general', payload);
     feedback.value = { ok: true, text: 'Scoring enregistré.' };
+    router.reload({ preserveState: true });
   } catch (e) {
     const msg = e.response?.data?.message ?? 'Erreur lors de l\'enregistrement.';
     feedback.value = { ok: false, text: msg };

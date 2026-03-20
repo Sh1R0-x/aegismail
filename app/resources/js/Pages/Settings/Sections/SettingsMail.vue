@@ -174,6 +174,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import axios from 'axios';
+import { router } from '@inertiajs/vue3';
 import SectionCard from './SectionCard.vue';
 
 const props = defineProps({
@@ -282,6 +283,7 @@ async function save() {
   try {
     await axios.put('/api/settings/mail', toApiPayload());
     banner.value = { type: 'success', message: 'Paramètres mail enregistrés.' };
+    router.reload({ preserveState: true });
   } catch (e) {
     const errs = e.response?.data?.errors;
     const msg = errs

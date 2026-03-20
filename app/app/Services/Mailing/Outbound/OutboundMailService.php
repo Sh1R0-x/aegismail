@@ -448,7 +448,7 @@ class OutboundMailService
                 'mail_message.failed',
                 [
                     'mail_message_id' => $message->id,
-                    'message' => $result['message'] ?? 'Gateway rejected outbound send.',
+                    'message' => $result['message'] ?? 'Envoi rejeté par la passerelle.',
                 ],
                 [
                     'mailbox_account_id' => $message->mailbox_account_id,
@@ -520,7 +520,7 @@ class OutboundMailService
                 'mail_campaign.auto_stopped',
                 [
                     'campaign_id' => $campaign->id,
-                    'message' => 'Automatic stop threshold reached before send.',
+                    'message' => 'Seuil d\'arrêt automatique atteint avant l\'envoi.',
                 ],
                 [
                     'mailbox_account_id' => $message->mailbox_account_id,

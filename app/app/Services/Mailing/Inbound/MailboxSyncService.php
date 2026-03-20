@@ -43,7 +43,7 @@ class MailboxSyncService
             return [
                 'success' => true,
                 'driver' => 'laravel',
-                'message' => 'Mailbox sync skipped because a lock is already active.',
+                'message' => 'Synchronisation ignorée : un verrou est déjà actif.',
                 'folder' => $folder,
                 'processed' => 0,
             ];
@@ -55,10 +55,10 @@ class MailboxSyncService
             if (! ($result['success'] ?? false)) {
                 $mailbox->forceFill([
                     'health_status' => 'warning',
-                    'health_message' => $result['message'] ?? 'Mailbox sync failed.',
+                    'health_message' => $result['message'] ?? 'Échec de la synchronisation.',
                 ])->save();
 
-                throw new RuntimeException($result['message'] ?? 'Mailbox sync rejected by mail gateway.');
+                throw new RuntimeException($result['message'] ?? 'Synchronisation rejetée par le serveur mail.');
             }
 
             $messages = collect($result['messages'] ?? [])
@@ -86,7 +86,7 @@ class MailboxSyncService
             $mailbox->forceFill([
                 'last_sync_at' => now(),
                 'health_status' => 'healthy',
-                'health_message' => "IMAP {$folder} sync completed.",
+                'health_message' => "Synchronisation IMAP {$folder} terminée.",
             ])->save();
 
             $this->eventLogger->log(

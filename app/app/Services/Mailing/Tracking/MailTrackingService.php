@@ -344,7 +344,7 @@ class MailTrackingService
         $url = $this->publicEmailUrlService->trackingUrl('/t/o/'.$token.'.gif');
 
         if ($url === null) {
-            throw new \RuntimeException('A public HTTPS tracking base URL is required before injecting tracking pixels.');
+            throw new \RuntimeException('Une URL publique de tracking HTTPS est requise pour injecter les pixels de suivi.');
         }
 
         return $url;
@@ -355,7 +355,7 @@ class MailTrackingService
         $url = $this->publicEmailUrlService->trackingUrl('/t/c/'.$token);
 
         if ($url === null) {
-            throw new \RuntimeException('A public HTTPS tracking base URL is required before rewriting tracked links.');
+            throw new \RuntimeException('Une URL publique de tracking HTTPS est requise pour réécrire les liens suivis.');
         }
 
         return $url;

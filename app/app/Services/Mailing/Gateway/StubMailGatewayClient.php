@@ -28,7 +28,7 @@ class StubMailGatewayClient implements MailGatewayClient
             return [
                 'success' => false,
                 'driver' => 'stub',
-                'message' => 'Outbound message rejected by the stub gateway.',
+                'message' => 'Message sortant rejeté par la passerelle stub.',
                 'accepted_at' => Carbon::now()->toIso8601String(),
                 'mail_message_id' => $payload['mail_message_id'] ?? null,
                 'message_id_header' => $payload['message_id_header'] ?? null,
@@ -38,7 +38,7 @@ class StubMailGatewayClient implements MailGatewayClient
         return [
             'success' => true,
             'driver' => 'stub',
-            'message' => 'Outbound message accepted by the stub gateway.',
+            'message' => 'Message sortant accepté par la passerelle stub.',
             'accepted_at' => Carbon::now()->toIso8601String(),
             'mail_message_id' => $payload['mail_message_id'] ?? null,
             'message_id_header' => $payload['message_id_header'] ?? null,
@@ -57,7 +57,7 @@ class StubMailGatewayClient implements MailGatewayClient
         return [
             'success' => true,
             'driver' => 'stub',
-            'message' => 'Mailbox sync accepted by the stub gateway.',
+            'message' => 'Synchronisation acceptée par la passerelle stub.',
             'accepted_at' => Carbon::now()->toIso8601String(),
             'mailbox_account_id' => $payload['mailbox_account_id'] ?? null,
             'folder' => $payload['folder'] ?? 'INBOX',
@@ -79,7 +79,7 @@ class StubMailGatewayClient implements MailGatewayClient
                 'success' => false,
                 'driver' => 'stub',
                 'protocol' => $protocol,
-                'message' => "Incomplete {$protocol} configuration.",
+                'message' => "Configuration {$protocol} incomplète.",
                 'tested_at' => Carbon::now()->toIso8601String(),
             ];
         }
@@ -89,7 +89,7 @@ class StubMailGatewayClient implements MailGatewayClient
                 'success' => false,
                 'driver' => 'stub',
                 'protocol' => $protocol,
-                'message' => "Stub {$protocol} test rejected the configured host.",
+                'message' => "Test stub {$protocol} : hôte rejeté.",
                 'tested_at' => Carbon::now()->toIso8601String(),
             ];
         }
@@ -98,7 +98,7 @@ class StubMailGatewayClient implements MailGatewayClient
             'success' => true,
             'driver' => 'stub',
             'protocol' => $protocol,
-            'message' => "Stub {$protocol} test succeeded.",
+            'message' => "Test stub {$protocol} réussi.",
             'tested_at' => Carbon::now()->toIso8601String(),
         ];
     }

@@ -185,8 +185,23 @@
 - Root cause: migration `2026_03_19_220000_add_deleted_at_to_mail_campaigns_table` was in **Pending** state on the local SQLite while a later migration (batch 7 indexes) had already been applied — classic out-of-order migration drift
 - Fix: `php artisan migrate:fresh` on the local SQLite database to rebuild the schema from scratch
 - Prevention measures added:
-  - `scripts/reset-db.ps1`: dedicated script to cleanly reset the local SQLite (delete + recreate + migrate), with optional `-Seed` flag; verifies no pending migrations remain after reset; refuses to run if `DB_CONNECTION` is not `sqlite`
-  - `scripts/dev.ps1`: now checks for pending migrations immediately after `php artisan migrate`; prints a loud warning with recommended `reset-db.ps1` command if any are found
-  - `docs/LOCAL_DEV_START.md`: added "Reset de la base SQLite locale" section with procedure, and "Difference entre les bases locales" table explaining database.sqlite vs :memory: vs e2e.sqlite
+    - `scripts/reset-db.ps1`: dedicated script to cleanly reset the local SQLite (delete + recreate + migrate), with optional `-Seed` flag; verifies no pending migrations remain after reset; refuses to run if `DB_CONNECTION` is not `sqlite`
+    - `scripts/dev.ps1`: now checks for pending migrations immediately after `php artisan migrate`; prints a loud warning with recommended `reset-db.ps1` command if any are found
+    - `docs/LOCAL_DEV_START.md`: added "Reset de la base SQLite locale" section with procedure, and "Difference entre les bases locales" table explaining database.sqlite vs :memory: vs e2e.sqlite
 - Three separate local databases exist and must not be confused: `database.sqlite` (dev app), `:memory:` (phpunit tests), `e2e.sqlite` (Playwright smoke)
 - `ComposerApiTest.php`: fixed `test_imap` / `test_smtp` → `testImap` / `testSmtp` method names to match the `MailGatewayClient` interface (unrelated pre-existing bug blocking the full test suite)
+
+## Phase 5 — UX bug-fix pass (modals, search, persistence, i18n)
+
+- Creation modals (Contacts, Organizations) are now locked: backdrop click no longer closes the modal, Escape key is prevented; only the ✕ button or successful creation closes the modal. Cancel button ("Annuler") and X button remain the only close affordances
+- Header search bar in `CrmLayout.vue` is now a functional navigation command palette: typing filters all app pages by label (fuzzy), dropdown shows matching results, keyboard navigation (↑ ↓ Enter) supported, click-outside closes the dropdown
+- Settings persistence fix: all settings sub-components (`SettingsMail`, `SettingsSignature`, `SettingsCadence`, `SettingsScoring`) now call `router.reload({ preserveState: true })` after successful save, so switching between settings sections no longer shows stale data from the original Inertia page load
+- Campaign audience picker: Organizations tab now has a search bar matching by name/domain (was contacts-only); `filteredOrganizations` computed added for parity with `filteredContacts`
+- All remaining English user-facing messages translated to French (16 strings across 6 PHP files):
+    - `MailboxSettingsService`: mailbox password validation error
+    - `MailTrackingService`: tracking URL runtime exceptions
+    - `MailboxSyncService`: sync lock, sync failure, sync rejected, sync completed health messages
+    - `MailboxConnectionTester`: gateway unavailable health message
+    - `OutboundMailService`: gateway rejection and auto-stop event log messages
+    - `StubMailGatewayClient`: all stub gateway response messages
+- `MailboxConnectionTester::operatorMessage()` host/port pattern now also matches French keyword `'hôte rejeté'` alongside existing English keywords, ensuring correct operator messaging regardless of gateway driver language
