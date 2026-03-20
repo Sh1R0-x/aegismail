@@ -90,6 +90,7 @@ class ComposerApiTest extends TestCase
 
     public function test_drafts_support_crud_duplicate_schedule_and_unschedule(): void
     {
+        Carbon::setTestNow('2026-03-20 08:00:00');
         [$contact, $primaryEmail] = $this->seedContacts();
         Queue::fake();
 

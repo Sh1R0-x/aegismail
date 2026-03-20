@@ -15,6 +15,8 @@ Tu ne modifies pas l’UI/UX hors éléments strictement nécessaires à l’exp
 - Laravel 12 pour le produit métier
 - SQLite en local, PostgreSQL en cible production
 - database queue en local, Redis recommandé en production
+- reset base locale : `powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1`
+- trois bases distinctes : `database.sqlite` (dev), `:memory:` (tests), `e2e.sqlite` (Playwright)
 - une seule boîte OVH MX Plan
 - aucune logique Gmail
 - aucun provider alternatif en V1

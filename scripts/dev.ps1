@@ -268,6 +268,18 @@ function Start-Services {
     Write-Step 'Migrations Laravel'
     & php artisan migrate --ansi --no-interaction | Out-Host
 
+    # Verify no migrations remain pending after migrate (schema drift guard)
+    $statusOutput = & php artisan migrate:status --no-ansi 2>&1
+    $pendingMigrations = $statusOutput | Select-String 'Pending'
+    if ($pendingMigrations) {
+        Write-Host ''
+        Write-Host '!!! ATTENTION: des migrations sont encore en attente apres migrate !!!' -ForegroundColor Red
+        Write-Host 'Le schema local est probablement desaligne.' -ForegroundColor Red
+        Write-Host 'Correction recommandee:' -ForegroundColor Yellow
+        Write-Host '  powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1' -ForegroundColor Yellow
+        Write-Host ''
+    }
+
     Write-Step 'Demarrage du serveur Laravel'
     $laravelProcess = Start-Process php -ArgumentList 'artisan', 'serve', '--host=127.0.0.1', '--port=8001', '--no-reload' -WorkingDirectory $appPath -RedirectStandardOutput (Join-Path $logPath 'laravel.out.log') -RedirectStandardError (Join-Path $logPath 'laravel.err.log') -PassThru
 

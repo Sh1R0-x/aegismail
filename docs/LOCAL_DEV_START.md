@@ -57,3 +57,45 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 - `Dependances PHP absentes`: lancer `cd .\app ; composer install`
 - `Dependances Node absentes`: lancer `cd .\app ; npm install`
 - `Le port 8001 est deja utilise`: liberer le port ou arreter l'ancien environnement avec `powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -Action stop`
+- `no such column` ou `no such table`: le schema SQLite local est desaligne — voir la section Reset ci-dessous
+
+## Reset de la base SQLite locale
+
+Si le schema local est desaligne (colonnes manquantes, migrations en attente), utiliser le script dedie :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1
+```
+
+Ce script :
+
+- supprime `app/database/database.sqlite`
+- recree le fichier vide
+- reapplique toutes les migrations depuis zero
+- verifie qu'aucune migration ne reste en attente
+
+Optionnel avec seeding :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1 -Seed
+```
+
+**Quand l'utiliser :**
+
+- Apres un `git pull` qui ajoute de nouvelles migrations
+- Si l'application affiche une erreur de schema (`no such column`, `no such table`)
+- Pour repartir d'une base propre sans donnees
+
+**Ce que le script ne touche pas :**
+
+- La base de test PHPUnit (`:memory:`, recree a chaque test)
+- La base E2E (`database/e2e.sqlite`, gere par `e2e-serve.ps1`)
+- Les fichiers `.env` ou la configuration
+
+## Difference entre les bases locales
+
+| Base            | Fichier                    | Gestion                     | Usage                |
+| --------------- | -------------------------- | --------------------------- | -------------------- |
+| Applicative     | `database/database.sqlite` | `dev.ps1` ou `reset-db.ps1` | Developpement local  |
+| Tests unitaires | `:memory:`                 | `phpunit.xml`               | Recree a chaque test |
+| E2E / smoke     | `database/e2e.sqlite`      | `e2e-serve.ps1`             | Tests Playwright     |

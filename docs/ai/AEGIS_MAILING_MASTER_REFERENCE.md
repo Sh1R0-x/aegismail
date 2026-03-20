@@ -56,6 +56,8 @@ The V1 target is **OVH MX Plan only**.
 - Laravel for business app, auth, settings, contacts, organizations, campaigns, timeline, scoring, internal API
 - SQLite for local development, PostgreSQL recommended for production
 - database queue driver for local development, Redis recommended for production (queues, locks, send cadence)
+- Local DB reset: `powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1` (see `docs/LOCAL_DEV_START.md`)
+- Three distinct local databases: `database.sqlite` (dev app), `:memory:` (PHPUnit), `e2e.sqlite` (Playwright)
 
 ### Mail engine
 

@@ -179,3 +179,14 @@
 - Backend `CampaignService::serializeDetail()` now includes `lastSentAt`, `lastSentSubject`, and `organization` (via `contact.organization.name`) in each recipient object; `loadMissing` includes `recipients.messages`
 - `CampaignAudiencePicker.vue` simplified: "Imports récents" tab removed; only Contacts and Organisations tabs remain; related `isImportFullySelected()`, `toggleImport()` functions removed; `recentImports` removed from `audiences` ref and `buildRecipients()` lookup
 - Status labels displayed in French via `STATUS_LABELS` map in Show.vue (e.g. `sent` → "Envoyé", `hard_bounced` → "Hard bounce", etc.)
+
+## Local database schema drift fix
+
+- Root cause: migration `2026_03_19_220000_add_deleted_at_to_mail_campaigns_table` was in **Pending** state on the local SQLite while a later migration (batch 7 indexes) had already been applied — classic out-of-order migration drift
+- Fix: `php artisan migrate:fresh` on the local SQLite database to rebuild the schema from scratch
+- Prevention measures added:
+  - `scripts/reset-db.ps1`: dedicated script to cleanly reset the local SQLite (delete + recreate + migrate), with optional `-Seed` flag; verifies no pending migrations remain after reset; refuses to run if `DB_CONNECTION` is not `sqlite`
+  - `scripts/dev.ps1`: now checks for pending migrations immediately after `php artisan migrate`; prints a loud warning with recommended `reset-db.ps1` command if any are found
+  - `docs/LOCAL_DEV_START.md`: added "Reset de la base SQLite locale" section with procedure, and "Difference entre les bases locales" table explaining database.sqlite vs :memory: vs e2e.sqlite
+- Three separate local databases exist and must not be confused: `database.sqlite` (dev app), `:memory:` (phpunit tests), `e2e.sqlite` (Playwright smoke)
+- `ComposerApiTest.php`: fixed `test_imap` / `test_smtp` → `testImap` / `testSmtp` method names to match the `MailGatewayClient` interface (unrelated pre-existing bug blocking the full test suite)

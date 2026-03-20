@@ -47,3 +47,11 @@ All V1 backend features are implemented and tested. The goal is now stability, c
 - Laravel owns business truth
 - Node/TypeScript mail-gateway stays the low-level mail boundary
 - contract changes must be documented under `docs/ai`
+
+## Local database management
+
+- Local dev uses SQLite: `app/database/database.sqlite`
+- PHPUnit tests use `:memory:` (configured in `phpunit.xml`)
+- E2E tests use `app/database/e2e.sqlite` (managed by `scripts/e2e-serve.ps1`)
+- Reset local DB: `powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1`
+- `scripts/dev.ps1` auto-detects pending migrations after startup and warns
