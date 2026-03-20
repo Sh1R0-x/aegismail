@@ -12,7 +12,7 @@ class MailboxActivityService
     public function activity(): array
     {
         $messageEvents = MailMessage::query()
-            ->with(['thread.contact.organization'])
+            ->with(['thread.contact.organization', 'recipient'])
             ->orderByRaw('coalesce(received_at, sent_at, created_at) desc')
             ->limit(100)
             ->get()
@@ -126,7 +126,11 @@ class MailboxActivityService
     private function status(MailMessage $message): string
     {
         if ($message->direction === 'out') {
-            return 'sent';
+            if ($message->recipient !== null) {
+                return $message->recipient->status;
+            }
+
+            return $message->sent_at !== null ? 'sent' : 'queued';
         }
 
         return match ($message->classification) {

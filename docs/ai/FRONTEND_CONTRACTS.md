@@ -259,10 +259,11 @@ Date format used by the current backend:
 
 ### events[]
 
-- `id`: required integer
+- `id`: required integer (or string `tracking-{id}` for tracking events)
+- `threadId`: nullable integer
 - `title`: required string
 - `description`: nullable string
-- `status`: required enum `sent|replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`
+- `status`: required string — for outbound messages, uses `mail_recipients.status` as source of truth (e.g. `queued|sending|sent|failed|opened|clicked|replied|cancelled`). For inbound messages, derived from classification (e.g. `replied|auto_replied|soft_bounced|hard_bounced|delivered_if_known`). For orphan outbound messages without a recipient, falls back to `sent` if `sent_at` is set, otherwise `queued`.
 - `direction`: required enum `outbound|inbound`
 - `isAutoReply`: required boolean
 - `isBounce`: required boolean
