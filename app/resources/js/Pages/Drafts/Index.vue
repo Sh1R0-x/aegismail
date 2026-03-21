@@ -97,8 +97,8 @@
             <td class="px-6 py-4">
               <StatusBadge :status="draft.status" />
             </td>
-            <td class="px-6 py-4 text-slate-500">{{ draft.scheduledAt ?? '—' }}</td>
-            <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ draft.updatedAt }}</td>
+            <td class="px-6 py-4 text-slate-500">{{ draft.scheduledAt ? formatDateFR(draft.scheduledAt) : '—' }}</td>
+            <td class="px-6 py-4 text-xs font-medium text-slate-400">{{ draft.updatedAt ? formatDateFR(draft.updatedAt) : '—' }}</td>
               <td class="px-6 py-4 text-right space-x-3">
                 <button
                   class="text-xs font-bold text-blue-600 hover:text-blue-800"
@@ -144,6 +144,7 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import StatusBadge from '@/Components/Badges/StatusBadge.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 import MailComposer from '@/Components/Composer/MailComposer.vue';
 
 const props = defineProps({

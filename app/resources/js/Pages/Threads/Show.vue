@@ -56,7 +56,7 @@
             </div>
 
             <div class="mt-3 flex items-center gap-3 text-xs text-slate-500">
-              <span>Classification: {{ message.classification }}</span>
+              <span>Classification : {{ { human_reply: 'Réponse humaine', auto_reply: 'Réponse auto', out_of_office: 'Absence', auto_ack: 'Accusé auto', soft_bounce: 'Rebond temporaire', hard_bounce: 'Rebond permanent', system: 'Système', unknown: 'Inconnue' }[message.classification] || message.classification }}</span>
               <span v-if="message.hasAttachments">· {{ message.attachmentCount }} pièce(s) jointe(s)</span>
             </div>
 

@@ -47,7 +47,7 @@
               healthBadge(prov.health_status),
             ]"
           >
-            {{ prov.health_status }}
+            {{ { healthy: 'Sain', warning: 'Dégradé', critical: 'Critique', unknown: 'Inconnu' }[prov.health_status] || prov.health_status }}
           </span>
         </div>
       </div>
@@ -85,7 +85,7 @@
               <td class="py-1 pr-3 font-medium">{{ r.email }}</td>
               <td class="py-1 pr-3">{{ r.status }}</td>
               <td class="py-1 pr-3">{{ r.campaign?.name ?? '—' }}</td>
-              <td class="py-1">{{ r.scheduled_for ?? r.created_at }}</td>
+              <td class="py-1">{{ formatDateFR(r.scheduled_for ?? r.created_at) }}</td>
             </tr>
           </tbody>
         </table>
@@ -149,7 +149,7 @@
               <span class="text-xs font-bold text-slate-800">{{ event.event_type }}</span>
               <span v-if="event.campaign_id" class="text-[10px] text-slate-400">campagne #{{ event.campaign_id }}</span>
             </div>
-            <span class="text-[10px] text-slate-400">{{ event.occurred_at }}</span>
+            <span class="text-[10px] text-slate-400">{{ formatDateFR(event.occurred_at) }}</span>
           </div>
           <div v-if="expandedEvent === event.id" class="mt-2 rounded-lg bg-slate-50 p-3 text-[11px] font-mono text-slate-600 overflow-x-auto">
             <pre class="whitespace-pre-wrap">{{ JSON.stringify(event.event_payload, null, 2) }}</pre>
@@ -187,6 +187,7 @@
 import { onMounted, ref } from 'vue';
 import axios from 'axios';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { formatDateFR } from '@/Utils/formatDate.js';
 
 const health = ref({});
 const events = ref([]);

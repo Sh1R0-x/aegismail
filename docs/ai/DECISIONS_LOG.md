@@ -255,7 +255,62 @@
 
 ## Phase 8 — Advanced workflow validation and timezone fix
 
+## Phase 9 — Status desync investigation and data coherence
+
+### Root cause: Unschedule blanket reset
+
+- `CampaignService::unschedule()` previously did `$campaign->recipients()->update(['status' => 'draft'])` — a blanket reset that affected ALL recipients including those already sent, opened, or clicked
+- This caused the observed bug: campaign 3, recipient 4 had `status=draft` but `sent_at=10:35:40` and had been opened (10:37) and clicked (10:38) before being unscheduled at 10:58
+- Fix: Added guard `$hasDispatchedRecipients` that checks if any recipients have statuses outside `[draft, scheduled, queued]` — throws `ValidationException` if true; scoped update to only reset `draft/scheduled/queued` recipients
+
+### DraftService unschedule ordering fix
+
+- `DraftService::unschedule()` previously reset draft to `status=draft` BEFORE calling `CampaignService::unschedule()` — if campaign service throws (post-dispatch guard), the draft was already incorrectly modified
+- Fix: Reordered so `CampaignService::unschedule()` runs first; draft status reset only happens if campaign check passes
+
+### Dashboard phantom statuses fix
+
+- `CrmPageDataService::dashboard()` used `whereIn('status', ['scheduled', 'running', 'paused'])` for `activeCampaigns` — `running` and `paused` are phantom statuses that never exist in DB
+- Fix: Changed to `whereIn('status', ['scheduled', 'queued', 'sending'])`
+
+### Diagnostic timezone fix
+
+- `DiagnosticController::events()` returned `occurred_at` as raw UTC via Carbon `toJSON()` — inconsistent with activity page which uses `Europe/Paris`
+- `DiagnosticController::health()` returned `last_event_at` as raw UTC
+- Fix: Added `->timezone(config('app.timezone'))` conversion in both endpoints
+- Frontend `Diagnostic/Index.vue` now uses `formatDateFR()` for event timestamps
+
+### Frontend data coherence fixes
+
+- `Campaigns/Show.vue`: Fixed English labels `Soft bounce` / `Hard bounce` → `Rebond temporaire` / `Rebond permanent`; aligned `scheduled` label to `Planifié` (consistent with StatusBadge)
+- `Diagnostic/Index.vue`: Added French health status labels (Sain, Dégradé, Critique, Inconnu); wrapped stuck recipients `scheduled_for` / `created_at` in `formatDateFR()`
+- `Drafts/Index.vue`: Added missing `formatDateFR` import; wrapped `scheduledAt` and `updatedAt` in `formatDateFR()`
+- `Threads/Show.vue`: Added French classification labels (Réponse humaine, Réponse auto, Absence, Accusé auto, Rebond temporaire, Rebond permanent, Système, Inconnue)
+
+### DB data repair
+
+- Recipient 4: repaired `status=draft` → `status=clicked` (matching last tracking event)
+- Campaign 3: repaired `status=draft` → `status=sent` (matching `completed_at` being set)
+
+### Stats coherence verified
+
+- `sentRecipientStatuses()` includes all post-dispatch statuses — no gaps
+- `progressPercent()` consistent with frozen status list
+- `mails()` page correctly filters out `draft/scheduled/queued`
+- Activity page correctly reads `recipient->status` for outbound
+- Dashboard `sentToday`, `bounceRate`, `activeCampaigns` all use correct queries
+- No double-counting or phantom stat issues
+
+### New test
+
+- `test_unschedule_is_blocked_when_recipients_have_been_dispatched` — verifies the guard prevents unschedule after dispatch, protects recipient status integrity
+
+### Test suite
+
+- 138 tests, 1711 assertions — all passing (up from 137/1704 baseline)
+
 ### Real workflow chain validated
+
 - Entity creation chain: organization → contact → search/detail all consistent
 - Template CRUD: create → duplicate → update → delete all working
 - Draft creation with provider freezing: `outbound_provider` correctly frozen at creation time
@@ -268,6 +323,7 @@
 - Cross-page data coherence verified: dashboard, activity, mails, campaigns, campaign detail — all showing consistent data
 
 ### Timezone bug fix (cross-page timestamp coherence)
+
 - Root cause: `OutboundMailService::markSent()` parsed gateway UTC ISO8601 response (`accepted_at`) via `Carbon::parse()` without timezone conversion; SQLite strips timezone info on storage → UTC value stored as if it were local time; `immutable_datetime` cast assumes app timezone on read → displayed incorrectly
 - Fix applied to 3 locations:
     - `OutboundMailService::markSent()` (line 394): `Carbon::parse($result['accepted_at'])->timezone(config('app.timezone'))` before storage
@@ -280,6 +336,7 @@
 - Visual confirmation: mails page, campaign detail, and activity page all display consistent `10h35` Paris time
 
 ### SMTP2GO known issue
+
 - Test send via SMTP2GO failed with SSL error: `routines:tls_validate_record_header:wrong version number`
 - Config: host=`mail-eu.smtp2go.com`, port=587, `smtp_secure=false`
 - Diagnosis: SMTP2GO port 587 requires STARTTLS, but `smtp_secure=false` in `smtp_provider_accounts` likely causes the Node gateway to attempt plain connection followed by wrong TLS handshake
@@ -287,4 +344,5 @@
 - Resolution deferred: correct `smtp_secure` value or adjust gateway STARTTLS handling when SMTP2GO relay becomes needed
 
 ### Zero console errors
+
 - Verified across dashboard, contacts, templates, mails, campaigns, campaign detail, activity pages — zero JavaScript errors

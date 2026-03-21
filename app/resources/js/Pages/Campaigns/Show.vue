@@ -193,10 +193,10 @@ const filterOrganization = ref('');
 const filterDomain = ref('');
 
 const STATUS_LABELS = {
-  draft: 'Brouillon', scheduled: 'Programmé', queued: 'En file', sending: 'Envoi en cours',
+  draft: 'Brouillon', scheduled: 'Planifié', queued: 'En file', sending: 'Envoi en cours',
   sent: 'Envoyé', delivered_if_known: 'Délivré', opened: 'Ouvert', clicked: 'Cliqué',
-  replied: 'Répondu', auto_replied: 'Réponse auto', soft_bounced: 'Soft bounce',
-  hard_bounced: 'Hard bounce', unsubscribed: 'Désabonné', failed: 'Échoué', cancelled: 'Annulé',
+  replied: 'Répondu', auto_replied: 'Réponse auto', soft_bounced: 'Rebond temporaire',
+  hard_bounced: 'Rebond permanent', unsubscribed: 'Désabonné', failed: 'Échoué', cancelled: 'Annulé',
 };
 
 function statusLabel(s) {

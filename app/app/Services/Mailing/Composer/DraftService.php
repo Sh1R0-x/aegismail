@@ -299,12 +299,12 @@ class DraftService
     {
         $this->ensureCampaignDraftIsEditable($draft);
 
+        $campaign = $this->campaignService->unschedule($draft);
+
         $draft->forceFill([
             'status' => 'draft',
             'scheduled_at' => null,
         ])->save();
-
-        $campaign = $this->campaignService->unschedule($draft);
 
         $this->eventLogger->log(
             'mail_draft.unscheduled',

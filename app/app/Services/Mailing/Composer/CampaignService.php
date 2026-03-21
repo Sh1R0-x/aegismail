@@ -162,12 +162,24 @@ class CampaignService
             return null;
         }
 
+        $hasDispatchedRecipients = $campaign->recipients()
+            ->whereNotIn('status', ['draft', 'scheduled', 'queued'])
+            ->exists();
+
+        if ($hasDispatchedRecipients) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'campaign' => ['Cette campagne a des destinataires déjà envoyés et ne peut plus être déprogrammée.'],
+            ]);
+        }
+
         DB::transaction(function () use ($campaign): void {
             $campaign->forceFill(['status' => 'draft'])->save();
-            $campaign->recipients()->update([
-                'scheduled_for' => null,
-                'status' => 'draft',
-            ]);
+            $campaign->recipients()
+                ->whereIn('status', ['draft', 'scheduled', 'queued'])
+                ->update([
+                    'scheduled_for' => null,
+                    'status' => 'draft',
+                ]);
 
             $this->eventLogger->log(
                 'mail_campaign.unscheduled',

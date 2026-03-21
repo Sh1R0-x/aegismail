@@ -65,8 +65,11 @@ class DiagnosticController extends Controller
         $perPage = $request->integer('per_page', 30);
         $paginated = $query->paginate($perPage);
 
-        $paginated->getCollection()->transform(function (MailEvent $event) {
+        $tz = config('app.timezone');
+
+        $paginated->getCollection()->transform(function (MailEvent $event) use ($tz) {
             $event->event_payload = $this->scrubSecrets($event->event_payload ?? []);
+            $event->occurred_at = $event->occurred_at?->timezone($tz);
 
             return $event;
         });
@@ -140,7 +143,7 @@ class DiagnosticController extends Controller
                 'stuck' => $stuckRecipients,
             ],
             'errors_last_24h' => $recentErrors,
-            'last_event_at' => $lastEvent,
+            'last_event_at' => $lastEvent?->timezone(config('app.timezone')),
         ]);
     }
 

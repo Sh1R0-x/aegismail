@@ -942,6 +942,44 @@ class ComposerApiTest extends TestCase
         $this->get('/campaigns/'.$campaignId)->assertOk();
     }
 
+    public function test_unschedule_is_blocked_when_recipients_have_been_dispatched(): void
+    {
+        Carbon::setTestNow('2026-03-20 09:00:00');
+        [$contact, $primaryEmail] = $this->seedContacts();
+
+        $this->app->bind(MailGatewayClient::class, StubMailGatewayClient::class);
+
+        // Create and schedule a draft, then actually dispatch
+        $draft = $this->postJson('/api/drafts', [
+            'type' => 'single',
+            'subject' => 'Unschedule guard test',
+            'htmlBody' => '<p>Test guard</p>',
+            'textBody' => 'Test guard',
+            'recipients' => [[
+                'contactId' => $contact->id,
+                'contactEmailId' => $primaryEmail->id,
+                'organizationId' => $contact->organization_id,
+                'email' => $primaryEmail->email,
+            ]],
+        ])->assertCreated();
+
+        $draftId = $draft->json('draft.id');
+
+        $this->postJson("/api/drafts/{$draftId}/send-now")
+            ->assertOk();
+
+        // Recipient is now "sent" — unschedule must be blocked
+        $recipient = MailRecipient::query()->first();
+        $this->assertSame('sent', $recipient->status);
+
+        $this->postJson("/api/drafts/{$draftId}/unschedule")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('campaign');
+
+        // Verify recipient was not reset
+        $this->assertSame('sent', $recipient->fresh()->status);
+    }
+
     private function seedMailboxAndSettings(): void
     {
         MailboxAccount::query()->create([

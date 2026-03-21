@@ -104,7 +104,7 @@ class CrmPageDataService
                     ? (int) round(($bouncedRecipients / $sentRecipients) * 100)
                     : 0,
                 'activeCampaigns' => MailCampaign::query()
-                    ->whereIn('status', ['scheduled', 'running', 'paused'])
+                    ->whereIn('status', ['scheduled', 'queued', 'sending'])
                     ->count(),
                 'scheduledCount' => $scheduledSends->count(),
             ],
