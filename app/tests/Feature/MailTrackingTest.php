@@ -126,15 +126,12 @@ class MailTrackingTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Activity/Index')
-                ->has('events', 3)
+                ->has('events', 1)
                 ->has('events.0', fn (AssertableInertia $event) => $event
                     ->where('status', 'clicked')
                     ->where('direction', 'outbound')
                     ->etc()
                 )
-                ->where('events', fn ($events) => collect($events)->contains(
-                    fn (array $event) => ($event['status'] ?? null) === 'opened' && ($event['direction'] ?? null) === 'outbound'
-                ))
             );
     }
 

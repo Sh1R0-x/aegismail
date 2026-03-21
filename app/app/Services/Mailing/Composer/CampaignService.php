@@ -212,6 +212,7 @@ class CampaignService
                 : count($campaign->draft?->payload_json['recipients'] ?? []),
             'progressPercent' => $this->progressPercent($campaign),
             'openCount' => $campaign->recipients->whereIn('status', ['opened', 'clicked', 'replied', 'auto_replied'])->count(),
+            'clickCount' => $campaign->recipients->whereIn('status', ['clicked', 'replied'])->count(),
             'replyCount' => $campaign->recipients->where('status', 'replied')->count(),
             'bounceCount' => $campaign->recipients->whereIn('status', ['soft_bounced', 'hard_bounced'])->count(),
             'scheduledAt' => $campaign->recipients->sortBy('scheduled_for')->first()?->scheduled_for?->timezone(config('app.timezone'))->toIso8601String(),

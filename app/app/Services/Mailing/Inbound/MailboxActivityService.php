@@ -15,7 +15,11 @@ class MailboxActivityService
             ->with(['thread.contact.organization', 'recipient'])
             ->orderByRaw('coalesce(received_at, sent_at, created_at) desc')
             ->limit(100)
-            ->get()
+            ->get();
+
+        $loadedMessageIds = $messageEvents->pluck('id')->all();
+
+        $mappedMessages = $messageEvents
             ->map(fn (MailMessage $message): array => [
                 'id' => $message->id,
                 'threadId' => $message->thread?->id,
@@ -29,16 +33,22 @@ class MailboxActivityService
                 'sortDate' => $message->received_at ?? $message->sent_at ?? $message->created_at,
             ]);
 
-        $trackingEvents = MailEvent::query()
+        $trackingQuery = MailEvent::query()
             ->with(['mailMessage.thread.contact.organization'])
             ->whereIn('event_type', ['mail_message.opened', 'mail_message.clicked'])
             ->orderByDesc('occurred_at')
-            ->limit(100)
+            ->limit(100);
+
+        if ($loadedMessageIds !== []) {
+            $trackingQuery->whereNotIn('message_id', $loadedMessageIds);
+        }
+
+        $trackingEvents = $trackingQuery
             ->get()
             ->map(fn (MailEvent $event): ?array => $this->trackingEvent($event))
             ->filter();
 
-        $events = $messageEvents
+        $events = $mappedMessages
             ->concat($trackingEvents)
             ->sortByDesc(fn (array $event) => $event['sortDate'] ?? null)
             ->take(100)

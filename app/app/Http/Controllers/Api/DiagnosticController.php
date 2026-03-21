@@ -65,13 +65,17 @@ class DiagnosticController extends Controller
         $perPage = $request->integer('per_page', 30);
         $paginated = $query->paginate($perPage);
 
-        $tz = config('app.timezone');
-
-        $paginated->getCollection()->transform(function (MailEvent $event) use ($tz) {
-            $event->event_payload = $this->scrubSecrets($event->event_payload ?? []);
-            $event->occurred_at = $event->occurred_at?->timezone($tz);
-
-            return $event;
+        $paginated->getCollection()->transform(function (MailEvent $event) {
+            return [
+                'id' => $event->id,
+                'event_type' => $event->event_type,
+                'campaign_id' => $event->campaign_id,
+                'recipient_id' => $event->recipient_id,
+                'message_id' => $event->message_id,
+                'event_payload' => $this->scrubSecrets($event->event_payload ?? []),
+                'occurred_at' => $this->formatDate($event->occurred_at),
+                'created_at' => $this->formatDate($event->created_at),
+            ];
         });
 
         return response()->json($paginated);
@@ -143,7 +147,7 @@ class DiagnosticController extends Controller
                 'stuck' => $stuckRecipients,
             ],
             'errors_last_24h' => $recentErrors,
-            'last_event_at' => $lastEvent?->timezone(config('app.timezone')),
+            'last_event_at' => $this->formatDate($lastEvent),
         ]);
     }
 
@@ -186,6 +190,17 @@ class DiagnosticController extends Controller
         }
 
         return $scrubbed;
+    }
+
+    private function formatDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $date = $value instanceof CarbonImmutable ? $value : CarbonImmutable::parse($value);
+
+        return $date->timezone(config('app.timezone'))->toIso8601String();
     }
 
     private function isSensitiveKey(string $key): bool

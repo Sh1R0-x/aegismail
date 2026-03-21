@@ -1154,6 +1154,7 @@ Source: `mail_drafts` with `status = scheduled` and non-null `scheduled_at`.
 - `recipientCount`: required integer
 - `progressPercent`: required integer
 - `openCount`: required integer
+- `clickCount`: required integer
 - `replyCount`: required integer
 - `bounceCount`: required integer
 - `scheduledAt`: nullable `YYYY-MM-DD HH:mm`

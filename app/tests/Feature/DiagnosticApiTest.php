@@ -503,4 +503,47 @@ class DiagnosticApiTest extends TestCase
         // status_code must NOT be in response body (stripped by controller)
         $this->assertArrayNotHasKey('status_code', $data);
     }
+
+    // ── Timestamp serialization coherence ──────────────────
+
+    public function test_diagnostic_events_dates_use_iso8601_with_offset(): void
+    {
+        MailEvent::query()->create([
+            'event_type' => 'test.timestamp',
+            'event_payload' => [],
+            'occurred_at' => CarbonImmutable::parse('2026-03-21 10:38:11', config('app.timezone')),
+            'created_at' => CarbonImmutable::now(),
+        ]);
+
+        $response = $this->getJson('/api/diagnostic/events');
+
+        $response->assertOk();
+        $occurredAt = $response->json('data.0.occurred_at');
+
+        // Must contain offset like +01:00 or +02:00, NOT end with Z
+        $this->assertStringNotContainsString('.000000Z', $occurredAt);
+        $this->assertMatchesRegularExpression('/[+-]\d{2}:\d{2}$/', $occurredAt);
+
+        // Must represent the correct Paris time
+        $this->assertStringContainsString('10:38:11', $occurredAt);
+    }
+
+    public function test_health_last_event_at_uses_iso8601_with_offset(): void
+    {
+        MailEvent::query()->create([
+            'event_type' => 'test.health',
+            'event_payload' => [],
+            'occurred_at' => CarbonImmutable::parse('2026-03-21 10:38:11', config('app.timezone')),
+            'created_at' => CarbonImmutable::now(),
+        ]);
+
+        $response = $this->getJson('/api/diagnostic/health');
+
+        $response->assertOk();
+        $lastEventAt = $response->json('last_event_at');
+
+        $this->assertNotNull($lastEventAt);
+        $this->assertStringNotContainsString('.000000Z', $lastEventAt);
+        $this->assertMatchesRegularExpression('/[+-]\d{2}:\d{2}$/', $lastEventAt);
+    }
 }

@@ -464,4 +464,29 @@ class ActivityStatusCoherenceTest extends TestCase
         $campaign->load('recipients');
         $this->assertSame('queued', $campaign->recipients->first()->status);
     }
+
+    // ── Test 13: Tracking events are deduplicated from message entries ──
+
+    public function test_activity_does_not_duplicate_tracking_events_with_message_entries(): void
+    {
+        $data = $this->seedOutboundMessage(recipientStatus: 'opened', sentAt: Carbon::parse('2026-03-20 09:05:00'));
+
+        // Add a tracking event for the same message
+        MailEvent::query()->create([
+            'event_type' => 'mail_message.opened',
+            'event_payload' => [],
+            'campaign_id' => $data['campaign']->id,
+            'recipient_id' => $data['recipient']->id,
+            'message_id' => $data['message']->id,
+            'occurred_at' => Carbon::parse('2026-03-20 10:00:00'),
+            'created_at' => now(),
+        ]);
+
+        $service = app(MailboxActivityService::class);
+        $activityData = $service->activity();
+
+        // Should only have 1 entry (the message), not 2 (message + tracking event)
+        $this->assertCount(1, $activityData['events']);
+        $this->assertSame('opened', $activityData['events'][0]['status']);
+    }
 }

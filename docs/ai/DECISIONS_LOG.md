@@ -346,3 +346,49 @@
 ### Zero console errors
 
 - Verified across dashboard, contacts, templates, mails, campaigns, campaign detail, activity pages — zero JavaScript errors
+
+## Phase 10 — Diagnostic-driven targeted fixes
+
+### DiagnosticController serialization fix
+
+- Phase 9 added `->timezone($tz)` calls in `events()` (line 72-73) and `health()` (line 159) — these were no-ops because: CarbonImmutable was already in Europe/Paris, Eloquent serializeDate→toJSON always converts back to UTC/Z
+- Fix: Replaced Eloquent model auto-serialization with explicit `formatDate()` helper using `->timezone(config('app.timezone'))->toIso8601String()`, matching the format used by all other services (ComposerPageDataService, CrmPageDataService, MailboxActivityService, TemplateService)
+- Events endpoint now returns explicit field mapping instead of raw Eloquent model — prevents accidental exposure of internal attributes
+- All diagnostic dates now use ISO 8601 with offset (`+01:00`) instead of UTC/Z
+- Root cause: Eloquent `serializeDate()` always calls `toJSON()` which converts to UTC — the Phase 9 timezone() call had no effect on the final output
+- New tests: `test_diagnostic_events_dates_use_iso8601_with_offset`, `test_health_last_event_at_uses_iso8601_with_offset`
+
+### Campaign serializer clickCount addition
+
+- Campaign serializer was missing `clickCount` — opens, replies, and bounces were exposed but clicks were not
+- Added `clickCount` = recipients with status IN (`clicked`, `replied`) — same high-water-mark model as openCount
+- Backend contract updated: `BACKEND_CONTRACTS.md` now includes `clickCount: required integer`
+- New test: `test_campaign_serializer_includes_click_count`
+
+### Activity page tracking event deduplication
+
+- Activity page merged MailMessage entries (with current recipient status) AND MailEvent tracking entries for the same message — an opened/clicked message appeared twice (once as message entry with status `clicked`, once as separate tracking event with status `opened`/`clicked`)
+- Fix: Activity service now collects message IDs from the first query and excludes tracking events whose `message_id` matches a loaded message
+- The MailMessage entry already reflects the current recipient status (high-water-mark), making separate tracking event entries redundant
+- Updated test: `test_open_and_click_tracking_routes_update_message_and_recipient_state` now expects 1 event (deduplicated) instead of 3
+- New test: `test_activity_does_not_duplicate_tracking_events_with_message_entries`
+
+### Tracking limitation documented
+
+- Tracking (opens/clicks) cannot be operationally tested in local development — emails contain tracking URLs pointing to `aegisnetwork.fr`, but HTTP requests from email clients cannot reach the local app
+- This is by design: tracking works only in production when the domain routes to the Laravel app
+- Local stats showing 0 opens/clicks are correct (no tracking events can fire)
+- Preflight correctly validates HTTPS public URL before allowing send
+
+### Stats coherence verified
+
+- `sentToday` (MailMessage-based, dashboard + mails page) — correct and consistent
+- `bounceRate` (MailRecipient-based, all-time) — correct but cosmetically different period from sentToday
+- `activeCampaigns` (campaign-level status) — correct
+- `progressPercent` (recipient completion) — correct, includes failed/cancelled as completed
+- `openCount`, `clickCount`, `replyCount`, `bounceCount` (campaign serializer) — now all exposed
+- No phantom stats, no false positives, no double-counting
+
+### Test suite
+
+- 142 tests, 1724 assertions — all passing (up from 138/1711)

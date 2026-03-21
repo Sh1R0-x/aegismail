@@ -380,4 +380,100 @@ class CampaignCloneApiTest extends TestCase
 
         return [$campaign, $draft];
     }
+
+    // ── Campaign Serializer Stats ─────────────────────────
+
+    public function test_campaign_serializer_includes_click_count(): void
+    {
+        $mailbox = $this->seedMailboxAndSettings();
+
+        $draft = MailDraft::query()->create([
+            'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
+            'mode' => 'bulk',
+            'subject' => 'Stats test',
+            'html_body' => '<p>test</p>',
+            'text_body' => 'test',
+            'payload_json' => ['recipients' => []],
+            'status' => 'scheduled',
+        ]);
+
+        $campaign = MailCampaign::query()->create([
+            'mailbox_account_id' => $mailbox->id,
+            'outbound_provider' => 'ovh_mx_plan',
+            'name' => 'Stats test',
+            'mode' => 'bulk',
+            'draft_id' => $draft->id,
+            'status' => 'sent',
+            'completed_at' => now(),
+        ]);
+
+        $org = Organization::query()->create(['name' => 'Stats Org', 'domain' => 'stats.test']);
+        $contact = Contact::query()->create(['first_name' => 'A', 'last_name' => 'B', 'organization_id' => $org->id]);
+        $email = ContactEmail::query()->create(['contact_id' => $contact->id, 'email' => 'a@stats.test', 'is_primary' => true]);
+
+        // Recipient 1: sent (no open/click)
+        MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => 'a@stats.test',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        // Recipient 2: opened
+        MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => 'b@stats.test',
+            'status' => 'opened',
+            'sent_at' => now(),
+        ]);
+
+        // Recipient 3: clicked
+        MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => 'c@stats.test',
+            'status' => 'clicked',
+            'sent_at' => now(),
+        ]);
+
+        // Recipient 4: replied
+        MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => 'd@stats.test',
+            'status' => 'replied',
+            'sent_at' => now(),
+        ]);
+
+        // Recipient 5: hard_bounced
+        MailRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'contact_email_id' => $email->id,
+            'email' => 'e@stats.test',
+            'status' => 'hard_bounced',
+            'sent_at' => now(),
+        ]);
+
+        $service = app(\App\Services\Mailing\Composer\CampaignService::class);
+        $serialized = $service->serialize($campaign);
+
+        // openCount = opened + clicked + replied = 3 (opened, clicked, replied but NOT auto_replied, NOT sent, NOT hard_bounced)
+        $this->assertSame(3, $serialized['openCount']);
+        // clickCount = clicked + replied = 2
+        $this->assertSame(2, $serialized['clickCount']);
+        // replyCount = replied = 1
+        $this->assertSame(1, $serialized['replyCount']);
+        // bounceCount = hard_bounced = 1
+        $this->assertSame(1, $serialized['bounceCount']);
+        // Verify the key exists in serialized output
+        $this->assertArrayHasKey('clickCount', $serialized);
+    }
 }
