@@ -181,6 +181,6 @@ class MailboxActivityService
 
         $date = $value instanceof Carbon ? $value : Carbon::parse($value);
 
-        return $date->toIso8601String();
+        return $date->timezone(config('app.timezone'))->toIso8601String();
     }
 }

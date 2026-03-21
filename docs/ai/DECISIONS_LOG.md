@@ -252,3 +252,39 @@
 - One minor accessibility warning: "A form field element should have an id or name attribute" (3 instances) — frontend cosmetic, non-blocking
 - Rate limiting verified functional: test-smtp and test-imap correctly return 429 after 5 requests/minute
 - SMTP2GO health_status=warning is stale from a previous test when gateway was offline — not a current defect, will auto-clear on next successful test
+
+## Phase 8 — Advanced workflow validation and timezone fix
+
+### Real workflow chain validated
+- Entity creation chain: organization → contact → search/detail all consistent
+- Template CRUD: create → duplicate → update → delete all working
+- Draft creation with provider freezing: `outbound_provider` correctly frozen at creation time
+- Preflight: blocking/warning rules working correctly, POST method, provider readiness check
+- Test send via OVH MX Plan: real SMTP delivery to external inbox (ludovic.bellavia@gmail.com)
+- Real send (send-now): campaign created from draft, queued, dispatched, status→sent, SMTP response `250 2.0.0 Ok`
+- Open tracking: pixel download → `opened_first_at` set, recipient status updated to `opened`
+- Click tracking: redirect URL hit → `clicked_first_at` set, recipient status updated to `clicked`
+- Diagnostic events: full 10-event chain verified (preflight_ran → test_sent → campaign.created_from_draft → message.queued → draft.scheduled → message.sending → message.dispatch_requested → message.sent → message.opened → message.clicked), tracking tokens properly `[REDACTED]` in API
+- Cross-page data coherence verified: dashboard, activity, mails, campaigns, campaign detail — all showing consistent data
+
+### Timezone bug fix (cross-page timestamp coherence)
+- Root cause: `OutboundMailService::markSent()` parsed gateway UTC ISO8601 response (`accepted_at`) via `Carbon::parse()` without timezone conversion; SQLite strips timezone info on storage → UTC value stored as if it were local time; `immutable_datetime` cast assumes app timezone on read → displayed incorrectly
+- Fix applied to 3 locations:
+    - `OutboundMailService::markSent()` (line 394): `Carbon::parse($result['accepted_at'])->timezone(config('app.timezone'))` before storage
+    - `MailboxActivityService::formatDate()` (line 183): `$date->timezone(config('app.timezone'))->toIso8601String()` for defensive consistency
+    - `MailboxSyncService::normalizeDate()` (line 516): `->timezone(config('app.timezone'))` for inbound message dates from gateway
+- Test expectation updated: `MailboxSyncTest::test_in_reply_to_sync_matches_existing...` — `last_seen_at` assertion corrected from UTC `10:30:00` to Paris `11:30:00`
+- Tracking timestamps (`opened_first_at`, `clicked_first_at`) were NOT affected — they use `now()` which is already in app timezone
+- `DraftService::testSend()` was NOT affected — `acceptedAt` is only in the API response payload, never stored to DB
+- All 137 tests passing after fix (1704 assertions)
+- Visual confirmation: mails page, campaign detail, and activity page all display consistent `10h35` Paris time
+
+### SMTP2GO known issue
+- Test send via SMTP2GO failed with SSL error: `routines:tls_validate_record_header:wrong version number`
+- Config: host=`mail-eu.smtp2go.com`, port=587, `smtp_secure=false`
+- Diagnosis: SMTP2GO port 587 requires STARTTLS, but `smtp_secure=false` in `smtp_provider_accounts` likely causes the Node gateway to attempt plain connection followed by wrong TLS handshake
+- This is a configuration-only issue, not a code bug; SMTP2GO sends are not blocking for V1 (OVH MX Plan is the primary and verified provider)
+- Resolution deferred: correct `smtp_secure` value or adjust gateway STARTTLS handling when SMTP2GO relay becomes needed
+
+### Zero console errors
+- Verified across dashboard, contacts, templates, mails, campaigns, campaign detail, activity pages — zero JavaScript errors

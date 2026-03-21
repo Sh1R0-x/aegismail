@@ -391,7 +391,7 @@ class OutboundMailService
 
     private function markSent(MailMessage $message, MailRecipient $recipient, MailCampaign $campaign, array $result): void
     {
-        $sentAt = isset($result['accepted_at']) ? Carbon::parse($result['accepted_at']) : now();
+        $sentAt = isset($result['accepted_at']) ? Carbon::parse($result['accepted_at'])->timezone(config('app.timezone')) : now();
         $messageIdHeader = $result['message_id_header'] ?? $message->message_id_header;
         $headersJson = $this->mergeGatewayHeaders($message->headers_json ?? [], $result);
 

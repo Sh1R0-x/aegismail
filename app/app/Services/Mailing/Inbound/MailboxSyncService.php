@@ -513,7 +513,7 @@ class MailboxSyncService
             return null;
         }
 
-        return $value instanceof Carbon ? $value : Carbon::parse($value);
+        return ($value instanceof Carbon ? $value : Carbon::parse($value))->timezone(config('app.timezone'));
     }
 
     private function normalizeHeaderValue(mixed $value): ?string

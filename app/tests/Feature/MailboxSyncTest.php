@@ -131,7 +131,7 @@ class MailboxSyncTest extends TestCase
         $this->assertSame('cancelled', $queuedFollowUp->fresh()->status);
         $this->assertTrue($contact->fresh()->threads()->firstOrFail()->reply_received);
         $this->assertFalse($contact->fresh()->threads()->firstOrFail()->auto_reply_received);
-        $this->assertSame('2026-03-15 10:30:00', $contactEmail->fresh()->last_seen_at?->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-03-15 11:30:00', $contactEmail->fresh()->last_seen_at?->format('Y-m-d H:i:s'));
     }
 
     public function test_auto_reply_remains_distinct_from_human_reply_and_feeds_activity_timeline(): void
