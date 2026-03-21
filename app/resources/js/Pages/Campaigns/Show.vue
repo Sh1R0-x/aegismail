@@ -55,7 +55,7 @@
     />
 
     <div v-else class="space-y-6">
-      <section class="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <section class="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Statut</p>
           <div class="mt-2"><StatusBadge :status="campaign.status" /></div>
@@ -65,8 +65,20 @@
           <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.recipientCount }}</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Ouvertures</p>
+          <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.openCount }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Clics</p>
+          <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.clickCount }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Réponses</p>
           <p class="mt-2 text-sm font-bold text-slate-900">{{ campaign.replyCount }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Rebonds</p>
+          <p class="mt-2 text-sm font-bold" :class="campaign.bounceCount > 0 ? 'text-red-600' : 'text-slate-900'">{{ campaign.bounceCount }}</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Programmation</p>

@@ -239,6 +239,7 @@ Date format used by the current backend:
 - `progressPercent`: required integer
 - `recipientCount`: required integer
 - `openCount`: required integer
+- `clickCount`: required integer
 - `replyCount`: required integer
 - `bounceCount`: required integer
 - `scheduledAt`: nullable string

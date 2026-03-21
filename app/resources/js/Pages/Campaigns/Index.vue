@@ -51,6 +51,7 @@
             <th class="px-6 py-4">Progression</th>
             <th class="px-6 py-4">Destinataires</th>
             <th class="px-6 py-4">Ouvertures</th>
+            <th class="px-6 py-4">Clics</th>
             <th class="px-6 py-4">Réponses</th>
             <th class="px-6 py-4">Rebonds</th>
             <th class="px-6 py-4 text-right">Actions</th>
@@ -80,6 +81,7 @@
             </td>
             <td class="px-6 py-4 font-bold text-slate-600">{{ campaign.recipientCount }}</td>
             <td class="px-6 py-4 font-bold text-slate-600">{{ campaign.openCount }}</td>
+            <td class="px-6 py-4 font-bold text-slate-600">{{ campaign.clickCount }}</td>
             <td class="px-6 py-4 font-bold text-slate-600">{{ campaign.replyCount }}</td>
             <td class="px-6 py-4">
               <span v-if="campaign.bounceCount > 0" class="font-bold text-red-600">{{ campaign.bounceCount }}</span>
