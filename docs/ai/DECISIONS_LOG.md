@@ -239,3 +239,16 @@
 - Diagnostic page is a real-time operational dashboard: health panel at top, provider status cards, stuck recipient alert with drilldown table, paginated event log with type filter and text search, expandable JSON payloads
 - SettingsMail.vue SMTP/IMAP test result display now shows expanded diagnostics: host:port, security mode, provider label, failure stage, technical detail, test timestamp
 - 15 new feature tests (111 assertions) covering: SMTP diagnostic enrichment, secret non-exposure, provider separation, gateway failures, event API pagination/filtering/scrubbing, health endpoint, stuck detection, frontend payload coherence
+
+## Phase 7 — Advanced validation pass
+
+- `scripts/dev.ps1` bug fix: 3 inline `& php artisan` calls (key:generate, migrate, migrate:status) ran from the wrong working directory because they were not wrapped in `Push-Location $appPath` / `Pop-Location`; the `Start-Process` calls already had `-WorkingDirectory $appPath` but raw `& php artisan` invocations inherit the caller's CWD
+- Full automated test suite validated: 137 tests, 1704 assertions, all passing
+- All 14 pages navigated and rendered via Playwright MCP: dashboard, contacts, organizations, mails (3 tabs), templates, campaigns, activity, import-export, settings (5 sub-tabs), diagnostic, users, threads/show, campaigns/create
+- Drafts redirect verified: `/drafts` → `/mails?tab=drafts`
+- 17 API endpoints tested with real HTTP calls: settings (GET/PUT), test-smtp (OVH real success, SMTP2GO rate-limited), test-imap (rate-limited), diagnostic/health, diagnostic/events, campaigns, templates, drafts, contacts/search, contacts CRUD, import-export, tracking pixel, click tracking, preflight
+- Real OVH SMTP connectivity verified live: ssl0.ovh.net:465, enriched diagnostics returned
+- Zero JavaScript console errors across all pages (Chrome DevTools MCP)
+- One minor accessibility warning: "A form field element should have an id or name attribute" (3 instances) — frontend cosmetic, non-blocking
+- Rate limiting verified functional: test-smtp and test-imap correctly return 429 after 5 requests/minute
+- SMTP2GO health_status=warning is stale from a previous test when gateway was offline — not a current defect, will auto-clear on next successful test

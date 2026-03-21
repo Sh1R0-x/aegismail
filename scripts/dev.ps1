@@ -239,7 +239,9 @@ function Ensure-Environment {
     $envContent = Get-Content -Raw $envFile
 
     if ($envContent -notmatch '(?m)^APP_KEY=.+') {
+        Push-Location $appPath
         & php artisan key:generate --ansi --no-interaction | Out-Host
+        Pop-Location
     }
 
     if ($envContent -match '(?m)^DB_CONNECTION=sqlite\s*$') {
@@ -266,6 +268,7 @@ function Ensure-PortsAvailable {
 
 function Start-Services {
     Write-Step 'Migrations Laravel'
+    Push-Location $appPath
     & php artisan migrate --ansi --no-interaction | Out-Host
 
     # Verify no migrations remain pending after migrate (schema drift guard)
@@ -279,6 +282,7 @@ function Start-Services {
         Write-Host '  powershell -ExecutionPolicy Bypass -File .\scripts\reset-db.ps1' -ForegroundColor Yellow
         Write-Host ''
     }
+    Pop-Location
 
     Write-Step 'Demarrage du serveur Laravel'
     $laravelProcess = Start-Process php -ArgumentList 'artisan', 'serve', '--host=127.0.0.1', '--port=8001', '--no-reload' -WorkingDirectory $appPath -RedirectStandardOutput (Join-Path $logPath 'laravel.out.log') -RedirectStandardError (Join-Path $logPath 'laravel.err.log') -PassThru

@@ -5,6 +5,7 @@
 You are responsible only for the **frontend/UI/UX** side of AEGIS MAILING.
 
 You work on:
+
 - Inertia pages
 - Vue components
 - layouts
@@ -17,6 +18,7 @@ You work on:
 - frontend documentation
 
 You do **not** own:
+
 - backend architecture
 - database schema decisions
 - SMTP / IMAP / mail engine logic
@@ -40,6 +42,7 @@ Never skip the documentation phase.
 ## Frontend goals
 
 The app must feel like a clean CRM:
+
 - fixed left sidebar
 - clear top header
 - dense but readable information layout
@@ -64,6 +67,7 @@ The app must feel like a clean CRM:
 ## Required navigation
 
 Main navigation must support:
+
 - Tableau de bord (Dashboard)
 - Mails (unified hub: Envoyés, Brouillons, Programmés tabs)
 - Contacts
@@ -80,6 +84,7 @@ Drafts are no longer a separate navigation item — they live under `/mails?tab=
 ## Required status vocabulary
 
 Use these exact statuses consistently:
+
 - draft
 - scheduled
 - queued
@@ -101,6 +106,7 @@ Never rename statuses on the frontend.
 ## Frontend data contract discipline
 
 When a page needs backend data:
+
 - document the exact props expected
 - include required fields and nullable fields
 - do not invent backend data shape inconsistently between pages
@@ -111,6 +117,7 @@ Prefer explicit typed contracts and shared enums.
 ## File organization expectations
 
 Preferred areas:
+
 - `resources/js/Layouts`
 - `resources/js/Components`
 - `resources/js/Pages`
@@ -122,6 +129,7 @@ If you add a shared UI primitive, place it in a reusable location and document i
 ## Working method
 
 For every task:
+
 1. Read the docs first
 2. List impacted files
 3. Reuse existing components before adding new ones
@@ -134,6 +142,7 @@ Shared AI workflow rules live in `docs/ai/AI_WORKFLOW_METHOD.md`.
 ## Required output format in your delivery
 
 Always report:
+
 - files created
 - files modified
 - UI states covered
